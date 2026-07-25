@@ -351,21 +351,15 @@ def main():
         log_step("# 37. Klik Oke (Hasil penarikan dikirim)")
         
         # 37. Klik Oke (Hasil penarikan dikirim)
-        tap(533, 2310, jeda=1.9)
+        tap(533, 2310, jeda=0.5)
         
         # ==========================================
         # KEMBALI KE MULTI APP
         # ==========================================
-        print("Proses berhasil, langsung melompat ke Layar Home (Lebih Cepat)...")
-        log_step("# 38. Lakukan lompatan instan ke Layar Home")
-        # 38. Lakukan lompatan instan ke Layar Home
-        adb_command("shell input keyevent 3")
+        print("Proses berhasil, langsung membuka Multi App (Pemanggilan Paket)...")
+        log_step("# 38. Buka kembali Multi App Ultra (via Package Name)")
+        adb_command("shell monkey -p com.waxmoon.ma.gp -c android.intent.category.LAUNCHER 1")
         stoppable_sleep(1.0)
-        
-        log_step("# 39. Buka kembali Multi App Ultra dari Home")
-        
-        # 39. Buka kembali Multi App Ultra dari Home
-        tap(135, 500, jeda=1.5)
         
         log_step("# 40. Klik Titik Tiga (Menu Multi App)")
         
