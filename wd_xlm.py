@@ -89,8 +89,16 @@ def auto_detect_clone_number():
     xml_data = adb_command("shell cat /data/local/tmp/ui.xml")
     
     import re
-    # Ekstrak semua teks yang hanya berisi angka dan ambil nilai Y atasnya
-    matches = re.findall(r'text="(\d+)"(?:[^>]*?)bounds="\[\d+,(\d+)\]\[\d+,\d+\]"', xml_data)
+    matches = []
+    # Cari semua atribut di dalam tag <node ...>
+    nodes = re.findall(r'<node\s+(.*?)/?>', xml_data)
+    for attrs in nodes:
+        text_match = re.search(r'text="([^"]+)"', attrs)
+        bounds_match = re.search(r'bounds="\[\d+,(\d+)\]\[\d+,\d+\]"', attrs)
+        if text_match and bounds_match:
+            txt = text_match.group(1).strip()
+            if txt.isdigit():
+                matches.append((txt, bounds_match.group(1)))
     
     if matches:
         valid_matches = []
