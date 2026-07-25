@@ -52,6 +52,7 @@ def print_menu():
     if IS_TERMUX:
         print("5. KONEK ADB LOKAL (WIRELESS DEBUGGING)")
         print("6. INSTALL/UPDATE DEPENDENCIES")
+        print("7. BUKA PENGATURAN DEVELOPER (Shortcut)")
     else:
         print("5. KONEK ADB & SCRCPY (KHUSUS PC)")
     print("0. EXIT")
@@ -159,7 +160,7 @@ def main():
     while True:
         print_menu()
         if IS_TERMUX:
-            pilihan = input("Pilih menu (0-6): ").strip()
+            pilihan = input("Pilih menu (0-7): ").strip()
         else:
             pilihan = input("Pilih menu (0-5): ").strip()
         
@@ -202,6 +203,13 @@ def main():
         elif pilihan == '6' and IS_TERMUX:
             clear_screen()
             os.system('bash setup.sh')
+            print("\n")
+            input("Tekan Enter untuk kembali ke menu...")
+            
+        elif pilihan == '7' and IS_TERMUX:
+            clear_screen()
+            print("[*] Membuka Pengaturan Developer di HP Anda...")
+            os.system('am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS')
             print("\n")
             input("Tekan Enter untuk kembali ke menu...")
             
