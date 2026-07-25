@@ -77,9 +77,11 @@ def konek_adb_scrcpy():
     print("1. ADB USB/WiFi + Buka Layar (SCRCPY)")
     print("2. Hanya Buka Layar (SCRCPY)")
     print("3. Hanya Konek ADB via IP (WiFi)")
+    print("4. Auto-Setup Wireless (Colok USB sebentar) - DIREKOMENDASIKAN")
+    print("5. Pairing Perangkat Baru (Khusus Android 11+)")
     print("0. Batal")
     
-    pil = input("\nPilih mode (0-3): ").strip()
+    pil = input("\nPilih mode (0-5): ").strip()
     
     if pil == '1':
         ip = input("Masukkan IP:PORT HP (Cek Developer Options, misal 192.168.x.x:41234).\nKosongkan jika pakai kabel USB: ").strip()
@@ -105,7 +107,31 @@ def konek_adb_scrcpy():
             print(f"[*] Mencoba koneksi ke {ip}...")
             os.system(f'adb connect {ip}')
             
-    if pil in ['1', '2', '3']:
+    elif pil == '4':
+        print("\n=== AUTO-SETUP WIRELESS ===")
+        print("Syarat: Sambungkan HP ke PC pakai Kabel USB sebentar saja.")
+        input("Tekan Enter jika KABEL USB SUDAH TERSAMBUNG...")
+        
+        print("\n[*] Menyetel ulang port ADB ke 5555...")
+        os.system('adb tcpip 5555')
+        
+        print("\n[!] SUKSES! Sekarang CABUT KABEL USB Anda.")
+        ip = input("Masukkan IP HP Anda (misal 192.168.2.176): ").strip()
+        if ip:
+            print(f"[*] Mencoba koneksi Nirkabel ke {ip}:5555...")
+            os.system(f'adb connect {ip}:5555')
+            
+    elif pil == '5':
+        print("\n=== PAIRING ANDROID 11+ ===")
+        print("1. Buka Opsi Developer -> Proses Debug Nirkabel.")
+        print("2. Klik 'Pasangkan perangkat dengan kode penyandingan'.")
+        print("3. Lihat Alamat IP & Port, dan 6 digit Kode.")
+        ip_port = input("Masukkan IP:PORT Pairing (misal 192.168.x.x:35612): ").strip()
+        code = input("Masukkan 6 Digit Kode Pairing: ").strip()
+        if ip_port and code:
+            os.system(f'adb pair {ip_port} {code}')
+            
+    if pil in ['1', '2', '3', '4', '5']:
         input("\nProses selesai. Tekan Enter untuk kembali ke menu...")
 
 def main():
