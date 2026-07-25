@@ -213,7 +213,7 @@ def main():
         
         # 0. Scroll layar Multi App agar clone berikutnya naik ke atas
         print("Menggeser layar Multi App Ultra...")
-        swipe(546, 820, 546, 500, duration=1000, jeda=1.0)
+        swipe(546, 820, 546, 500, duration=1200, jeda=1.0)
         
         current_account_num = START_INDEX + i
         print(f"\n========== MEMPROSES AKUN KE-{current_account_num} ==========")
