@@ -82,7 +82,7 @@ def konek_adb_scrcpy():
     pil = input("\nPilih mode (0-3): ").strip()
     
     if pil == '1':
-        ip = input("Masukkan IP HP (Kosongkan jika pakai USB): ").strip()
+        ip = input("Masukkan IP:PORT HP (Cek Developer Options, misal 192.168.x.x:41234).\nKosongkan jika pakai kabel USB: ").strip()
         if ip:
             print(f"[*] Mencoba koneksi ke {ip}...")
             os.system(f'adb connect {ip}')
@@ -100,7 +100,7 @@ def konek_adb_scrcpy():
             os.system('scrcpy &')
             
     elif pil == '3':
-        ip = input("Masukkan IP HP: ").strip()
+        ip = input("Masukkan IP:PORT HP (misal 192.168.x.x:41234): ").strip()
         if ip:
             print(f"[*] Mencoba koneksi ke {ip}...")
             os.system(f'adb connect {ip}')
