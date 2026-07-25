@@ -112,8 +112,9 @@ def konek_adb_scrcpy():
         print("Syarat: Sambungkan HP ke PC pakai Kabel USB sebentar saja.")
         input("Tekan Enter jika KABEL USB SUDAH TERSAMBUNG...")
         
-        print("\n[*] Menyetel ulang port ADB ke 5555...")
-        os.system('adb tcpip 5555')
+        print("\n[*] Membersihkan koneksi lama dan menyetel port USB ke 5555...")
+        os.system('adb disconnect')
+        os.system('adb -d tcpip 5555')
         
         print("\n[!] SUKSES! Sekarang CABUT KABEL USB Anda.")
         ip = input("Masukkan IP HP Anda (misal 192.168.2.176): ").strip()
