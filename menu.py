@@ -1,8 +1,14 @@
 import os
 import json
 import sys
+import time
 
 CONFIG_FILE = 'config.json'
+
+# Tambahkan path folder scrcpy ke environment variables agar dikenali otomatis
+SCRCPY_PATH = os.path.join(os.getcwd(), "templates", "scrcpy-win64-v3.3.3")
+if os.path.exists(SCRCPY_PATH):
+    os.environ["PATH"] += os.pathsep + SCRCPY_PATH
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
