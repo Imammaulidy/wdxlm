@@ -13,3 +13,6 @@ venv/
 # Lainnya
 *.log
 .DS_Store
+
+# Konfigurasi aplikasi pihak ketiga (QtScrcpy)
+config/
