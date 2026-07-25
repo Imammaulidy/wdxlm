@@ -16,18 +16,12 @@ echo "[2/4] Menginstal Python, NMAP, dan ADB (Android Tools)..."
 pkg install python nmap android-tools -y
 
 echo ""
-echo "[3/4] Menginstal dependensi Python dari requirements.txt..."
-pip install -r requirements.txt
-
-echo ""
-echo "[4/4] Setup Selesai!"
+echo "[3/4] Setup Selesai!"
 echo "========================================================="
 echo "Cara menggunakan Bot secara Nirkabel (Wireless) di Termux:"
 echo "1. Aktifkan 'Proses Debug Nirkabel' (Wireless Debugging) di Pengaturan Developer HP Anda."
 echo "2. Buka kembali Termux dan ketik perintah ini untuk mencari port otomatis:"
-echo "   python konek_adb.py"
+echo "   python termux/konek_adb.py"
 echo "3. Jika sudah tertulis SUKSES terkoneksi, jalankan bot dengan:"
 echo "   python wd_xlm.py"
-echo "   Atau jalankan Web Dashboard dengan:"
-echo "   python app.py"
 echo "========================================================="
