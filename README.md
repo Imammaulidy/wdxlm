@@ -37,10 +37,10 @@ Buka aplikasi Termux Anda, lalu jalankan perintah di bawah ini secara berurutan:
    ```
 3. **Jalankan Installer & Buka Menu Utama:**
    ```bash
-   bash MENU_TERMUX.sh
+   bash termux.sh
    ```
 4. **Cara Penggunaan di Termux:**
-   - Di dalam `MENU_TERMUX.sh`, pilih **Opsi 1** untuk menginstal modul pertama kali.
+   - Di dalam `termux.sh`, pilih **Opsi 1** untuk menginstal modul pertama kali.
    - Pilih **Opsi 2** untuk mengkoneksikan ADB Nirkabel secara otomatis.
    - Pilih **Opsi 3** untuk menjalankan Bot WD Massal.
 

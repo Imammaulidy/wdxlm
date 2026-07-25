@@ -14,7 +14,7 @@ while true; do
     case $pilihan in
         1)
             echo ""
-            bash setup_termux.sh
+            bash setup.sh
             echo ""
             read -p "Tekan Enter untuk kembali ke menu..."
             ;;
