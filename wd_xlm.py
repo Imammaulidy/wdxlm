@@ -9,15 +9,27 @@ if platform.system() == "Windows":
     import msvcrt
 
 def stoppable_sleep(jeda):
-    """Tunggu selama 'jeda' detik. Jika di Windows dan ENTER ditekan, hentikan script seketika."""
+    """Tunggu selama 'jeda' detik. Jika di Windows dan ENTER ditekan, PAUSE script."""
     end_time = time.time() + jeda
     while time.time() < end_time:
         if platform.system() == "Windows":
             if msvcrt.kbhit():
                 key = msvcrt.getch()
                 if key in (b'\r', b'\n'):
-                    print("\n\n[!!!] EKSEKUSI DIHENTIKAN PAKSA OLEH PENGGUNA (TOMBOL ENTER DITEKAN) [!!!]")
-                    sys.exit(0)
+                    sisa_waktu = end_time - time.time()
+                    print("\n\n[!!!] PROGRAM DIPAUSE (TOMBOL ENTER DITEKAN) [!!!]")
+                    print("Silakan perbaiki posisi layar HP Anda (jika tadi meleset/telat).")
+                    print(" --> Tekan ENTER lagi untuk MELANJUTKAN")
+                    print(" --> Tekan tombol 'Q' untuk BERHENTI TOTAL")
+                    while True:
+                        resume_key = msvcrt.getch()
+                        if resume_key in (b'\r', b'\n'):
+                            print("\n[>] MELANJUTKAN PROSES...\n")
+                            end_time = time.time() + sisa_waktu
+                            break
+                        elif resume_key in (b'q', b'Q', b'x', b'X'):
+                            print("\n[X] EKSEKUSI DIHENTIKAN PAKSA OLEH PENGGUNA.")
+                            sys.exit(0)
         time.sleep(0.05)
 
 # Gunakan perintah adb global (telah di-inject oleh menu.py)
