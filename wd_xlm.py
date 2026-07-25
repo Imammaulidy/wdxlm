@@ -177,22 +177,10 @@ def main():
     valid_devices = [line.split()[0] for line in devices.splitlines() if 'device' in line and not line.startswith('List')]
     
     if len(valid_devices) > 1:
-        print("\n[!] Ditemukan lebih dari 1 perangkat yang terkoneksi:")
-        for idx, dev in enumerate(valid_devices):
-            print(f"  {idx + 1}. {dev}")
-        pilih = input(f"Ketik nomor perangkat yang ingin digunakan (1-{len(valid_devices)}): ").strip()
-        try:
-            pilih_idx = int(pilih) - 1
-            if 0 <= pilih_idx < len(valid_devices):
-                os.environ['ANDROID_SERIAL'] = valid_devices[pilih_idx]
-                print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[pilih_idx]}\n")
-            else:
-                raise ValueError
-        except:
-            os.environ['ANDROID_SERIAL'] = valid_devices[0]
-            print(f"[*] Pilihan tidak valid, menggunakan perangkat pertama: {valid_devices[0]}\n")
-            
-    elif valid_devices:
+        non_mdns = [d for d in valid_devices if not d.startswith('adb-')]
+        if non_mdns:
+            valid_devices = non_mdns
+    if valid_devices:
         os.environ['ANDROID_SERIAL'] = valid_devices[0]
         print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}\n")
     
@@ -209,6 +197,14 @@ def main():
     inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter untuk {START_INDEX}): ").strip()
     if inp_start.isdigit():
         START_INDEX = int(inp_start)
+        
+    # Simpan index berikutnya ke config.json agar diingat pada eksekusi selanjutnya
+    config["start_index"] = START_INDEX + TOTAL_AKUN
+    try:
+        with open('config.json', 'w') as f:
+            json.dump(config, f, indent=4)
+    except Exception as e:
+        pass
     
     print(f"\n[*] PROSES DIMULAI DARI CLONE KE-{START_INDEX} ...\n")
     
