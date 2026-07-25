@@ -20,12 +20,8 @@ def stoppable_sleep(jeda):
                     sys.exit(0)
         time.sleep(0.05)
 
-# Deteksi Otomatis Lingkungan Eksekusi (Windows Lokal vs Linux VPS)
-if platform.system() == "Windows":
-    ADB_PATH = r"C:\Users\fajar\Downloads\php\libraries\adb.exe"
-else:
-    # Jika berjalan di Linux (VPS), gunakan command adb native yang diinstal di sistem
-    ADB_PATH = "adb"
+# Gunakan perintah adb global (telah di-inject oleh menu.py)
+ADB_PATH = "adb"
 
 def adb_command(command):
     """Menjalankan perintah ADB dan mengembalikan outputnya."""

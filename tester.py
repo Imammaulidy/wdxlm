@@ -1,8 +1,8 @@
 import subprocess
 import time
 
-# Sesuaikan lokasi adb.exe Anda di sini
-ADB_PATH = r"C:\Users\fajar\Downloads\php\libraries\adb.exe"
+# Gunakan perintah adb global (telah di-inject oleh menu.py)
+ADB_PATH = "adb"
 
 def adb_command(command):
     subprocess.run(f'"{ADB_PATH}" {command}', shell=True)
