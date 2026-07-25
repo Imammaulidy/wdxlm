@@ -131,8 +131,10 @@ def main():
             input("Selesai. Tekan Enter untuk kembali ke menu...")
             
         elif pilihan == '4':
-            # Hanya clear screen dan loop lagi
-            continue
+            clear_screen()
+            print("[*] Merestart ulang sistem Menu Utama...")
+            time.sleep(1)
+            os.execv(sys.executable, ['python'] + sys.argv)
             
         elif pilihan == '5':
             konek_adb_scrcpy()
