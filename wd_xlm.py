@@ -103,6 +103,16 @@ def main():
         sys.exit()
     print(f"Connected devices:\n{devices}")
     
+    # Ambil perangkat pertama yang valid untuk menghindari error 'more than one device'
+    valid_devices = [line.split()[0] for line in devices.splitlines() if 'device' in line and not line.startswith('List')]
+    if len(valid_devices) > 1:
+        non_mdns = [d for d in valid_devices if not d.startswith('adb-')]
+        if non_mdns:
+            valid_devices = non_mdns
+    if valid_devices:
+        os.environ['ANDROID_SERIAL'] = valid_devices[0]
+        print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}")
+    
     # Konfigurasi Looping
     TOTAL_AKUN = config.get("total_akun", 5)
     ALAMAT_WD = config.get("alamat_wd", "")

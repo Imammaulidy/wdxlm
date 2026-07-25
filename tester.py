@@ -1,13 +1,26 @@
 import subprocess
 import time
 
+import os
+
 # Gunakan perintah adb global (telah di-inject oleh menu.py)
 ADB_PATH = "adb"
 
 def adb_command(command):
-    subprocess.run(f'"{ADB_PATH}" {command}', shell=True)
+    result = subprocess.run(f'"{ADB_PATH}" {command}', shell=True, capture_output=True, text=True)
+    return result.stdout.strip()
 
 def main():
+    # Cek device dan set environment variable
+    devices = adb_command("devices")
+    valid_devices = [line.split()[0] for line in devices.splitlines() if 'device' in line and not line.startswith('List')]
+    if len(valid_devices) > 1:
+        non_mdns = [d for d in valid_devices if not d.startswith('adb-')]
+        if non_mdns:
+            valid_devices = non_mdns
+    if valid_devices:
+        os.environ['ANDROID_SERIAL'] = valid_devices[0]
+
     print("=========================================================")
     print("                  TESTER & RECORDER BOT                  ")
     print("=========================================================")
