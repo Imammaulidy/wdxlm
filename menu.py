@@ -19,8 +19,14 @@ def clear_screen():
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
-        print("Error: config.json tidak ditemukan!")
-        sys.exit(1)
+        if os.path.exists('config.example.json'):
+            import shutil
+            shutil.copy('config.example.json', CONFIG_FILE)
+            print("[*] config.json baru berhasil dibuat dari template otomatis!")
+            time.sleep(1)
+        else:
+            print("Error: config.json dan config.example.json tidak ditemukan!")
+            sys.exit(1)
     with open(CONFIG_FILE, 'r') as f:
         return json.load(f)
 
