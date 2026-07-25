@@ -35,14 +35,14 @@ Buka aplikasi Termux Anda, lalu jalankan perintah di bawah ini secara berurutan:
    git clone https://github.com/imammaulidy/wdxlm.git
    cd wdxlm
    ```
-3. **Jalankan Installer otomatis:**
+3. **Jalankan Installer & Buka Menu Utama:**
    ```bash
-   bash setup_termux.sh
+   bash MENU_TERMUX.sh
    ```
 4. **Cara Penggunaan di Termux:**
-   - Nyalakan **Proses Debug Nirkabel** (Wireless Debugging) di Pengaturan Developer HP Anda.
-   - Sambungkan ADB secara lokal dengan perintah: `python termux/konek_adb.py`
-   - Jika sudah terkoneksi, mulai proses WD massal dengan: `python wd_xlm.py`
+   - Di dalam `MENU_TERMUX.sh`, pilih **Opsi 1** untuk menginstal modul pertama kali.
+   - Pilih **Opsi 2** untuk mengkoneksikan ADB Nirkabel secara otomatis.
+   - Pilih **Opsi 3** untuk menjalankan Bot WD Massal.
 
 ---
 
