@@ -1,0 +1,15 @@
+# Mengabaikan file sensitif yang berisi Address dan PIN pribadi
+config.json
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Lingkungan Virtual Python
+venv/
+.env
+
+# Lainnya
+*.log
+.DS_Store
