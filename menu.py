@@ -33,6 +33,7 @@ def print_menu():
     print("2. GANTI ADDRESS PENERIMA DAN PIN")
     print("3. REKAM JEDA (PENYESUAIAN JEDA LAGI)")
     print("4. RESTART TERMINAL")
+    print("5. KONEK ADB & SCRCPY (KHUSUS PC)")
     print("0. EXIT")
     print("=========================================================")
 
@@ -64,10 +65,47 @@ def ganti_pengaturan():
     print("\n[!] Pengaturan berhasil disimpan!")
     input("Tekan Enter untuk kembali ke menu...")
 
+def konek_adb_scrcpy():
+    clear_screen()
+    print(">>> KONEKSI ADB & SCRCPY (PC) <<<\n")
+    print("1. ADB USB/WiFi + Buka Layar (SCRCPY)")
+    print("2. Hanya Buka Layar (SCRCPY)")
+    print("3. Hanya Konek ADB via IP (WiFi)")
+    print("0. Batal")
+    
+    pil = input("\nPilih mode (0-3): ").strip()
+    
+    if pil == '1':
+        ip = input("Masukkan IP HP (Kosongkan jika pakai USB): ").strip()
+        if ip:
+            print(f"[*] Mencoba koneksi ke {ip}...")
+            os.system(f'adb connect {ip}')
+        print("[*] Menjalankan SCRCPY...")
+        if os.name == 'nt':
+            os.system('start /B scrcpy')
+        else:
+            os.system('scrcpy &')
+            
+    elif pil == '2':
+        print("[*] Menjalankan SCRCPY...")
+        if os.name == 'nt':
+            os.system('start /B scrcpy')
+        else:
+            os.system('scrcpy &')
+            
+    elif pil == '3':
+        ip = input("Masukkan IP HP: ").strip()
+        if ip:
+            print(f"[*] Mencoba koneksi ke {ip}...")
+            os.system(f'adb connect {ip}')
+            
+    if pil in ['1', '2', '3']:
+        input("\nProses selesai. Tekan Enter untuk kembali ke menu...")
+
 def main():
     while True:
         print_menu()
-        pilihan = input("Pilih menu (0-4): ").strip()
+        pilihan = input("Pilih menu (0-5): ").strip()
         
         if pilihan == '1':
             clear_screen()
@@ -89,6 +127,9 @@ def main():
         elif pilihan == '4':
             # Hanya clear screen dan loop lagi
             continue
+            
+        elif pilihan == '5':
+            konek_adb_scrcpy()
             
         elif pilihan == '0':
             clear_screen()
