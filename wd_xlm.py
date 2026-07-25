@@ -127,13 +127,26 @@ def main():
     
     # Ambil perangkat pertama yang valid untuk menghindari error 'more than one device'
     valid_devices = [line.split()[0] for line in devices.splitlines() if 'device' in line and not line.startswith('List')]
+    
     if len(valid_devices) > 1:
-        non_mdns = [d for d in valid_devices if not d.startswith('adb-')]
-        if non_mdns:
-            valid_devices = non_mdns
-    if valid_devices:
+        print("\n[!] Ditemukan lebih dari 1 perangkat yang terkoneksi:")
+        for idx, dev in enumerate(valid_devices):
+            print(f"  {idx + 1}. {dev}")
+        pilih = input(f"Ketik nomor perangkat yang ingin digunakan (1-{len(valid_devices)}): ").strip()
+        try:
+            pilih_idx = int(pilih) - 1
+            if 0 <= pilih_idx < len(valid_devices):
+                os.environ['ANDROID_SERIAL'] = valid_devices[pilih_idx]
+                print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[pilih_idx]}\n")
+            else:
+                raise ValueError
+        except:
+            os.environ['ANDROID_SERIAL'] = valid_devices[0]
+            print(f"[*] Pilihan tidak valid, menggunakan perangkat pertama: {valid_devices[0]}\n")
+            
+    elif valid_devices:
         os.environ['ANDROID_SERIAL'] = valid_devices[0]
-        print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}")
+        print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}\n")
     
     # Konfigurasi Looping
     TOTAL_AKUN = config.get("total_akun", 5)
