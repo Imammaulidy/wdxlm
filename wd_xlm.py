@@ -19,25 +19,48 @@ def stoppable_sleep(jeda):
     """Tunggu selama 'jeda' detik. Jika di Windows dan ENTER ditekan, PAUSE script."""
     end_time = time.time() + jeda
     while time.time() < end_time:
+        paused = False
         if platform.system() == "Windows":
             if msvcrt.kbhit():
                 key = msvcrt.getch()
                 if key in (b'\r', b'\n'):
-                    sisa_waktu = end_time - time.time()
-                    print("\n\n[!!!] PROGRAM DIPAUSE (TOMBOL ENTER DITEKAN) [!!!]")
-                    print(f"[*] POSISI TERAKHIR: {current_step_info}")
-                    print("Silakan perbaiki posisi layar HP Anda agar sesuai dengan langkah di atas.")
-                    print(" --> Tekan ENTER lagi untuk MELANJUTKAN")
-                    print(" --> Tekan tombol 'Q' untuk BERHENTI TOTAL")
-                    while True:
-                        resume_key = msvcrt.getch()
-                        if resume_key in (b'\r', b'\n'):
-                            print("\n[>] MELANJUTKAN PROSES...\n")
-                            end_time = time.time() + sisa_waktu
-                            break
-                        elif resume_key in (b'q', b'Q', b'x', b'X'):
+                    paused = True
+        else:
+            import select
+            i, o, e = select.select([sys.stdin], [], [], 0)
+            if i:
+                sys.stdin.readline() # consume the input
+                paused = True
+                
+        if paused:
+            sisa_waktu = end_time - time.time()
+            print("\n\n[!!!] PROGRAM DIPAUSE (TOMBOL ENTER DITEKAN) [!!!]")
+            print(f"[*] POSISI TERAKHIR: {current_step_info}")
+            print("Silakan perbaiki posisi layar HP Anda agar sesuai dengan langkah di atas.")
+            print(" --> Tekan ENTER lagi untuk MELANJUTKAN")
+            print(" --> Ketik 'Q' lalu ENTER untuk BERHENTI TOTAL")
+            while True:
+                if platform.system() == "Windows":
+                    resume_key = msvcrt.getch()
+                    if resume_key in (b'\r', b'\n'):
+                        break
+                    elif resume_key in (b'q', b'Q', b'x', b'X'):
+                        print("\n[X] EKSEKUSI DIHENTIKAN PAKSA OLEH PENGGUNA.")
+                        sys.exit(0)
+                else:
+                    import select
+                    i, o, e = select.select([sys.stdin], [], [], 0.1)
+                    if i:
+                        resume_key = sys.stdin.readline().strip().lower()
+                        if resume_key in ('q', 'x'):
                             print("\n[X] EKSEKUSI DIHENTIKAN PAKSA OLEH PENGGUNA.")
                             sys.exit(0)
+                        else:
+                            break
+            
+            print("\n[>] MELANJUTKAN PROSES...\n")
+            end_time = time.time() + sisa_waktu
+            
         time.sleep(0.05)
 
 # Gunakan perintah adb global (telah di-inject oleh menu.py)
@@ -58,6 +81,37 @@ def tap(x, y, jeda=1.0):
     print(f"Tapping at ({x}, {y}) - Waiting {jeda}s")
     adb_command(f"shell input tap {x} {y}")
     stoppable_sleep(jeda)
+
+def auto_detect_clone_number():
+    """Menggunakan uiautomator untuk membaca nomor clone terdekat dari titik klik (Y=423)."""
+    print("\n[*] (AI Pintar) Membaca layar untuk mencari nomor urut clone...")
+    adb_command("shell uiautomator dump /data/local/tmp/ui.xml")
+    xml_data = adb_command("shell cat /data/local/tmp/ui.xml")
+    
+    import re
+    # Ekstrak semua teks yang hanya berisi angka dan ambil nilai Y atasnya
+    matches = re.findall(r'text="(\d+)"(?:[^>]*?)bounds="\[\d+,(\d+)\]\[\d+,\d+\]"', xml_data)
+    
+    if matches:
+        valid_matches = []
+        for num_str, y_str in matches:
+            num = int(num_str)
+            y = int(y_str)
+            # Filter angka logis dan hindari status bar (y < 100)
+            if 1 <= num <= 9999 and y > 100:
+                # Titik klik kita ada di Y=423, cari angka yang letaknya paling dekat dengan 423
+                jarak = abs(y - 423)
+                valid_matches.append((num, jarak))
+        
+        if valid_matches:
+            # Urutkan dari yang jaraknya paling dekat
+            valid_matches.sort(key=lambda x: x[1])
+            best_match = valid_matches[0][0]
+            print(f"[+] Berhasil! AI mendeteksi Anda akan mengklik Clone ke-{best_match}")
+            return best_match
+            
+    print("[-] AI gagal mendeteksi nomor di layar. Menggunakan urutan default.")
+    return None
 
 def swipe(x1, y1, x2, y2, duration=500, jeda=1.0):
     """Simulasi geser (swipe) pada layar."""
@@ -158,14 +212,20 @@ def main():
     START_INDEX = config.get("start_index", 51) 
     
     for i in range(TOTAL_AKUN):
-        current_account_num = START_INDEX + i
-        print(f"\n========== MEMPROSES AKUN KE-{current_account_num} ==========")
-        
         log_step("# 0. Scroll layar Multi App agar clone berikutnya naik ke atas")
         
         # 0. Scroll layar Multi App agar clone berikutnya naik ke atas
         print("Menggeser layar Multi App Ultra...")
         swipe(546, 820, 546, 500, duration=1000, jeda=1.0)
+        
+        # --- AI PINTAR (Hanya di loop pertama) ---
+        if i == 0:
+            ai_number = auto_detect_clone_number()
+            if ai_number is not None:
+                START_INDEX = ai_number
+                
+        current_account_num = START_INDEX + i
+        print(f"\n========== MEMPROSES AKUN KE-{current_account_num} ==========")
         
         log_step("# 1. KLIK BITGET (Buka clone aplikasi dari Multi App)")
         
