@@ -5,10 +5,14 @@ import time
 
 CONFIG_FILE = 'config.json'
 
-# Tambahkan path folder scrcpy ke environment variables agar dikenali otomatis
-SCRCPY_PATH = os.path.join(os.getcwd(), "templates", "QtScrcpy-win-x64-v3.3.3")
-if os.path.exists(SCRCPY_PATH):
-    os.environ["PATH"] += os.pathsep + SCRCPY_PATH
+# Deteksi apakah berjalan di Termux
+IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
+
+# Tambahkan path folder scrcpy ke environment variables agar dikenali otomatis (hanya untuk PC)
+if not IS_TERMUX:
+    SCRCPY_PATH = os.path.join(os.getcwd(), "templates", "QtScrcpy-win-x64-v3.3.3")
+    if os.path.exists(SCRCPY_PATH):
+        os.environ["PATH"] += os.pathsep + SCRCPY_PATH
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -39,7 +43,11 @@ def print_menu():
     print("2. GANTI ADDRESS PENERIMA DAN PIN")
     print("3. REKAM JEDA (PENYESUAIAN JEDA LAGI)")
     print("4. RESTART TERMINAL")
-    print("5. KONEK ADB & SCRCPY (KHUSUS PC)")
+    if IS_TERMUX:
+        print("5. KONEK ADB LOKAL (WIRELESS DEBUGGING)")
+        print("6. INSTALL/UPDATE DEPENDENCIES")
+    else:
+        print("5. KONEK ADB & SCRCPY (KHUSUS PC)")
     print("0. EXIT")
     print("=========================================================")
 
@@ -144,7 +152,10 @@ def konek_adb_scrcpy():
 def main():
     while True:
         print_menu()
-        pilihan = input("Pilih menu (0-5): ").strip()
+        if IS_TERMUX:
+            pilihan = input("Pilih menu (0-6): ").strip()
+        else:
+            pilihan = input("Pilih menu (0-5): ").strip()
         
         if pilihan == '1':
             clear_screen()
@@ -170,7 +181,23 @@ def main():
             os.execv(sys.executable, ['python'] + sys.argv)
             
         elif pilihan == '5':
-            konek_adb_scrcpy()
+            if IS_TERMUX:
+                clear_screen()
+                print("=========================================================")
+                print("SYARAT: Nyalakan 'Proses Debug Nirkabel' (Wireless Debugging)")
+                print("di Pengaturan Developer HP Anda sebelum melanjutkan.")
+                print("=========================================================")
+                os.system('python termux/konek_adb.py')
+                print("\n")
+                input("Tekan Enter untuk kembali ke menu...")
+            else:
+                konek_adb_scrcpy()
+                
+        elif pilihan == '6' and IS_TERMUX:
+            clear_screen()
+            os.system('bash setup.sh')
+            print("\n")
+            input("Tekan Enter untuk kembali ke menu...")
             
         elif pilihan == '0':
             clear_screen()
