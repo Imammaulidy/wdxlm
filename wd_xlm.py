@@ -53,13 +53,34 @@ def stoppable_sleep(jeda):
                     if i:
                         resume_key = sys.stdin.readline().strip().lower()
                         if resume_key in ('q', 'x'):
+                            print("\n[>] MELANJUTKAN PROSES DALAM 3 DETIK...")
+                            print("[!] SEGERA TUTUP KEYBOARD ATAU KEMBALI KE APLIKASI!")
+                            time.sleep(1)
+                            print("3...")
+                            time.sleep(1)
+                            print("2...")
+                            time.sleep(1)
+                            print("1...")
+                            time.sleep(1)
+                            print("GO!\n")
+                            end_time = time.time() + sisa_waktu
+                            break
+                        elif resume_key in ('q', 'x'):
                             print("\n[X] EKSEKUSI DIHENTIKAN PAKSA OLEH PENGGUNA.")
                             sys.exit(0)
                         else:
+                            print("\n[>] MELANJUTKAN PROSES DALAM 3 DETIK...")
+                            print("[!] SEGERA TUTUP KEYBOARD ATAU KEMBALI KE APLIKASI!")
+                            time.sleep(1)
+                            print("3...")
+                            time.sleep(1)
+                            print("2...")
+                            time.sleep(1)
+                            print("1...")
+                            time.sleep(1)
+                            print("GO!\n")
+                            end_time = time.time() + sisa_waktu
                             break
-            
-            print("\n[>] MELANJUTKAN PROSES...\n")
-            end_time = time.time() + sisa_waktu
             
         time.sleep(0.05)
 
@@ -83,43 +104,8 @@ def tap(x, y, jeda=1.0):
     stoppable_sleep(jeda)
 
 def auto_detect_clone_number():
-    """Menggunakan uiautomator untuk membaca nomor clone terdekat dari titik klik (Y=423)."""
-    print("\n[*] (AI Pintar) Membaca layar untuk mencari nomor urut clone...")
-    adb_command("shell uiautomator dump /data/local/tmp/ui.xml")
-    xml_data = adb_command("shell cat /data/local/tmp/ui.xml")
-    
-    import re
-    matches = []
-    # Cari semua atribut di dalam tag <node ...>
-    nodes = re.findall(r'<node\s+(.*?)/?>', xml_data)
-    for attrs in nodes:
-        text_match = re.search(r'text="([^"]+)"', attrs)
-        bounds_match = re.search(r'bounds="\[\d+,(\d+)\]\[\d+,\d+\]"', attrs)
-        if text_match and bounds_match:
-            txt = text_match.group(1).strip()
-            if txt.isdigit():
-                matches.append((txt, bounds_match.group(1)))
-    
-    if matches:
-        valid_matches = []
-        for num_str, y_str in matches:
-            num = int(num_str)
-            y = int(y_str)
-            # Filter angka logis dan hindari status bar (y < 100)
-            if 1 <= num <= 9999 and y > 100:
-                # Titik klik kita ada di Y=423, cari angka yang letaknya paling dekat dengan 423
-                jarak = abs(y - 423)
-                valid_matches.append((num, jarak))
-        
-        if valid_matches:
-            # Urutkan dari yang jaraknya paling dekat
-            valid_matches.sort(key=lambda x: x[1])
-            best_match = valid_matches[0][0]
-            print(f"[+] Berhasil! AI mendeteksi Anda akan mengklik Clone ke-{best_match}")
-            return best_match
-            
-    print("[-] AI gagal mendeteksi nomor di layar. Menggunakan urutan default.")
-    return None
+    # Fitur AI Dinonaktifkan sementara karena limitasi pembacaan UI Android
+    pass
 
 def swipe(x1, y1, x2, y2, duration=500, jeda=1.0):
     """Simulasi geser (swipe) pada layar."""
@@ -217,7 +203,14 @@ def main():
     KEYPAD = config.get("keypad_coords", {})
     
     # Nomor Urut Awal untuk Penamaan di Google Authenticator
-    START_INDEX = config.get("start_index", 51) 
+    START_INDEX = config.get("start_index", 51)
+    
+    print(f"\n[?] Bot akan memproses {TOTAL_AKUN} akun sekaligus.")
+    inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter untuk {START_INDEX}): ").strip()
+    if inp_start.isdigit():
+        START_INDEX = int(inp_start)
+    
+    print(f"\n[*] PROSES DIMULAI DARI CLONE KE-{START_INDEX} ...\n")
     
     for i in range(TOTAL_AKUN):
         log_step("# 0. Scroll layar Multi App agar clone berikutnya naik ke atas")
@@ -226,12 +219,6 @@ def main():
         print("Menggeser layar Multi App Ultra...")
         swipe(546, 820, 546, 500, duration=1000, jeda=1.0)
         
-        # --- AI PINTAR (Hanya di loop pertama) ---
-        if i == 0:
-            ai_number = auto_detect_clone_number()
-            if ai_number is not None:
-                START_INDEX = ai_number
-                
         current_account_num = START_INDEX + i
         print(f"\n========== MEMPROSES AKUN KE-{current_account_num} ==========")
         
