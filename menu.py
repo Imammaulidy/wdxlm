@@ -6,7 +6,7 @@ import time
 CONFIG_FILE = 'config.json'
 
 # Tambahkan path folder scrcpy ke environment variables agar dikenali otomatis
-SCRCPY_PATH = os.path.join(os.getcwd(), "templates", "scrcpy-win64-v3.3.3")
+SCRCPY_PATH = os.path.join(os.getcwd(), "templates", "QtScrcpy-win-x64-v3.3.3")
 if os.path.exists(SCRCPY_PATH):
     os.environ["PATH"] += os.pathsep + SCRCPY_PATH
 
@@ -88,18 +88,18 @@ def konek_adb_scrcpy():
         if ip:
             print(f"[*] Mencoba koneksi ke {ip}...")
             os.system(f'adb connect {ip}')
-        print("[*] Menjalankan SCRCPY...")
+        print("[*] Menjalankan QtScrcpy...")
         if os.name == 'nt':
-            os.system('start /B scrcpy')
+            os.system('start /B QtScrcpy.exe')
         else:
-            os.system('scrcpy &')
+            os.system('QtScrcpy &')
             
     elif pil == '2':
-        print("[*] Menjalankan SCRCPY...")
+        print("[*] Menjalankan QtScrcpy...")
         if os.name == 'nt':
-            os.system('start /B scrcpy')
+            os.system('start /B QtScrcpy.exe')
         else:
-            os.system('scrcpy &')
+            os.system('QtScrcpy &')
             
     elif pil == '3':
         ip = input("Masukkan IP:PORT HP (misal 192.168.x.x:41234): ").strip()

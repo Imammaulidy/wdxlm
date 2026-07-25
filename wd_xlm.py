@@ -356,11 +356,11 @@ def main():
         # ==========================================
         # KEMBALI KE MULTI APP
         # ==========================================
-        print("Proses berhasil, menekan BACK untuk keluar ke Home...")
-        log_step("# 38. Lakukan back 5 kali untuk memastikan keluar sampai Home")
-        # 38. Lakukan back 5 kali untuk memastikan keluar sampai Home
-        for _ in range(5):
-            press_back(jeda=0.7)
+        print("Proses berhasil, langsung melompat ke Layar Home (Lebih Cepat)...")
+        log_step("# 38. Lakukan lompatan instan ke Layar Home")
+        # 38. Lakukan lompatan instan ke Layar Home
+        adb_command("shell input keyevent 3")
+        stoppable_sleep(1.0)
         
         log_step("# 39. Buka kembali Multi App Ultra dari Home")
         
