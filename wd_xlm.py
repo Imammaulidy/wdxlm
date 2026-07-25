@@ -233,7 +233,7 @@ def main():
         
         # 2.1 Swipe bawah (tutup popup default jika muncul)
         print("Swipe bawah (menutup popup jika ada)...")
-        swipe(560, 1630, 580, 2377, duration=800, jeda=2.3)
+        swipe(560, 1630, 580, 2377, duration=300, jeda=2.3)
         
         log_step("# 3. Klik Hadiah")
         
