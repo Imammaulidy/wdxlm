@@ -84,7 +84,9 @@ def konek_adb_scrcpy():
     pil = input("\nPilih mode (0-5): ").strip()
     
     if pil == '1':
-        ip = input("Masukkan IP:PORT HP (Cek Developer Options, misal 192.168.x.x:41234).\nKosongkan jika pakai kabel USB: ").strip()
+        ip = input("Masukkan IP:PORT HP (Cek Developer Options, misal 192.168.x.x:41234).\nKosongkan jika pakai kabel USB atau ingin default 192.168.2.176: ").strip()
+        if not ip:
+            ip = "192.168.2.176"
         if ip:
             print(f"[*] Mencoba koneksi ke {ip}...")
             os.system(f'adb connect {ip}')
@@ -102,7 +104,9 @@ def konek_adb_scrcpy():
             os.system('QtScrcpy &')
             
     elif pil == '3':
-        ip = input("Masukkan IP:PORT HP (misal 192.168.x.x:41234): ").strip()
+        ip = input("Masukkan IP:PORT HP [Tekan Enter untuk default 192.168.2.176]: ").strip()
+        if not ip:
+            ip = "192.168.2.176"
         if ip:
             print(f"[*] Mencoba koneksi ke {ip}...")
             os.system(f'adb connect {ip}')
@@ -117,7 +121,9 @@ def konek_adb_scrcpy():
         os.system('adb -d tcpip 5555')
         
         print("\n[!] SUKSES! Sekarang CABUT KABEL USB Anda.")
-        ip = input("Masukkan IP HP Anda (misal 192.168.2.176): ").strip()
+        ip = input("Masukkan IP HP Anda [Tekan Enter untuk default: 192.168.2.176]: ").strip()
+        if not ip:
+            ip = "192.168.2.176"
         if ip:
             print(f"[*] Mencoba koneksi Nirkabel ke {ip}:5555...")
             os.system(f'adb connect {ip}:5555')
