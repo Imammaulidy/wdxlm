@@ -45,16 +45,17 @@ def print_menu():
     print(f"[*] PIN Saat Ini     : {config.get('pin')}")
     print(f"[*] Total Akun WD    : {config.get('total_akun')}")
     print("=========================================================")
-    print("1. MULAI WD")
-    print("2. GANTI ADDRESS PENERIMA DAN PIN")
-    print("3. REKAM JEDA (PENYESUAIAN JEDA LAGI)")
-    print("4. RESTART TERMINAL")
+    print("1. MULAI WD (OTOMATIS FULL)")
+    print("2. MULAI WD MANUAL (VIA ENTER / STEP-BY-STEP)")
+    print("3. GANTI ADDRESS PENERIMA DAN PIN")
+    print("4. REKAM JEDA (PENYESUAIAN JEDA LAGI)")
+    print("5. RESTART TERMINAL")
     if IS_TERMUX:
-        print("5. KONEK ADB LOKAL (WIRELESS DEBUGGING)")
-        print("6. INSTALL/UPDATE DEPENDENCIES")
-        print("7. BUKA PENGATURAN DEVELOPER (Shortcut)")
+        print("6. KONEK ADB LOKAL (WIRELESS DEBUGGING)")
+        print("7. INSTALL/UPDATE DEPENDENCIES")
+        print("8. BUKA PENGATURAN DEVELOPER (Shortcut)")
     else:
-        print("5. KONEK ADB & SCRCPY (KHUSUS PC)")
+        print("6. KONEK ADB & SCRCPY (KHUSUS PC)")
     print("0. EXIT")
     print("=========================================================")
 
@@ -160,9 +161,9 @@ def main():
     while True:
         print_menu()
         if IS_TERMUX:
-            pilihan = input("Pilih menu (0-7): ").strip()
+            pilihan = input("Pilih menu (0-8): ").strip()
         else:
-            pilihan = input("Pilih menu (0-5): ").strip()
+            pilihan = input("Pilih menu (0-6): ").strip()
         
         if pilihan == '1':
             clear_screen()
@@ -172,22 +173,29 @@ def main():
             input("Selesai. Tekan Enter untuk kembali ke menu...")
             
         elif pilihan == '2':
-            ganti_pengaturan()
+            clear_screen()
+            print(">>> MENJALANKAN WD MANUAL (STEP-BY-STEP) <<<\n")
+            os.system('python wd_xlm.py --manual')
+            print("\n")
+            input("Selesai. Tekan Enter untuk kembali ke menu...")
             
         elif pilihan == '3':
+            ganti_pengaturan()
+            
+        elif pilihan == '4':
             clear_screen()
             print(">>> MASUK KE MODE REKAM JEDA <<<\n")
             os.system('python tester.py')
             print("\n")
             input("Selesai. Tekan Enter untuk kembali ke menu...")
             
-        elif pilihan == '4':
+        elif pilihan == '5':
             clear_screen()
             print("[*] Merestart ulang sistem Menu Utama...")
             time.sleep(1)
             os.execv(sys.executable, ['python'] + sys.argv)
             
-        elif pilihan == '5':
+        elif pilihan == '6':
             if IS_TERMUX:
                 clear_screen()
                 print("=========================================================")
@@ -200,13 +208,13 @@ def main():
             else:
                 konek_adb_scrcpy()
                 
-        elif pilihan == '6' and IS_TERMUX:
+        elif pilihan == '7' and IS_TERMUX:
             clear_screen()
             os.system('bash setup.sh')
             print("\n")
             input("Tekan Enter untuk kembali ke menu...")
             
-        elif pilihan == '7' and IS_TERMUX:
+        elif pilihan == '8' and IS_TERMUX:
             clear_screen()
             print("[*] Membuka Pengaturan Developer di HP Anda...")
             os.system('am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS')

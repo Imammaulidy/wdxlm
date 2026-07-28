@@ -15,11 +15,18 @@ def log_step(text):
     current_step_info = text
     print(f"\n---> {text}")
 
+MANUAL_MODE = "--manual" in sys.argv
+
 def stoppable_sleep(jeda):
     """Tunggu selama 'jeda' detik. Jika di Windows dan ENTER ditekan, PAUSE script."""
     end_time = time.time() + jeda
+    has_manual_paused = False
     while time.time() < end_time:
         paused = False
+        if MANUAL_MODE and not has_manual_paused:
+            paused = True
+            has_manual_paused = True
+            
         if platform.system() == "Windows":
             if msvcrt.kbhit():
                 key = msvcrt.getch()
@@ -33,11 +40,16 @@ def stoppable_sleep(jeda):
                 paused = True
                 
         if paused:
-            sisa_waktu = end_time - time.time()
-            print("\n\n[!!!] PROGRAM DIPAUSE (TOMBOL ENTER DITEKAN) [!!!]")
-            print(f"[*] POSISI TERAKHIR: {current_step_info}")
-            print("Silakan perbaiki posisi layar HP Anda agar sesuai dengan langkah di atas.")
-            print(" --> Tekan ENTER lagi untuk MELANJUTKAN")
+            sisa_waktu = max(0, end_time - time.time())
+            if MANUAL_MODE:
+                print(f"\n[STEP-BY-STEP] Menunggu konfirmasi...")
+                print(f"[*] SELESAI: {current_step_info}")
+                print(" --> Tekan ENTER untuk MELANJUTKAN eksekusi berikutnya")
+            else:
+                print("\n\n[!!!] PROGRAM DIPAUSE (TOMBOL ENTER DITEKAN) [!!!]")
+                print(f"[*] POSISI TERAKHIR: {current_step_info}")
+                print("Silakan perbaiki posisi layar HP Anda agar sesuai dengan langkah di atas.")
+                print(" --> Tekan ENTER lagi untuk MELANJUTKAN")
             print(" --> Ketik 'Q' lalu ENTER untuk BERHENTI TOTAL")
             while True:
                 if platform.system() == "Windows":
