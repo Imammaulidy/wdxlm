@@ -4,6 +4,33 @@ import os
 import platform
 import sys
 import json
+import atexit
+
+# Root Direktori Proyek
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+CORE_DIR = os.path.abspath(os.path.dirname(__file__))
+CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
+
+# Deteksi apakah berjalan di Termux
+IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
+
+# Tambahkan path folder scrcpy / adb ke environment variables agar dikenali otomatis (hanya untuk PC)
+if not IS_TERMUX:
+    candidates = [
+        os.path.join(PROJECT_ROOT, "core", "QtScrcpy-win-x64-v3.3.3"),
+        os.path.join(PROJECT_ROOT, "core", "scrcpy-win64-v3.3.4"),
+        r"C:\Users\KAGE\Desktop\scrcpy-win64-v3.3.4",
+        os.path.join(os.path.expanduser("~"), "Desktop", "scrcpy-win64-v3.3.4"),
+    ]
+    desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+    if os.path.exists(desktop_dir):
+        for item in os.listdir(desktop_dir):
+            if "scrcpy" in item.lower():
+                candidates.append(os.path.join(desktop_dir, item))
+
+    for p in candidates:
+        if os.path.exists(p) and p not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
 
 if platform.system() == "Windows":
     import msvcrt
@@ -115,10 +142,6 @@ def tap(x, y, jeda=1.0):
     adb_command(f"shell input tap {x} {y}")
     stoppable_sleep(jeda)
 
-def auto_detect_clone_number():
-    # Fitur AI Dinonaktifkan sementara karena limitasi pembacaan UI Android
-    pass
-
 def swipe(x1, y1, x2, y2, duration=500, jeda=1.0):
     """Simulasi geser (swipe) pada layar."""
     print(f"Swiping from ({x1}, {y1}) to ({x2}, {y2}) - Waiting {jeda}s")
@@ -166,36 +189,35 @@ def tap_dynamic_pin(pin_str, keypad_coords, final_jeda=5.0):
 
 def load_config():
     try:
-        with open('config.json', 'r') as f:
+        with open(CONFIG_FILE, 'r') as f:
             return json.load(f)
     except Exception as e:
-        print(f"Gagal memuat config.json: {e}")
+        print(f"Gagal memuat {CONFIG_FILE}: {e}")
         sys.exit(1)
 
-def main():
-    config = load_config()
-    print("Starting Bitget Wallet XLM Withdrawal Script...")
-    
-    log_step("# 1. Pastikan device terkoneksi")
-    
-    # 1. Pastikan device terkoneksi
-    devices = adb_command("devices")
-    if "device" not in devices:
-        print("Device tidak ditemukan! Pastikan sudah terkoneksi via USB.")
-        sys.exit()
-    print(f"Connected devices:\n{devices}")
-    
-    # Ambil perangkat pertama yang valid untuk menghindari error 'more than one device'
-    valid_devices = [line.split()[0] for line in devices.splitlines() if 'device' in line and not line.startswith('List')]
-    
-    if len(valid_devices) > 1:
-        non_mdns = [d for d in valid_devices if not d.startswith('adb-')]
-        if non_mdns:
-            valid_devices = non_mdns
-    if valid_devices:
-        os.environ['ANDROID_SERIAL'] = valid_devices[0]
-        print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}\n")
-    
+is_screen_modified = False
+
+def setup_screen_resolution():
+    """Menyetel resolusi dan density ke format standar bot (1080x2400 @ 352 DPI)."""
+    global is_screen_modified
+    print("[*] Menyesuaikan resolusi layar otomatis ke standar bot (1080x2400 @ 352 DPI)...")
+    adb_command("shell wm size 1080x2400")
+    adb_command("shell wm density 352")
+    is_screen_modified = True
+
+def restore_screen_resolution():
+    """Mengembalikan resolusi dan density ke setelan bawaan HP masing-masing."""
+    global is_screen_modified
+    if is_screen_modified:
+        print("\n[*] Mengembalikan resolusi layar HP ke setelan bawaan pabrik...")
+        adb_command("shell wm size reset")
+        adb_command("shell wm density reset")
+        is_screen_modified = False
+        print("[V] Layar HP berhasil dikembalikan ke normal!")
+
+atexit.register(restore_screen_resolution)
+
+def run_bot(config):
     # Konfigurasi Looping
     TOTAL_AKUN = config.get("total_akun", 5)
     ALAMAT_WD = config.get("alamat_wd", "")
@@ -213,7 +235,7 @@ def main():
     # Simpan index berikutnya ke config.json agar diingat pada eksekusi selanjutnya
     config["start_index"] = START_INDEX + TOTAL_AKUN
     try:
-        with open('config.json', 'w') as f:
+        with open(CONFIG_FILE, 'w') as f:
             json.dump(config, f, indent=4)
     except Exception as e:
         pass
@@ -453,6 +475,36 @@ def main():
         tap(846, 1284, jeda=5.5)
         
     print("\nSemua akun selesai diproses.")
+
+def main():
+    config = load_config()
+    print("Starting Bitget Wallet XLM Withdrawal Script...")
+    
+    log_step("# 1. Pastikan device terkoneksi")
+    
+    # 1. Pastikan device terkoneksi
+    devices = adb_command("devices")
+    if "device" not in devices:
+        print("Device tidak ditemukan! Pastikan sudah terkoneksi via USB / WiFi ADB.")
+        sys.exit()
+    print(f"Connected devices:\n{devices}")
+    
+    # Ambil perangkat pertama yang valid untuk menghindari error 'more than one device'
+    valid_devices = [line.split()[0] for line in devices.splitlines() if 'device' in line and not line.startswith('List')]
+    
+    if len(valid_devices) > 1:
+        non_mdns = [d for d in valid_devices if not d.startswith('adb-')]
+        if non_mdns:
+            valid_devices = non_mdns
+    if valid_devices:
+        os.environ['ANDROID_SERIAL'] = valid_devices[0]
+        print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}\n")
+    
+    try:
+        setup_screen_resolution()
+        run_bot(config)
+    finally:
+        restore_screen_resolution()
 
 if __name__ == "__main__":
     main()

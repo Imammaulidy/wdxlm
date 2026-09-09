@@ -2,26 +2,58 @@ import os
 import json
 import sys
 import time
+import subprocess
+import shutil
 
-CONFIG_FILE = 'config.json'
+# Root Direktori Proyek
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+CORE_DIR = os.path.abspath(os.path.dirname(__file__))
+CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
+CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
 
 # Deteksi apakah berjalan di Termux
 IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
 
-# Tambahkan path folder scrcpy ke environment variables agar dikenali otomatis (hanya untuk PC)
+# Tambahkan path folder scrcpy / adb ke environment variables agar dikenali otomatis (PC)
 if not IS_TERMUX:
-    SCRCPY_PATH = os.path.join(os.getcwd(), "templates", "QtScrcpy-win-x64-v3.3.3")
-    if os.path.exists(SCRCPY_PATH):
-        os.environ["PATH"] += os.pathsep + SCRCPY_PATH
+    candidates = [
+        os.path.join(PROJECT_ROOT, "core", "QtScrcpy-win-x64-v3.3.3"),
+        os.path.join(PROJECT_ROOT, "core", "scrcpy-win64-v3.3.4"),
+        r"C:\Users\KAGE\Desktop\scrcpy-win64-v3.3.4",
+        os.path.join(os.path.expanduser("~"), "Desktop", "scrcpy-win64-v3.3.4"),
+    ]
+    desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+    if os.path.exists(desktop_dir):
+        for item in os.listdir(desktop_dir):
+            if "scrcpy" in item.lower():
+                candidates.append(os.path.join(desktop_dir, item))
+
+    for p in candidates:
+        if os.path.exists(p) and p not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
+
+def launch_mirror_screen():
+    qtscrcpy_dir = os.path.join(PROJECT_ROOT, "core", "QtScrcpy-win-x64-v3.3.3")
+    qtscrcpy_exe = os.path.join(qtscrcpy_dir, "QtScrcpy.exe")
+    if os.path.exists(qtscrcpy_exe):
+        print("[*] Menjalankan QtScrcpy...")
+        subprocess.Popen([qtscrcpy_exe], cwd=qtscrcpy_dir)
+    elif shutil.which("QtScrcpy.exe"):
+        print("[*] Menjalankan QtScrcpy...")
+        os.system('start /B QtScrcpy.exe' if os.name == 'nt' else 'QtScrcpy &')
+    elif shutil.which("scrcpy.exe") or shutil.which("scrcpy"):
+        print("[*] Menjalankan scrcpy...")
+        os.system('start /B scrcpy.exe' if os.name == 'nt' else 'scrcpy &')
+    else:
+        print("[!] Program SCRCPY (QtScrcpy.exe / scrcpy.exe) tidak ditemukan di folder core!")
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
-        if os.path.exists('config.example.json'):
-            import shutil
-            shutil.copy('config.example.json', CONFIG_FILE)
+        if os.path.exists(CONFIG_EXAMPLE):
+            shutil.copy(CONFIG_EXAMPLE, CONFIG_FILE)
             print("[*] config.json baru berhasil dibuat dari template otomatis!")
             time.sleep(1)
         else:
@@ -41,15 +73,17 @@ def print_menu():
     print("=========================================================")
     
     config = load_config()
-    print(f"[*] Address Saat Ini : {config.get('alamat_wd')[:15]}...{config.get('alamat_wd')[-5:]}")
+    addr = config.get('alamat_wd', '')
+    addr_disp = f"{addr[:15]}...{addr[-5:]}" if len(addr) > 20 else addr
+    print(f"[*] Address Saat Ini : {addr_disp}")
     print(f"[*] PIN Saat Ini     : {config.get('pin')}")
     print(f"[*] Total Akun WD    : {config.get('total_akun')}")
     print("=========================================================")
     print("1. MULAI WD (OTOMATIS FULL)")
     print("2. MULAI WD MANUAL (VIA ENTER / STEP-BY-STEP)")
     print("3. GANTI ADDRESS PENERIMA DAN PIN")
-    print("4. REKAM JEDA (PENYESUAIAN JEDA LAGI)")
-    print("5. RESTART TERMINAL")
+    print("4. PENGATURAN RESOLUSI & DPI LAYAR HP")
+    print("5. RESTART MENU UTAMA")
     if IS_TERMUX:
         print("6. KONEK ADB LOKAL (WIRELESS DEBUGGING)")
         print("7. INSTALL/UPDATE DEPENDENCIES")
@@ -65,27 +99,57 @@ def ganti_pengaturan():
     print("Kosongkan lalu tekan Enter jika tidak ingin mengubah data.")
     
     # Address
-    baru_address = input(f"Address ({config.get('alamat_wd')}): ")
-    if baru_address.strip() != "":
-        config['alamat_wd'] = baru_address.strip()
+    baru_address = input(f"Address ({config.get('alamat_wd')}): ").strip()
+    if baru_address != "":
+        config['alamat_wd'] = baru_address
         
     # PIN
-    baru_pin = input(f"PIN Baru ({config.get('pin')}): ")
-    if baru_pin.strip() != "":
+    baru_pin = input(f"PIN Baru ({config.get('pin')}): ").strip()
+    if baru_pin != "":
         if not baru_pin.isdigit():
             print("ERROR: PIN harus berupa angka!")
         else:
-            config['pin'] = baru_pin.strip()
+            config['pin'] = baru_pin
             
     # Total Akun
-    baru_total = input(f"Total Akun ({config.get('total_akun')}): ")
-    if baru_total.strip() != "":
+    baru_total = input(f"Total Akun ({config.get('total_akun')}): ").strip()
+    if baru_total != "":
         if baru_total.isdigit():
-            config['total_akun'] = int(baru_total.strip())
+            config['total_akun'] = int(baru_total)
             
     save_config(config)
     print("\n[!] Pengaturan berhasil disimpan!")
     input("Tekan Enter untuk kembali ke menu...")
+
+def menu_resolusi_layar():
+    while True:
+        clear_screen()
+        print("=========================================================")
+        print("           PENGATURAN RESOLUSI & DPI LAYAR               ")
+        print("=========================================================")
+        print("1. Cek Resolusi & DPI Saat Ini")
+        print("2. Samakan ke Format Bot POCO F4 (1080x2400 @ 352 DPI)")
+        print("3. Restore ke Bawaan Asli HP (Reset Pabrik)")
+        print("0. Kembali ke Menu Utama")
+        print("=========================================================")
+        pil = input("Pilih menu (0-3): ").strip()
+        
+        if pil == '1':
+            print("\n[*] Membaca status layar...")
+            os.system('adb shell "wm size && wm density"')
+            input("\nTekan Enter untuk melanjutkan...")
+        elif pil == '2':
+            print("\n[*] Mengatur layar ke standar bot POCO F4 (1080x2400 @ 352 DPI)...")
+            os.system('adb shell "wm size 1080x2400 && wm density 352"')
+            print("[V] Berhasil disetel!")
+            input("\nTekan Enter untuk melanjutkan...")
+        elif pil == '3':
+            print("\n[*] Mengembalikan layar ke setelan bawaan asli HP...")
+            os.system('adb shell "wm size reset && wm density reset"')
+            print("[V] Layar berhasil di-reset!")
+            input("\nTekan Enter untuk melanjutkan...")
+        elif pil == '0':
+            break
 
 def konek_adb_scrcpy():
     clear_screen()
@@ -106,18 +170,10 @@ def konek_adb_scrcpy():
         if ip:
             print(f"[*] Mencoba koneksi ke {ip}...")
             os.system(f'adb connect {ip}')
-        print("[*] Menjalankan QtScrcpy...")
-        if os.name == 'nt':
-            os.system('start /B QtScrcpy.exe')
-        else:
-            os.system('QtScrcpy &')
+        launch_mirror_screen()
             
     elif pil == '2':
-        print("[*] Menjalankan QtScrcpy...")
-        if os.name == 'nt':
-            os.system('start /B QtScrcpy.exe')
-        else:
-            os.system('QtScrcpy &')
+        launch_mirror_screen()
             
     elif pil == '3':
         ip = input("Masukkan IP:PORT HP [Tekan Enter untuk default 192.168.2.176]: ").strip()
@@ -158,6 +214,10 @@ def konek_adb_scrcpy():
         input("\nProses selesai. Tekan Enter untuk kembali ke menu...")
 
 def main():
+    wd_script = os.path.join(os.path.dirname(__file__), 'wd_xlm.py')
+    konek_script = os.path.join(PROJECT_ROOT, 'termux', 'konek_adb.py')
+    setup_script = os.path.join(PROJECT_ROOT, 'termux', 'setup.sh')
+
     while True:
         print_menu()
         if IS_TERMUX:
@@ -168,14 +228,14 @@ def main():
         if pilihan == '1':
             clear_screen()
             print(">>> MENJALANKAN WD OTOMATIS <<<\n")
-            os.system('python wd_xlm.py')
+            subprocess.run([sys.executable, wd_script], cwd=PROJECT_ROOT)
             print("\n")
             input("Selesai. Tekan Enter untuk kembali ke menu...")
             
         elif pilihan == '2':
             clear_screen()
             print(">>> MENJALANKAN WD MANUAL (STEP-BY-STEP) <<<\n")
-            os.system('python wd_xlm.py --manual')
+            subprocess.run([sys.executable, wd_script, '--manual'], cwd=PROJECT_ROOT)
             print("\n")
             input("Selesai. Tekan Enter untuk kembali ke menu...")
             
@@ -183,17 +243,13 @@ def main():
             ganti_pengaturan()
             
         elif pilihan == '4':
-            clear_screen()
-            print(">>> MASUK KE MODE REKAM JEDA <<<\n")
-            os.system('python tester.py')
-            print("\n")
-            input("Selesai. Tekan Enter untuk kembali ke menu...")
+            menu_resolusi_layar()
             
         elif pilihan == '5':
             clear_screen()
             print("[*] Merestart ulang sistem Menu Utama...")
             time.sleep(1)
-            os.execv(sys.executable, ['python'] + sys.argv)
+            os.execv(sys.executable, [sys.executable, __file__] + sys.argv[1:])
             
         elif pilihan == '6':
             if IS_TERMUX:
@@ -202,7 +258,7 @@ def main():
                 print("SYARAT: Nyalakan 'Proses Debug Nirkabel' (Wireless Debugging)")
                 print("di Pengaturan Developer HP Anda sebelum melanjutkan.")
                 print("=========================================================")
-                os.system('python termux/konek_adb.py')
+                subprocess.run([sys.executable, konek_script], cwd=PROJECT_ROOT)
                 print("\n")
                 input("Tekan Enter untuk kembali ke menu...")
             else:
@@ -210,7 +266,7 @@ def main():
                 
         elif pilihan == '7' and IS_TERMUX:
             clear_screen()
-            os.system('bash setup.sh')
+            subprocess.run(['bash', setup_script], cwd=PROJECT_ROOT)
             print("\n")
             input("Tekan Enter untuk kembali ke menu...")
             
@@ -231,5 +287,4 @@ def main():
             time.sleep(1)
 
 if __name__ == "__main__":
-    import time
     main()
