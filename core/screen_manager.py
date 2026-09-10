@@ -127,13 +127,14 @@ def clear_cached_screen():
             pass
 
 _is_bot_screen_active = False
+_already_restored = False
 
 def record_and_apply_bot_screen(silent=False):
     """
-    1. Otomatis merekam resolusi & DPI yang sedang digunakan oleh HP saat ini.
-    2. Otomatis mengubah resolusi HP ke standar bot (1080x2400 @ 352 DPI).
+    1. Otomatis membaca & merekam resolusi & DPI aktif yang sedang digunakan HP saat ini apa adanya.
+    2. Menyesuaikan resolusi HP ke standar bot (1080x2400 @ 352 DPI).
     """
-    global _is_bot_screen_active
+    global _is_bot_screen_active, _already_restored
 
     devices = get_connected_devices()
     if not devices:
@@ -145,23 +146,14 @@ def record_and_apply_bot_screen(silent=False):
     orig_size = cached_size
     orig_density = cached_density
 
-    # Jika belum ada cache, rekam ukuran aktif dari HP saat ini
+    # Jika belum ada cache, rekam ukuran aktif dari HP saat ini APA ADANYA
     if not orig_size or not orig_density:
         info = read_current_screen()
         if not info["active_size"] or not info["active_density"]:
             return False, "Gagal membaca resolusi layar dari HP"
 
-        # Jika HP kebetulan sedang berada di 352 DPI (misal bot sebelumnya belum restore),
-        # utamakan physical density agar ukuran asli yang terekam adalah ukuran bawaan HP
-        if info["active_density"] == "352" and info["physical_density"] and info["physical_density"] != "352":
-            orig_density = info["physical_density"]
-        else:
-            orig_density = info["active_density"]
-
-        if info["active_size"] == "1080x2400" and info["physical_size"]:
-            orig_size = info["physical_size"]
-        else:
-            orig_size = info["active_size"]
+        orig_size = info["active_size"]
+        orig_density = info["active_density"]
 
         save_cached_screen(orig_size, orig_density)
         if not silent:
@@ -170,20 +162,32 @@ def record_and_apply_bot_screen(silent=False):
         if not silent:
             print(f"[*] [CACHE] Menggunakan resolusi asli HP terekam: {orig_size} @ {orig_density} DPI")
 
-    # Terapkan resolusi bot
-    if not silent:
-        print("[*] Menyesuaikan layar otomatis ke format bot (1080x2400 @ 352 DPI)...")
-    run_adb("shell wm size 1080x2400")
-    run_adb("shell wm density 352")
+    # Terapkan resolusi bot jika berbeda dari 1080x2400 @ 352 DPI
+    curr_info = read_current_screen()
+    if curr_info.get("active_size") != "1080x2400" or curr_info.get("active_density") != "352":
+        if not silent:
+            print("[*] Menyesuaikan layar otomatis ke format bot (1080x2400 @ 352 DPI)...")
+        run_adb("shell wm size 1080x2400")
+        run_adb("shell wm density 352")
+    else:
+        if not silent:
+            print("[*] Layar HP sudah berada pada standar bot (1080x2400 @ 352 DPI).")
+
     _is_bot_screen_active = True
+    _already_restored = False
     return True, f"{orig_size} @ {orig_density} DPI"
 
 def restore_recorded_screen(silent=False):
     """
-    Restore resolusi dan DPI ke ukuran asli HP yang SUDAH DIREKAM sebelumnya.
-    BUKAN mereset ke ukuran pabrik (wm reset), melainkan tepat ke nilai yang terekam.
+    Restore resolusi dan DPI tepat ke ukuran asli HP yang SUDAH DIREKAM sebelumnya.
+    - BUKAN reset ke ukuran pabrik (tidak ada perintah wm size reset / wm density reset).
+    - Jika yang terekam adalah 1080x2400 @ 352 DPI, ya dikembalikan ke 1080x2400 @ 352 DPI.
+    - Idempotent: hanya dieksekusi 1 kali agar tidak spam / double restore.
     """
-    global _is_bot_screen_active
+    global _is_bot_screen_active, _already_restored
+
+    if _already_restored:
+        return True
 
     orig_size, orig_density = get_cached_screen()
 
@@ -192,6 +196,7 @@ def restore_recorded_screen(silent=False):
     if not devices:
         clear_cached_screen()
         _is_bot_screen_active = False
+        _already_restored = True
         return False
 
     if orig_size and orig_density:
@@ -201,21 +206,12 @@ def restore_recorded_screen(silent=False):
         run_adb(f"shell wm density {orig_density}")
         clear_cached_screen()
         _is_bot_screen_active = False
+        _already_restored = True
         if not silent:
-            print(f"[V] Layar HP berhasil dikembalikan ke {orig_size} @ {orig_density} DPI!")
+            print(f"[V] Layar HP berhasil dikembalikan ke {orig_size} @ {orig_density} DPI!\n")
         return True
-    else:
-        # Fallback jika cache tidak ada: baca physical info lalu set ke physical (bukan reset)
-        info = read_current_screen()
-        if info.get("physical_size") and info.get("physical_density"):
-            p_size = info["physical_size"]
-            p_density = info["physical_density"]
-            if not silent:
-                print(f"\n[*] Mengembalikan layar HP ke ukuran fisik HP: {p_size} @ {p_density} DPI...")
-            run_adb(f"shell wm size {p_size}")
-            run_adb(f"shell wm density {p_density}")
-            _is_bot_screen_active = False
-            return True
+
+    _already_restored = True
     return False
 
 # Persistent handler reference to avoid garbage collection on Windows ctypes
@@ -253,8 +249,10 @@ def register_auto_restore():
         try:
             import ctypes
             def _win_ctrl_handler(ctrl_type):
-                # 0=CTRL_C, 1=CTRL_BREAK, 2=CTRL_CLOSE, 5=LOGOFF, 6=SHUTDOWN
-                restore_recorded_screen(silent=False)
+                # 2=CTRL_CLOSE, 5=LOGOFF, 6=SHUTDOWN (jangan tangani 0=CTRL_C di sini karena sudah ditangani Python SIGINT)
+                if ctrl_type in (2, 5, 6):
+                    restore_recorded_screen(silent=True)
+                    return True
                 return False
 
             _ctrl_handler_ref = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)(_win_ctrl_handler)

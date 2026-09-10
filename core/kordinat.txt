@@ -40,7 +40,8 @@ sleep 6.6
 input tap 908 2258
 sleep 1.8
 input tap 908 2258
-sleep 1.8
+sleep 0.7
+
 
 
 --------------------------------------------------------------------------------
@@ -48,7 +49,8 @@ sleep 1.8
 [2.1. Tutup Popup Promo]
 # Swipe ke bawah untuk menutup popup/banner jika muncul
 input swipe 560 1630 580 2377 300
-sleep 1.5
+sleep 1.6
+
 
 
 --------------------------------------------------------------------------------
@@ -56,7 +58,8 @@ sleep 1.5
 [3. Klik Hadiah]
 # Masuk ke menu Reward / Hadiah XLM
 input tap 212 816
-sleep 1.8
+sleep 1.9
+
 
 
 --------------------------------------------------------------------------------
@@ -64,7 +67,8 @@ sleep 1.8
 [4. Klik XLM]
 # Memilih aset XLM pada daftar hadiah
 input tap 523 1317
-sleep 1.5
+sleep 1.2
+
 
 
 --------------------------------------------------------------------------------
@@ -72,7 +76,8 @@ sleep 1.5
 [5. Klik Penarikan]
 # Menekan tombol Penarikan / Withdraw
 input tap 533 2302
-sleep 1.2
+sleep 1.1
+
 
 
 --------------------------------------------------------------------------------
@@ -84,7 +89,8 @@ sleep 0.8
 input tap 998 625
 sleep 0.8
 input text {ALAMAT_WD}
-sleep 0.5
+sleep 1.1
+
 
 
 --------------------------------------------------------------------------------
@@ -92,7 +98,8 @@ sleep 0.5
 [7. Klik Semua Max]
 # Menarik seluruh saldo XLM yang tersedia (Max Amount)
 input tap 995 894
-sleep 0.8
+sleep 1.0
+
 
 
 --------------------------------------------------------------------------------
@@ -100,7 +107,9 @@ sleep 0.8
 [8. Tutup Keyboard]
 # Klik area kosong untuk menghilangkan keyboard virtual Android
 input tap 518 1452
-sleep 0.9
+sleep 0.9
+
+
 
 --------------------------------------------------------------------------------
 
@@ -109,12 +118,14 @@ sleep 0.9
 input tap 541 2307
 sleep 1.2
 
+
 --------------------------------------------------------------------------------
 
 [10. Konfirmasi Modal Pengingat]
 # Menyetujui modal peringatan transfer koin
 input tap 800 2156
 sleep 1.2
+
 
 --------------------------------------------------------------------------------
 
@@ -128,35 +139,40 @@ sleep 2.4
 [12. Salin Key 2FA]
 # Menyalin (copy) Key 2FA rahasia ke clipboard
 input tap 957 1155
-sleep 1.0
+sleep 0.9
+
 
 --------------------------------------------------------------------------------
 
 [13. Lanjut Verifikasi OTP]
 # Melanjutkan ke halaman verifikasi kode OTP
 input tap 545 2195
-sleep 1.2
+sleep 1.4
+
 
 --------------------------------------------------------------------------------
 
 [14. Buka Google Authenticator]
 # Membuka aplikasi Google Authenticator via Intent Launcher
 monkey -p com.google.android.apps.authenticator2 -c android.intent.category.LAUNCHER 1
-sleep 2.5
+sleep 2.7
+
 
 --------------------------------------------------------------------------------
 
 [15. Klik Tambah Kode Auth]
 # Menekan tombol plus bulat di kanan bawah Google Authenticator
 input tap 985 2287
-sleep 1.4
+sleep 0.8
+
 
 --------------------------------------------------------------------------------
 
 [16. Masukkan Kunci Penyiapan]
 # Memilih opsi 'Enter a setup key'
 input tap 985 2066
-sleep 1.2
+sleep 0.9
+
 
 --------------------------------------------------------------------------------
 
@@ -165,7 +181,8 @@ sleep 1.2
 input tap 535 330
 sleep 1.0
 input text {ACCOUNT_NUM}
-sleep 0.8
+sleep 0.9
+
 
 --------------------------------------------------------------------------------
 
@@ -174,28 +191,32 @@ sleep 0.8
 input tap 552 486
 sleep 1.0
 input keyevent 279
-sleep 1.1
+sleep 1.0
+
 
 --------------------------------------------------------------------------------
 
 [19. Tutup Keyboard Auth]
 # Menekan tombol Back sistem Android untuk menutup keyboard
 input keyevent 4
-sleep 0.9
+sleep 0.6
+
 
 --------------------------------------------------------------------------------
 
 [20. Klik Tambahkan Akun]
 # Menyimpan akun baru di Google Authenticator
 input tap 550 2275
-sleep 2.1
+sleep 0.9
+
 
 --------------------------------------------------------------------------------
 
 [21. Tutup Dialog Pengingat]
 # Melewati dialog pengingat Google Auth (berdasarkan koordinat layar secure)
 input tap 990 2265
-sleep 1.0
+sleep 0.8
+
 
 --------------------------------------------------------------------------------
 
@@ -204,23 +225,26 @@ sleep 1.0
 input swipe 525 2140 556 220 1000
 sleep 0.6
 input swipe 525 2140 556 220 1000
-sleep 0.4
+sleep 1.0
+
 
 --------------------------------------------------------------------------------
 
 [23. Salin Kode OTP]
 # Klik kode OTP di posisi paling bawah untuk menyalin ke clipboard
 input tap 545 2265
-sleep 1.0
+sleep 0.8
+
 
 --------------------------------------------------------------------------------
 
 [24. Buka Recent Apps] 2X
 # Membuka layar Recent Apps (App Switcher)
 input keyevent 187
-sleep 1
+sleep 2
 input keyevent 187
-sleep 1
+sleep 1.5
+
 
 --------------------------------------------------------------------------------
 
@@ -234,14 +258,16 @@ sleep 1.1
 [26. Tempel OTP di Bitget]
 # Klik tombol Tempel (Paste) di dalam aplikasi Bitget
 input tap 940 693
-sleep 0.6
+sleep 1.1
+
 
 --------------------------------------------------------------------------------
 
 [27. Klik Ikat OTP]
 # Mengikat kode 2FA ke akun Bitget
 input tap 555 2200
-sleep 1.2
+sleep 1.6
+
 
 --------------------------------------------------------------------------------
 
@@ -268,14 +294,16 @@ pin {PIN} 2.5
 [31. Konfirmasi WD Final]
 # Klik tombol Konfirmasi setelah kembali ke halaman penarikan
 input tap 540 2305
-sleep 0.9
+sleep 1.1
+
 
 --------------------------------------------------------------------------------
 
 [32. Tempel OTP Konfirmasi]
 # Tempel kode OTP di modal otentikasi Google
 input tap 946 1588
-sleep 0.4
+sleep 0.9
+
 
 --------------------------------------------------------------------------------
 
@@ -291,32 +319,38 @@ sleep 1.2
 input tap 595 1193
 sleep 1.0
 
+
 --------------------------------------------------------------------------------
 
 [35. Beralih ke Sandi PIN 2]
 # Menekan tombol 'Beralih ke sandi/PIN' kedua kali
 input tap 535 2305
-sleep 0.9
+sleep 0.8
+
 
 --------------------------------------------------------------------------------
 
 [36. Masukkan PIN Dinamis 2]
 # Mengetik PIN transaksi kedua kali via koordinat sentuh
 pin {PIN} 4.0
+sleep 2.0
+
 
 --------------------------------------------------------------------------------
 
 [37. Klik Oke Selesai WD]
 # Klik tombol Oke (Hasil penarikan berhasil dikirim)
 input tap 545 2310
-sleep 0.5
+sleep 1.9
+
 
 --------------------------------------------------------------------------------
 
 [38. Buka Multi App Ultra]
 # Membuka kembali Multi App Ultra via Package Name
 monkey -p com.waxmoon.ma.gp -c android.intent.category.LAUNCHER 1
-sleep 1.0
+sleep 1.5
+
 
 --------------------------------------------------------------------------------
 
@@ -325,7 +359,7 @@ sleep 1.0
 input tap 880 135
 sleep 0.5
 input tap 880 135
-sleep 0.5
+sleep 0.9
 
 --------------------------------------------------------------------------------
 
