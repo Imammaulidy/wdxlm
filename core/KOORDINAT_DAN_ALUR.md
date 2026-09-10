@@ -2,6 +2,10 @@
 
 Dokumentasi ini memuat seluruh detail teknis langkah otomatisasi, titik koordinat sentuh, pemetaan keypad PIN dinamis, serta perintah ADB untuk penyesuaian resolusi layar multi-perangkat.
 
+> 💡 **FILE KOORDINAT AKTIF (ALA TOPNOD):**  
+> Seluruh koordinat, perintah sentuh, jeda waktu (`sleep`), dan teks kini **dibaca langsung oleh bot dari file [`core/kordinat.txt`](kordinat.txt)**.  
+> Jika Anda ingin mengubah, menambah, atau menyesuaikan koordinat/jeda step, Anda cukup **mengedit langsung file `core/kordinat.txt`** tanpa perlu mengubah kode Python!
+
 ---
 
 ## 📋 1. Tabel Alur Lengkap Bot (Step 0 s/d 42)

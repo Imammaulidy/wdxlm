@@ -4,12 +4,14 @@ import sys
 import time
 import subprocess
 import shutil
+import re
 
 # Root Direktori Proyek
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 CORE_DIR = os.path.abspath(os.path.dirname(__file__))
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
 CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
+KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat.txt')
 
 # Deteksi apakah berjalan di Termux
 IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
@@ -66,51 +68,27 @@ def save_config(data):
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-ALL_STEPS = [
-    (0,    "Scroll layar Multi App agar clone naik ke atas"),
-    (1,    "KLIK BITGET (Buka clone dari Multi App)"),
-    (2,    "Klik Dompet (2 kali)"),
-    ("2.1","Swipe bawah (tutup popup default)"),
-    (3,    "Klik Hadiah"),
-    (4,    "Klik XLM"),
-    (5,    "Klik Penarikan"),
-    (6,    "Klik Alamat Tujuan & Input Alamat"),
-    (7,    "Klik Semua (Max Amount)"),
-    (8,    "Klik area kosong (hilangkan keyboard)"),
-    (9,    "Klik Konfirmasi"),
-    (10,   "Klik Konfirmasi Lagi (Modal Pengingat)"),
-    (11,   "Klik Selanjutnya (Ikat Google Auth)"),
-    (12,   "Klik Copy Kode"),
-    (13,   "Klik Selanjutnya"),
-    (14,   "Buka Google Authenticator"),
-    (15,   "Klik Tambah Kode (+) di Google Auth"),
-    (16,   "Klik Masukkan Kunci Penyiapan"),
-    (17,   "Input Nama Kode (Nomor Urut)"),
-    (18,   "Klik Kunci Anda & Paste Kode"),
-    (19,   "Pencet Back (tutup keyboard)"),
-    (20,   "Klik Tambahkan"),
-    (21,   "Klik Tutup (layar blank/secure)"),
-    (22,   "Scroll ke bawah mentok (2x)"),
-    (23,   "Klik Code OTP (copy)"),
-    (24,   "Buka Recent Apps"),
-    (25,   "Klik Bitget Wallet (kanan)"),
-    (26,   "Klik Tempel di Bitget Wallet"),
-    (27,   "Klik Ikat"),
-    (28,   "Klik area kosong (ganti FP ke PIN)"),
-    (29,   "Klik Beralih ke sandi/pin"),
-    (30,   "Masukkan PIN (via koordinat sentuh)"),
-    (31,   "Klik Konfirmasi (halaman WD)"),
-    (32,   "Klik Tempel (modal Otentikasi Google)"),
-    (33,   "Klik Otentikasi"),
-    (34,   "Klik area kosong (Ganti metode ke-2)"),
-    (35,   "Klik Beralih ke sandi/pin (ke-2)"),
-    (36,   "Masukkan PIN ke-2"),
-    (37,   "Klik Oke (WD dikirim)"),
-    (38,   "Buka Multi App Ultra (via package)"),
-    (40,   "Klik Titik Tiga (Menu Multi App)"),
-    (41,   "Klik Kill All Apps"),
-    (42,   "Klik Confirm (Kill All Apps)"),
-]
+def get_kordinat_steps():
+    """Membaca daftar step langsung dari kordinat.txt secara dinamis."""
+    if not os.path.exists(KORDINAT_FILE):
+        return []
+    steps = []
+    with open(KORDINAT_FILE, 'r', encoding='utf-8') as f:
+        for line in f:
+            stripped = line.strip()
+            header_match = re.match(r'^\[\s*(.*?)\s*\]$', stripped)
+            if header_match:
+                full_title = header_match.group(1).strip()
+                m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', full_title)
+                if m:
+                    raw_id = m.group(1)
+                    step_id = int(raw_id) if raw_id.isdigit() else raw_id
+                    step_name = m.group(2).strip() or full_title
+                else:
+                    step_id = full_title
+                    step_name = full_title
+                steps.append((step_id, step_name))
+    return steps
 
 def print_menu():
     clear_screen()
@@ -121,8 +99,12 @@ def print_menu():
     config = load_config()
     addr = config.get('alamat_wd', '')
     addr_disp = f"{addr[:15]}...{addr[-5:]}" if len(addr) > 20 else addr
-    disabled_count = len(config.get('disabled_steps', []))
-    step_status = f"[{len(ALL_STEPS) - disabled_count}/{len(ALL_STEPS)} Step Aktif]"
+    steps = get_kordinat_steps()
+    disabled = config.get('disabled_steps', [])
+    disabled_str = [str(x) for x in disabled]
+    disabled_count = len([s for s, _ in steps if s in disabled or str(s) in disabled_str])
+    total_steps = len(steps)
+    step_status = f"[{total_steps - disabled_count}/{total_steps} Step Aktif]"
     print(f"[*] Address Saat Ini : {addr_disp}")
     print(f"[*] PIN Saat Ini     : {config.get('pin')}")
     print(f"[*] Total Akun WD    : {config.get('total_akun')}")
@@ -175,14 +157,18 @@ def menu_toggle_steps():
     while True:
         config = load_config()
         disabled = config.get("disabled_steps", [])
+        disabled_str = [str(x) for x in disabled]
+        steps = get_kordinat_steps()
         clear_screen()
         print("=========================================================")
         print("        PENGATURAN ON/OFF STEP KOORDINAT BOT             ")
+        print("   (Data dibaca otomatis dari core/kordinat.txt)         ")
         print("=========================================================")
         print(f"  {'NO':>4}  {'STEP':<5}  {'STATUS':<6}  DESKRIPSI")
         print("---------------------------------------------------------")
-        for idx, (step_id, desc) in enumerate(ALL_STEPS, start=1):
-            status = "[ ON ]" if step_id not in disabled else "[OFF ]"
+        for idx, (step_id, desc) in enumerate(steps, start=1):
+            is_active = step_id not in disabled and str(step_id) not in disabled_str
+            status = "[ ON ]" if is_active else "[OFF ]"
             print(f"  {idx:>4}. Step {str(step_id):<4} {status}  {desc}")
         print("---------------------------------------------------------")
         print("  A  = AKTIFKAN SEMUA STEP")
@@ -199,16 +185,17 @@ def menu_toggle_steps():
             print("[V] Semua step DIAKTIFKAN!")
             time.sleep(1)
         elif pil == 'D':
-            config["disabled_steps"] = [s for s, _ in ALL_STEPS]
+            config["disabled_steps"] = [s for s, _ in steps]
             save_config(config)
             print("[!] Semua step DINONAKTIFKAN!")
             time.sleep(1)
         elif pil.isdigit():
             idx_pil = int(pil) - 1
-            if 0 <= idx_pil < len(ALL_STEPS):
-                step_id, desc = ALL_STEPS[idx_pil]
-                if step_id in disabled:
-                    disabled.remove(step_id)
+            if 0 <= idx_pil < len(steps):
+                step_id, desc = steps[idx_pil]
+                is_disabled = step_id in disabled or str(step_id) in disabled_str
+                if is_disabled:
+                    disabled = [x for x in disabled if x != step_id and str(x) != str(step_id)]
                     print(f"[V] Step {step_id} [{desc}] -> ON")
                 else:
                     disabled.append(step_id)
