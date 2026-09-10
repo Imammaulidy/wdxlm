@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 # Pindah ke root folder proyek
 cd "$(dirname "$0")" || exit 1
@@ -39,5 +39,10 @@ if [ ! -f "core/config.json" ]; then
     fi
 fi
 
+# Pasang listener pemulihan resolusi saat terminal ditutup / exit
+trap 'python -c "import sys; sys.path.insert(0, \"core\"); from screen_manager import restore_recorded_screen; restore_recorded_screen(silent=True)" > /dev/null 2>&1' EXIT INT TERM
+
 # 4. Jalankan Menu Utama Bot
 python core/menu.py
+python -c "import sys; sys.path.insert(0, 'core'); from screen_manager import restore_recorded_screen; restore_recorded_screen(silent=True)" > /dev/null 2>&1
+

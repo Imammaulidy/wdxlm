@@ -1,5 +1,8 @@
 # Mengabaikan file sensitif yang berisi Address dan PIN pribadi
 core/config.json
+core/.screen_cache.json
+.screen_cache.json
+
 
 # Cache Python
 __pycache__/

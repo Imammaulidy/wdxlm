@@ -13,6 +13,20 @@ CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
 CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
 KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat.txt')
 
+if CORE_DIR not in sys.path:
+    sys.path.insert(0, CORE_DIR)
+
+from screen_manager import (
+    record_and_apply_bot_screen,
+    restore_recorded_screen,
+    register_auto_restore,
+    get_cached_screen,
+    read_current_screen
+)
+
+os.environ["BOT_MANAGED_SCREEN"] = "1"
+
+
 # Deteksi apakah berjalan di Termux
 IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
 
@@ -335,30 +349,43 @@ def menu_toggle_steps():
 def menu_resolusi_layar():
     while True:
         clear_screen()
+        cached_size, cached_density = get_cached_screen()
+        cur_info = read_current_screen()
+        active_disp = f"{cur_info['active_size']} @ {cur_info['active_density']} DPI" if cur_info['active_size'] else "Tidak terdeteksi (HP belum konek)"
+        cached_disp = f"{cached_size} @ {cached_density} DPI" if cached_size and cached_density else "Belum terekam (akan terekam otomatis saat bot mulai)"
+
         print("=========================================================")
         print("           PENGATURAN RESOLUSI & DPI LAYAR               ")
         print("=========================================================")
-        print("1. Cek Resolusi & DPI Saat Ini")
+        print(f"  Resolusi HP Asli (Terekam) : {cached_disp}")
+        print(f"  Resolusi Aktif Saat Ini    : {active_disp}")
+        print("=========================================================")
+        print("1. Cek Detail Resolusi & DPI (adb shell wm size && density)")
         print("2. Samakan ke Format Bot POCO F4 (1080x2400 @ 352 DPI)")
-        print("3. Restore ke Bawaan Asli HP (Reset Pabrik)")
+        print("3. Restore ke Ukuran Asli yang Terekam")
+        print("   (Kembalikan layar HP tepat ke ukuran yang sudah terekam)")
         print("0. Kembali ke Menu Utama")
         print("=========================================================")
         pil = input("Pilih menu (0-3): ").strip()
 
         if pil == '1':
-            print("\n[*] Membaca status layar...")
-            os.system('adb shell "wm size && wm density"')
+            print("\n[*] Membaca status layar (detail)...")
+            os.system('adb shell wm size')
+            os.system('adb shell wm density')
             input("\nTekan Enter untuk melanjutkan...")
+
         elif pil == '2':
-            print("\n[*] Mengatur layar ke standar bot POCO F4 (1080x2400 @ 352 DPI)...")
-            os.system('adb shell "wm size 1080x2400 && wm density 352"')
-            print("[V] Berhasil disetel!")
+            ok, msg = record_and_apply_bot_screen()
+            if ok:
+                print(f"[V] {msg}")
             input("\nTekan Enter untuk melanjutkan...")
+
         elif pil == '3':
-            print("\n[*] Mengembalikan layar ke setelan bawaan asli HP...")
-            os.system('adb shell "wm size reset && wm density reset"')
-            print("[V] Layar berhasil di-reset!")
+            ok = restore_recorded_screen()
+            if not ok:
+                print("[!] Tidak ada rekaman ukuran layar atau HP belum terhubung.")
             input("\nTekan Enter untuk melanjutkan...")
+
         elif pil == '0':
             break
 
@@ -428,99 +455,117 @@ def main():
     wd_script = os.path.join(os.path.dirname(__file__), 'wd_xlm.py')
     konek_script = os.path.join(PROJECT_ROOT, 'termux', 'konek_adb.py')
 
-    while True:
-        print_menu()
-        if IS_TERMUX:
-            pilihan = input("Pilih menu (0-9): ").strip()
-        else:
-            pilihan = input("Pilih menu (0-7): ").strip()
+    # Daftarkan pemulihan otomatis layar saat terminal ditutup / exit
+    register_auto_restore()
 
-        if pilihan == '1':
-            clear_screen()
-            print(">>> MENJALANKAN WD OTOMATIS <<<\n")
-            subprocess.run([sys.executable, wd_script], cwd=PROJECT_ROOT)
-            print("\n")
-            input("Selesai. Tekan Enter untuk kembali ke menu...")
+    # Otomatis merekam resolusi asli HP & ubah ke resolusi bot jika HP sudah terhubung
+    record_and_apply_bot_screen(silent=True)
 
-        elif pilihan == '2':
-            clear_screen()
-            print("=========================================================")
-            print("     2. MULAI WD MANUAL / REKAM DELAY (VIA ENTER)        ")
-            print("=========================================================")
-            print("  A. REKAM DELAY  — Jalankan action + ukur delay HP Anda.")
-            print("     Hasil rekaman delay langsung tersimpan ke kordinat.txt")
-            print("     dan dipakai saat WD Otomatis (Menu 1) berikutnya.")
-            print("")
-            print("  B. STEP-BY-STEP — Jalankan bot lengkap, tekan ENTER")
-            print("     setelah setiap langkah untuk lanjut ke step berikutnya.")
-            print("")
-            print("  0. Batal / Kembali")
-            print("=========================================================")
-            sub = input("Pilih mode (A/B/0): ").strip().upper()
-            if sub == 'A':
+    try:
+        while True:
+            print_menu()
+            if IS_TERMUX:
+                pilihan = input("Pilih menu (0-9): ").strip()
+            else:
+                pilihan = input("Pilih menu (0-7): ").strip()
+
+            if pilihan == '1':
+                # Pastikan resolusi bot terpasang jika HP baru saja dihubungkan
+                record_and_apply_bot_screen(silent=True)
                 clear_screen()
-                print(">>> REKAM DELAY HP ANDA <<<\n")
-                subprocess.run([sys.executable, wd_script, '--rekam'], cwd=PROJECT_ROOT)
-                print("\n")
-                input("Selesai rekam. Tekan Enter untuk kembali ke menu...")
-            elif sub == 'B':
-                clear_screen()
-                print(">>> MENJALANKAN WD MANUAL (STEP-BY-STEP) <<<\n")
-                subprocess.run([sys.executable, wd_script, '--manual'], cwd=PROJECT_ROOT)
+                print(">>> MENJALANKAN WD OTOMATIS <<<\n")
+                subprocess.run([sys.executable, wd_script], cwd=PROJECT_ROOT)
                 print("\n")
                 input("Selesai. Tekan Enter untuk kembali ke menu...")
 
-
-        elif pilihan == '3':
-            ganti_pengaturan()
-
-        elif pilihan == '4':
-            menu_toggle_steps()
-
-        elif pilihan == '5':
-            menu_resolusi_layar()
-
-        elif pilihan == '6':
-            clear_screen()
-            print("[*] Merestart ulang sistem Menu Utama...")
-            time.sleep(1)
-            os.execv(sys.executable, [sys.executable, __file__] + sys.argv[1:])
-
-        elif pilihan == '7':
-            if IS_TERMUX:
+            elif pilihan == '2':
                 clear_screen()
                 print("=========================================================")
-                print("SYARAT: Nyalakan 'Proses Debug Nirkabel' (Wireless Debugging)")
-                print("di Pengaturan Developer HP Anda sebelum melanjutkan.")
+                print("     2. MULAI WD MANUAL / REKAM DELAY (VIA ENTER)        ")
                 print("=========================================================")
-                subprocess.run([sys.executable, konek_script], cwd=PROJECT_ROOT)
+                print("  A. REKAM DELAY  — Jalankan action + ukur delay HP Anda.")
+                print("     Hasil rekaman delay langsung tersimpan ke kordinat.txt")
+                print("     dan dipakai saat WD Otomatis (Menu 1) berikutnya.")
+                print("")
+                print("  B. STEP-BY-STEP — Jalankan bot lengkap, tekan ENTER")
+                print("     setelah setiap langkah untuk lanjut ke step berikutnya.")
+                print("")
+                print("  0. Batal / Kembali")
+                print("=========================================================")
+                sub = input("Pilih mode (A/B/0): ").strip().upper()
+                if sub == 'A':
+                    record_and_apply_bot_screen(silent=True)
+                    clear_screen()
+                    print(">>> REKAM DELAY HP ANDA <<<\n")
+                    subprocess.run([sys.executable, wd_script, '--rekam'], cwd=PROJECT_ROOT)
+                    print("\n")
+                    input("Selesai rekam. Tekan Enter untuk kembali ke menu...")
+                elif sub == 'B':
+                    record_and_apply_bot_screen(silent=True)
+                    clear_screen()
+                    print(">>> MENJALANKAN WD MANUAL (STEP-BY-STEP) <<<\n")
+                    subprocess.run([sys.executable, wd_script, '--manual'], cwd=PROJECT_ROOT)
+                    print("\n")
+                    input("Selesai. Tekan Enter untuk kembali ke menu...")
+
+            elif pilihan == '3':
+                ganti_pengaturan()
+
+            elif pilihan == '4':
+                menu_toggle_steps()
+
+            elif pilihan == '5':
+                menu_resolusi_layar()
+
+            elif pilihan == '6':
+                clear_screen()
+                print("[*] Merestart ulang sistem Menu Utama...")
+                time.sleep(1)
+                os.execv(sys.executable, [sys.executable, __file__] + sys.argv[1:])
+
+            elif pilihan == '7':
+                if IS_TERMUX:
+                    clear_screen()
+                    print("=========================================================")
+                    print("SYARAT: Nyalakan 'Proses Debug Nirkabel' (Wireless Debugging)")
+                    print("di Pengaturan Developer HP Anda sebelum melanjutkan.")
+                    print("=========================================================")
+                    subprocess.run([sys.executable, konek_script], cwd=PROJECT_ROOT)
+                    # Setelah konek, langsung rekam resolusi dan set bot resolusi
+                    record_and_apply_bot_screen(silent=True)
+                    print("\n")
+                    input("Tekan Enter untuk kembali ke menu...")
+                else:
+                    konek_adb_scrcpy()
+                    record_and_apply_bot_screen(silent=True)
+
+            elif pilihan == '8' and IS_TERMUX:
+                clear_screen()
+                print("[*] Memperbarui dan menginstal dependensi Termux...")
+                subprocess.run('pkg update -y && pkg install python nmap android-tools -y', shell=True, cwd=PROJECT_ROOT)
+                print("\n")
+                input("Selesai. Tekan Enter untuk kembali ke menu...")
+
+            elif pilihan == '9' and IS_TERMUX:
+                clear_screen()
+                print("[*] Membuka Pengaturan Developer di HP Anda...")
+                os.system('am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS')
                 print("\n")
                 input("Tekan Enter untuk kembali ke menu...")
+
+            elif pilihan == '0':
+                clear_screen()
+                print("[*] Menutup bot dan memulihkan resolusi layar HP...")
+                restore_recorded_screen(silent=False)
+                print("Keluar dari program. Terima kasih!")
+                sys.exit(0)
+
             else:
-                konek_adb_scrcpy()
-
-        elif pilihan == '8' and IS_TERMUX:
-            clear_screen()
-            print("[*] Memperbarui dan menginstal dependensi Termux...")
-            subprocess.run('pkg update -y && pkg install python nmap android-tools -y', shell=True, cwd=PROJECT_ROOT)
-            print("\n")
-            input("Selesai. Tekan Enter untuk kembali ke menu...")
-
-        elif pilihan == '9' and IS_TERMUX:
-            clear_screen()
-            print("[*] Membuka Pengaturan Developer di HP Anda...")
-            os.system('am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS')
-            print("\n")
-            input("Tekan Enter untuk kembali ke menu...")
-
-        elif pilihan == '0':
-            clear_screen()
-            print("Keluar dari program. Terima kasih!")
-            sys.exit(0)
-
-        else:
-            print("Pilihan tidak valid!")
-            time.sleep(1)
+                print("Pilihan tidak valid!")
+                time.sleep(1)
+    finally:
+        restore_recorded_screen(silent=True)
 
 if __name__ == "__main__":
     main()
+

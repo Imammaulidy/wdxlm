@@ -13,6 +13,16 @@ CORE_DIR = os.path.abspath(os.path.dirname(__file__))
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
 KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat.txt')
 
+if CORE_DIR not in sys.path:
+    sys.path.insert(0, CORE_DIR)
+
+from screen_manager import (
+    record_and_apply_bot_screen,
+    restore_recorded_screen,
+    register_auto_restore
+)
+
+
 # Deteksi apakah berjalan di Termux
 IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
 
@@ -198,27 +208,6 @@ def load_config():
         print(f"Gagal memuat {CONFIG_FILE}: {e}")
         sys.exit(1)
 
-is_screen_modified = False
-
-def setup_screen_resolution():
-    """Menyetel resolusi dan density ke format standar bot (1080x2400 @ 352 DPI)."""
-    global is_screen_modified
-    print("[*] Menyesuaikan resolusi layar otomatis ke standar bot (1080x2400 @ 352 DPI)...")
-    adb_command("shell wm size 1080x2400")
-    adb_command("shell wm density 352")
-    is_screen_modified = True
-
-def restore_screen_resolution():
-    """Mengembalikan resolusi dan density ke setelan bawaan HP masing-masing."""
-    global is_screen_modified
-    if is_screen_modified:
-        print("\n[*] Mengembalikan resolusi layar HP ke setelan bawaan pabrik...")
-        adb_command("shell wm size reset")
-        adb_command("shell wm density reset")
-        is_screen_modified = False
-        print("[V] Layar HP berhasil dikembalikan ke normal!")
-
-atexit.register(restore_screen_resolution)
 
 DISABLED_STEPS = []
 
@@ -618,14 +607,20 @@ def main():
         os.environ['ANDROID_SERIAL'] = valid_devices[0]
         print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}\n")
     
+    # Jika dijalankan terpisah tanpa menu.py (standalone), bot mengelola sendiri resolusi
+    is_standalone = os.environ.get("BOT_MANAGED_SCREEN") != "1"
+    if is_standalone:
+        register_auto_restore()
+        record_and_apply_bot_screen()
+
     try:
-        setup_screen_resolution()
         if REKAM_MODE:
             run_rekam_delay(config)
         else:
             run_bot(config)
     finally:
-        restore_screen_resolution()
+        if is_standalone:
+            restore_recorded_screen()
 
 if __name__ == "__main__":
     main()
