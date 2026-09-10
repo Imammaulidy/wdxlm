@@ -220,7 +220,7 @@ def print_menu():
     print(f"[*] Step Bot         : {step_status}")
     print("=========================================================")
     print("1. MULAI WD (OTOMATIS FULL)")
-    print("2. MULAI WD MANUAL (VIA ENTER / STEP-BY-STEP)")
+    print("2. MULAI WD MANUAL / REKAM DELAY (VIA ENTER)")
     print("3. GANTI ADDRESS PENERIMA DAN PIN")
     print("4. ON/OFF STEP KOORDINAT BOT")
     print("5. PENGATURAN RESOLUSI & DPI LAYAR HP")
@@ -444,10 +444,32 @@ def main():
 
         elif pilihan == '2':
             clear_screen()
-            print(">>> MENJALANKAN WD MANUAL (STEP-BY-STEP) <<<\n")
-            subprocess.run([sys.executable, wd_script, '--manual'], cwd=PROJECT_ROOT)
-            print("\n")
-            input("Selesai. Tekan Enter untuk kembali ke menu...")
+            print("=========================================================")
+            print("     2. MULAI WD MANUAL / REKAM DELAY (VIA ENTER)        ")
+            print("=========================================================")
+            print("  A. REKAM DELAY  — Jalankan action + ukur delay HP Anda.")
+            print("     Hasil rekaman delay langsung tersimpan ke kordinat.txt")
+            print("     dan dipakai saat WD Otomatis (Menu 1) berikutnya.")
+            print("")
+            print("  B. STEP-BY-STEP — Jalankan bot lengkap, tekan ENTER")
+            print("     setelah setiap langkah untuk lanjut ke step berikutnya.")
+            print("")
+            print("  0. Batal / Kembali")
+            print("=========================================================")
+            sub = input("Pilih mode (A/B/0): ").strip().upper()
+            if sub == 'A':
+                clear_screen()
+                print(">>> REKAM DELAY HP ANDA <<<\n")
+                subprocess.run([sys.executable, wd_script, '--rekam'], cwd=PROJECT_ROOT)
+                print("\n")
+                input("Selesai rekam. Tekan Enter untuk kembali ke menu...")
+            elif sub == 'B':
+                clear_screen()
+                print(">>> MENJALANKAN WD MANUAL (STEP-BY-STEP) <<<\n")
+                subprocess.run([sys.executable, wd_script, '--manual'], cwd=PROJECT_ROOT)
+                print("\n")
+                input("Selesai. Tekan Enter untuk kembali ke menu...")
+
 
         elif pilihan == '3':
             ganti_pengaturan()

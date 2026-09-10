@@ -45,6 +45,7 @@ def log_step(text):
     print(f"\n---> {text}")
 
 MANUAL_MODE = "--manual" in sys.argv
+REKAM_MODE  = "--rekam"  in sys.argv
 
 def stoppable_sleep(jeda):
     """Tunggu selama 'jeda' detik. Jika di Windows dan ENTER ditekan, PAUSE script."""
@@ -307,6 +308,73 @@ def parse_kordinat_file(filepath=KORDINAT_FILE):
 
     return steps
 
+def update_sleep_in_kordinat(step_id, new_sleep_value, filepath=KORDINAT_FILE):
+    """
+    Menulis ulang nilai sleep terakhir sebuah step di kordinat.txt
+    dengan nilai delay hasil rekaman user (dibulatkan 1 desimal).
+    Jika step tidak punya 'sleep' sama sekali, tambahkan di akhir block step.
+    """
+    with open(filepath, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    new_val = f"{round(float(new_sleep_value), 1)}"
+
+    # Temukan batas awal dan akhir block step target
+    block_start = None
+    block_end   = None
+    in_target   = False
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        header = parse_step_header(stripped)
+        if header is not None:
+            if in_target:
+                # Masuk ke step berikutnya — tutup block sebelumnya
+                block_end = i
+                break
+            if str(header['id']) == str(step_id):
+                block_start = i
+                in_target   = True
+        elif in_target and (stripped.startswith('---') or stripped == ''):
+            # Pemisah / baris kosong — akhir block
+            block_end = i
+            break
+
+    if block_start is None:
+        return  # step tidak ditemukan, tidak ubah apapun
+
+    if block_end is None:
+        block_end = len(lines)
+
+    # Cari sleep TERAKHIR di dalam block tersebut
+    last_sleep_idx = None
+    for i in range(block_start, block_end):
+        parts = lines[i].strip().split()
+        if parts and parts[0].lower() == 'sleep':
+            last_sleep_idx = i
+
+    if last_sleep_idx is not None:
+        # Ganti nilai sleep-nya
+        indent = lines[last_sleep_idx][:len(lines[last_sleep_idx]) - len(lines[last_sleep_idx].lstrip())]
+        lines[last_sleep_idx] = f"{indent}sleep {new_val}\r\n"
+    else:
+        # Tidak ada sleep — sisipkan baris baru sebelum block_end
+        lines.insert(block_end, f"sleep {new_val}\r\n")
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.writelines(lines)
+
+
+def is_action_cmd(raw_cmd):
+    """Kembalikan True jika perintah adalah aksi ADB (bukan sleep)."""
+    parts = raw_cmd.strip().split()
+    if not parts:
+        return False
+    if parts[0].lower() == 'sleep':
+        return False
+    return True
+
+
 def execute_step_command(raw_cmd, context):
     """Mengeksekusi satu baris perintah ADB/macro dari kordinat.txt."""
     # Ganti variabel / placeholder dinamis
@@ -367,13 +435,105 @@ def execute_step_command(raw_cmd, context):
     print(f"Executing: {cmd}")
     adb_command(f"shell {cmd}")
 
+def run_rekam_delay(config):
+    """
+    Mode Rekam Delay:
+    - Eksekusi semua ADB action per step (tap/swipe/text/keyevent/monkey/pin).
+    - Perintah 'sleep' di dalam step diabaikan (tidak dijalankan).
+    - Setelah seluruh action satu step selesai, stopwatch mulai.
+    - User tekan ENTER ketika layar HP sudah siap untuk step berikutnya.
+    - Elapsed time dicatat sebagai nilai delay baru dan langsung ditulis ke kordinat.txt.
+    """
+    global DISABLED_STEPS
+    ALAMAT_WD = config.get("alamat_wd", "")
+    PIN       = config.get("pin", "080808")
+    KEYPAD    = config.get("keypad_coords", {})
+    DISABLED_STEPS = config.get("disabled_steps", [])
+
+    steps = parse_kordinat_file(KORDINAT_FILE)
+    active_steps = [s for s in steps if is_step_enabled(s)]
+
+    print(f"\n[*] Berhasil memuat {len(steps)} langkah ({len(active_steps)} aktif) dari core/kordinat.txt")
+    print("""
+=========================================================
+               MODE REKAM DELAY AKTIF
+=========================================================
+  Cara kerja:
+  1. Bot jalankan semua klik/swipe/action per step.
+  2. Stopwatch dimulai segera setelah action selesai.
+  3. Tekan ENTER saat layar HP sudah siap ke langkah
+     berikutnya. Waktu akan otomatis disimpan ke
+     core/kordinat.txt sebagai delay baru.
+  4. Ketik 'S' + ENTER untuk SKIP step (delay tidak
+     diubah untuk step tersebut).
+  5. Ketik 'Q' + ENTER untuk BERHENTI merekam.
+
+  Rekaman menggunakan 1 akun saja (clone ke-0).
+  Setelah rekam, jalankan WD Otomatis (Menu 1).
+=========================================================
+""")
+    input("--> Siapkan HP Anda, lalu tekan ENTER untuk mulai rekam...")
+
+    context = {
+        "ALAMAT_WD": ALAMAT_WD,
+        "ACCOUNT_NUM": 0,
+        "PIN": PIN,
+        "KEYPAD": KEYPAD
+    }
+
+    recorded = {}
+
+    for step in active_steps:
+        step_id = step["id"]
+        log_step(f"# {step['full_title']}")
+
+        # Jalankan semua action (SKIP sleep agar tidak ada jeda otomatis)
+        for cmd in step["commands"]:
+            if not is_action_cmd(cmd):
+                continue  # lewati sleep
+            execute_step_command(cmd, context)
+
+        # Mulai stopwatch
+        t_start = time.time()
+        prompt_msg = (
+            f"\n  [REKAM] Selesai: \"{step['full_title']}\"\n"
+            f"  Stopwatch berjalan... Tekan ENTER saat layar HP siap.\n"
+            f"  (S=Skip rekam delay step ini | Q=Berhenti): "
+        )
+        user_key = input(prompt_msg).strip().lower()
+        elapsed  = round(time.time() - t_start, 1)
+
+        if user_key == 'q':
+            print("\n[X] Rekaman dihentikan oleh pengguna.")
+            break
+        elif user_key == 's':
+            print(f"  [--] Step {step_id} di-SKIP, delay lama dipertahankan.")
+            continue
+
+        # Pastikan minimal 0.3 detik agar bot tidak terlalu cepat
+        elapsed = max(elapsed, 0.3)
+        update_sleep_in_kordinat(step_id, elapsed)
+        recorded[step_id] = elapsed
+        print(f"  [V]  Delay step {step_id} direkam: {elapsed}s  -> disimpan ke kordinat.txt")
+
+    print(f"\n=========================================================")
+    print(f"  REKAMAN SELESAI — {len(recorded)} step delay diperbarui.")
+    if recorded:
+        print(f"  Ringkasan delay baru:")
+        for sid, val in recorded.items():
+            print(f"    Step {sid}: {val}s")
+    print(f"=========================================================")
+    print("  Jalankan WD Otomatis (Menu 1) untuk memakai delay baru.")
+    print(f"=========================================================\n")
+
+
 def run_bot(config):
     global DISABLED_STEPS
     # Konfigurasi Looping
     TOTAL_AKUN = config.get("total_akun", 5)
-    ALAMAT_WD = config.get("alamat_wd", "")
-    PIN = config.get("pin", "080808")
-    KEYPAD = config.get("keypad_coords", {})
+    ALAMAT_WD  = config.get("alamat_wd", "")
+    PIN        = config.get("pin", "080808")
+    KEYPAD     = config.get("keypad_coords", {})
     DISABLED_STEPS = config.get("disabled_steps", [])
 
     # Nomor Urut Awal untuk Penamaan di Google Authenticator (Default: 0)
@@ -460,9 +620,13 @@ def main():
     
     try:
         setup_screen_resolution()
-        run_bot(config)
+        if REKAM_MODE:
+            run_rekam_delay(config)
+        else:
+            run_bot(config)
     finally:
         restore_screen_resolution()
 
 if __name__ == "__main__":
     main()
+
