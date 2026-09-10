@@ -217,263 +217,358 @@ def restore_screen_resolution():
 
 atexit.register(restore_screen_resolution)
 
+DISABLED_STEPS = []
+
+def is_step_enabled(step_num):
+    """Cek apakah step tertentu aktif (tidak di-disable)."""
+    return step_num not in DISABLED_STEPS
+
 def run_bot(config):
+    global DISABLED_STEPS
     # Konfigurasi Looping
     TOTAL_AKUN = config.get("total_akun", 5)
     ALAMAT_WD = config.get("alamat_wd", "")
     PIN = config.get("pin", "080808")
     KEYPAD = config.get("keypad_coords", {})
-    
+    DISABLED_STEPS = config.get("disabled_steps", [])
+
     # Nomor Urut Awal untuk Penamaan di Google Authenticator
     START_INDEX = config.get("start_index", 51)
-    
+
     print(f"\n[?] Bot akan memproses {TOTAL_AKUN} akun sekaligus.")
     inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter untuk {START_INDEX}): ").strip()
     if inp_start.isdigit():
         START_INDEX = int(inp_start)
-        
+
     # Simpan index berikutnya ke config.json agar diingat pada eksekusi selanjutnya
     config["start_index"] = START_INDEX + TOTAL_AKUN
     try:
         with open(CONFIG_FILE, 'w') as f:
             json.dump(config, f, indent=4)
-    except Exception as e:
+    except Exception:
         pass
-    
+
+    if DISABLED_STEPS:
+        print(f"[!] Step yang di-SKIP: {DISABLED_STEPS}")
+
     print(f"\n[*] PROSES DIMULAI DARI CLONE KE-{START_INDEX} ...\n")
-    
+
     for i in range(TOTAL_AKUN):
-        log_step("# 0. Scroll layar Multi App agar clone berikutnya naik ke atas")
-        
-        # 0. Scroll layar Multi App agar clone berikutnya naik ke atas
-        print("Menggeser layar Multi App Ultra...")
-        swipe(546, 820, 546, 500, duration=1200, jeda=1.0)
-        
         current_account_num = START_INDEX + i
         print(f"\n========== MEMPROSES AKUN KE-{current_account_num} ==========")
-        
-        log_step("# 1. KLIK BITGET (Buka clone aplikasi dari Multi App)")
-        
-        # 1. KLIK BITGET (Buka clone aplikasi dari Multi App)
-        tap(164, 423, jeda=6.6)
-        
-        log_step("# 2. Klik Dompet (Klik 2 kali)")
-        
-        # 2. Klik Dompet (Klik 2 kali)
-        tap(908, 2258, jeda=1.8)
-        tap(908, 2258, jeda=1.6)
-        
-        log_step("# 2.1 Swipe bawah (tutup popup default jika muncul)")
-        
-        # 2.1 Swipe bawah (tutup popup default jika muncul)
-        print("Swipe bawah (menutup popup jika ada)...")
-        swipe(560, 1630, 580, 2377, duration=300, jeda=2.3)
-        
-        log_step("# 3. Klik Hadiah")
-        
-        # 3. Klik Hadiah
-        tap(212, 816, jeda=3.2)
-        
-        log_step("# 4. Klik XLM")
-        
-        # 4. Klik XLM
-        tap(536, 1316, jeda=2.4)
-        
-        log_step("# 5. Klik Penarikan")
-        
-        # 5. Klik Penarikan
-        tap(533, 2302, jeda=1.9)
-        
-        log_step("# 6. Klik Alamat Tujuan")
-        
-        # 6. Klik Alamat Tujuan
-        tap(525, 631, jeda=0.8)
-        # Isikan Alamat
-        input_text(ALAMAT_WD, jeda=1.7)
-        
-        log_step("# 7. Klik Semua (Max Amount)")
-        
-        # 7. Klik Semua (Max Amount)
-        tap(969, 888, jeda=1.6)
-        
-        log_step("# 8. Klik area kosong untuk menghilangkan keyboard")
-        
-        # 8. Klik area kosong untuk menghilangkan keyboard
-        tap(518, 1452, jeda=1.3)
-        
-        log_step("# 9. Klik Konfirmasi")
-        
-        # 9. Klik Konfirmasi
-        tap(541, 2307, jeda=1.2)
-        
-        log_step("# 10. Klik Konfirmasi Lagi (Modal Pengingat)")
-        
-        # 10. Klik Konfirmasi Lagi (Modal Pengingat)
-        tap(800, 2156, jeda=1.2)
-        
-        log_step("# 11. Klik Selanjutnya (Halaman Ikat Google Auth)")
-        
-        # 11. Klik Selanjutnya (Halaman Ikat Google Auth)
-        tap(530, 2307, jeda=2.4)
-        
-        log_step("# 12. Klik Copy Kode")
-        
-        # 12. Klik Copy Kode
-        tap(982, 1106, jeda=1.0)
-        
-        log_step("# 13. Klik Selanjutnya")
-        
-        # 13. Klik Selanjutnya
-        tap(531, 1676, jeda=1.2)
-        
-        log_step("# 14. Buka Google Authenticator")
-        
-        # 14. Buka Google Authenticator
-        print("Membuka Google Authenticator...")
-        adb_command("shell monkey -p com.google.android.apps.authenticator2 -c android.intent.category.LAUNCHER 1")
-        stoppable_sleep(2.5)
-        
-        log_step("# 15. Klik Tambah Kode (+) di Google Auth")
-        
-        # 15. Klik Tambah Kode (+) di Google Auth
-        tap(985, 2287, jeda=1.4)
-        
-        log_step("# 16. Klik Masukkan Kunci Penyiapan (Enter a setup key)")
-        
-        # 16. Klik Masukkan Kunci Penyiapan (Enter a setup key)
-        tap(963, 2066, jeda=1.2)
-        
-        log_step("# 17. Klik Nama Kode dan Masukkan Nomor Urut Otomatis")
-        
-        # 17. Klik Nama Kode dan Masukkan Nomor Urut Otomatis
-        tap(166, 320, jeda=1.0)
-        input_text(str(current_account_num), jeda=0.8)
-        
-        log_step("# 18. Klik Kunci Anda dan Paste Kode")
-        
-        # 18. Klik Kunci Anda dan Paste Kode
-        tap(338, 508, jeda=1.0)
-        paste_clipboard(jeda=1.1)
-        
-        log_step("# 19. Pencet Back untuk menutup keyboard")
-        
-        # 19. Pencet Back untuk menutup keyboard
-        press_back(jeda=0.9)
-        
-        log_step("# 20. Klik Tambahkan")
-        
-        # 20. Klik Tambahkan
-        tap(536, 2279, jeda=2.1)
-        
-        log_step("# 21. Klik Tutup (Berdasarkan koordinat karena layar blank/secure)")
-        
-        # 21. Klik Tutup (Berdasarkan koordinat karena layar blank/secure)
-        tap(983, 2256, jeda=1.0)
-        
-        log_step("# 22. Scroll ke bawah mentok (Diulang 2 kali)")
-        
-        # 22. Scroll ke bawah mentok (Diulang 2 kali)
-        swipe(525, 2140, 556, 220, duration=1000, jeda=0.6)
-        swipe(525, 2140, 556, 220, duration=1000, jeda=0.4)
-            
-        log_step("# 23. Klik Code OTP di paling bawah untuk meng-copy-nya")
-            
-        # 23. Klik Code OTP di paling bawah untuk meng-copy-nya
-        tap(535, 2285, jeda=1.0)
-        
-        log_step("# 24. Buka Recent Apps")
-        
-        # 24. Buka Recent Apps
-        open_recent_apps(jeda=0.9)
-        
-        log_step("# 25. Klik Bitget Wallet di sebelah kanan")
-        
-        # 25. Klik Bitget Wallet di sebelah kanan
-        tap(851, 1329, jeda=1.1)
-        
-        log_step("# 26. Klik tombol Tempel (di Bitget Wallet)")
-        
-        # 26. Klik tombol Tempel (di Bitget Wallet)
-        tap(920, 426, jeda=0.6)
-        
-        log_step("# 27. Klik Ikat")
-        
-        # 27. Klik Ikat
-        tap(525, 2310, jeda=1.2)
-        
-        log_step("# 28. Klik area kosong (agar ganti metode FP ke PIN)")
-        
-        # 28. Klik area kosong (agar ganti metode FP ke PIN)
-        tap(528, 1270, jeda=1.1)
-        
-        log_step("# 29. Klik Beralih ke sandi/pin")
-        
-        # 29. Klik Beralih ke sandi/pin
-        tap(546, 2302, jeda=0.9)
-        
-        log_step("# 30. Masukkan PIN dinamis via sentuhan layar")
-        
-        # 30. Masukkan PIN dinamis via sentuhan layar
-        tap_dynamic_pin(PIN, KEYPAD, final_jeda=2.5)
-        
-        log_step("# 31. Klik Konfirmasi (setelah kembali ke halaman WD)")
-        
-        # 31. Klik Konfirmasi (setelah kembali ke halaman WD)
-        tap(536, 2302, jeda=0.9)
-        
-        log_step("# 32. Klik Tempel (di modal Otentikasi Google)")
-        
-        # 32. Klik Tempel (di modal Otentikasi Google)
-        tap(946, 2027, jeda=0.4)
-        
-        log_step("# 33. Klik Otentikasi")
-        
-        # 33. Klik Otentikasi
-        tap(797, 2233, jeda=1.2)
-        
-        log_step("# 34. Klik area kosong (Ganti metode)")
-        
-        # 34. Klik area kosong (Ganti metode)
-        tap(495, 1093, jeda=1.0)
-        
-        log_step("# 35. Klik Beralih ke sandi/pin")
-        
-        # 35. Klik Beralih ke sandi/pin
-        tap(531, 2302, jeda=0.9)
-        
-        log_step("# 36. Masukkan PIN dinamis lagi")
-        
-        # 36. Masukkan PIN dinamis lagi
-        tap_dynamic_pin(PIN, KEYPAD, final_jeda=4.0)
-        
-        log_step("# 37. Klik Oke (Hasil penarikan dikirim)")
-        
-        # 37. Klik Oke (Hasil penarikan dikirim)
-        tap(533, 2310, jeda=0.5)
-        
-        # ==========================================
-        # KEMBALI KE MULTI APP
-        # ==========================================
-        print("Proses berhasil, langsung membuka Multi App (Pemanggilan Paket)...")
-        log_step("# 38. Buka kembali Multi App Ultra (via Package Name)")
-        adb_command("shell monkey -p com.waxmoon.ma.gp -c android.intent.category.LAUNCHER 1")
-        stoppable_sleep(1.0)
-        
-        log_step("# 40. Klik Titik Tiga (Menu Multi App)")
-        
-        # 40. Klik Titik Tiga (Menu Multi App)
-        tap(1032, 145, jeda=0.6)
-        
-        log_step("# 41. Klik Kill All Apps")
-        
-        # 41. Klik Kill All Apps
-        tap(773, 273, jeda=0.9)
-        
-        log_step("# 42. Klik Confirm (Kill All Apps)")
-        
-        # 42. Klik Confirm (Kill All Apps)
-        tap(846, 1284, jeda=5.5)
-        
+
+        # Step 0
+        if is_step_enabled(0):
+            log_step("# 0. Scroll layar Multi App agar clone berikutnya naik ke atas")
+            print("Menggeser layar Multi App Ultra...")
+            swipe(546, 820, 546, 500, duration=1200, jeda=1.0)
+        else:
+            print("[SKIP] Step 0: Scroll Multi App")
+
+        # Step 1
+        if is_step_enabled(1):
+            log_step("# 1. KLIK BITGET (Buka clone aplikasi dari Multi App)")
+            tap(164, 423, jeda=6.6)
+        else:
+            print("[SKIP] Step 1: Klik Bitget")
+
+        # Step 2
+        if is_step_enabled(2):
+            log_step("# 2. Klik Dompet (Klik 2 kali)")
+            tap(908, 2258, jeda=1.8)
+            tap(908, 2258, jeda=1.6)
+        else:
+            print("[SKIP] Step 2: Klik Dompet")
+
+        # Step 2.1
+        if is_step_enabled("2.1"):
+            log_step("# 2.1 Swipe bawah (tutup popup default jika muncul)")
+            print("Swipe bawah (menutup popup jika ada)...")
+            swipe(560, 1630, 580, 2377, duration=300, jeda=2.3)
+        else:
+            print("[SKIP] Step 2.1: Swipe tutup popup")
+
+        # Step 3
+        if is_step_enabled(3):
+            log_step("# 3. Klik Hadiah")
+            tap(212, 816, jeda=3.2)
+        else:
+            print("[SKIP] Step 3: Klik Hadiah")
+
+        # Step 4
+        if is_step_enabled(4):
+            log_step("# 4. Klik XLM")
+            tap(536, 1316, jeda=2.4)
+        else:
+            print("[SKIP] Step 4: Klik XLM")
+
+        # Step 5
+        if is_step_enabled(5):
+            log_step("# 5. Klik Penarikan")
+            tap(533, 2302, jeda=1.9)
+        else:
+            print("[SKIP] Step 5: Klik Penarikan")
+
+        # Step 6
+        if is_step_enabled(6):
+            log_step("# 6. Klik Alamat Tujuan & Input Alamat")
+            tap(525, 631, jeda=0.8)
+            input_text(ALAMAT_WD, jeda=1.7)
+        else:
+            print("[SKIP] Step 6: Input Alamat")
+
+        # Step 7
+        if is_step_enabled(7):
+            log_step("# 7. Klik Semua (Max Amount)")
+            tap(969, 888, jeda=1.6)
+        else:
+            print("[SKIP] Step 7: Klik Semua")
+
+        # Step 8
+        if is_step_enabled(8):
+            log_step("# 8. Klik area kosong untuk menghilangkan keyboard")
+            tap(518, 1452, jeda=1.3)
+        else:
+            print("[SKIP] Step 8: Tutup keyboard")
+
+        # Step 9
+        if is_step_enabled(9):
+            log_step("# 9. Klik Konfirmasi")
+            tap(541, 2307, jeda=1.2)
+        else:
+            print("[SKIP] Step 9: Klik Konfirmasi")
+
+        # Step 10
+        if is_step_enabled(10):
+            log_step("# 10. Klik Konfirmasi Lagi (Modal Pengingat)")
+            tap(800, 2156, jeda=1.2)
+        else:
+            print("[SKIP] Step 10: Konfirmasi Modal Pengingat")
+
+        # Step 11
+        if is_step_enabled(11):
+            log_step("# 11. Klik Selanjutnya (Halaman Ikat Google Auth)")
+            tap(530, 2307, jeda=2.4)
+        else:
+            print("[SKIP] Step 11: Klik Selanjutnya")
+
+        # Step 12
+        if is_step_enabled(12):
+            log_step("# 12. Klik Copy Kode")
+            tap(982, 1106, jeda=1.0)
+        else:
+            print("[SKIP] Step 12: Copy Kode")
+
+        # Step 13
+        if is_step_enabled(13):
+            log_step("# 13. Klik Selanjutnya")
+            tap(531, 1676, jeda=1.2)
+        else:
+            print("[SKIP] Step 13: Klik Selanjutnya")
+
+        # Step 14
+        if is_step_enabled(14):
+            log_step("# 14. Buka Google Authenticator")
+            print("Membuka Google Authenticator...")
+            adb_command("shell monkey -p com.google.android.apps.authenticator2 -c android.intent.category.LAUNCHER 1")
+            stoppable_sleep(2.5)
+        else:
+            print("[SKIP] Step 14: Buka Google Auth")
+
+        # Step 15
+        if is_step_enabled(15):
+            log_step("# 15. Klik Tambah Kode (+) di Google Auth")
+            tap(985, 2287, jeda=1.4)
+        else:
+            print("[SKIP] Step 15: Tambah Kode Google Auth")
+
+        # Step 16
+        if is_step_enabled(16):
+            log_step("# 16. Klik Masukkan Kunci Penyiapan")
+            tap(963, 2066, jeda=1.2)
+        else:
+            print("[SKIP] Step 16: Masukkan Kunci Penyiapan")
+
+        # Step 17
+        if is_step_enabled(17):
+            log_step("# 17. Klik Nama Kode dan Masukkan Nomor Urut Otomatis")
+            tap(166, 320, jeda=1.0)
+            input_text(str(current_account_num), jeda=0.8)
+        else:
+            print("[SKIP] Step 17: Input Nama Kode")
+
+        # Step 18
+        if is_step_enabled(18):
+            log_step("# 18. Klik Kunci Anda dan Paste Kode")
+            tap(338, 508, jeda=1.0)
+            paste_clipboard(jeda=1.1)
+        else:
+            print("[SKIP] Step 18: Paste Kode")
+
+        # Step 19
+        if is_step_enabled(19):
+            log_step("# 19. Pencet Back untuk menutup keyboard")
+            press_back(jeda=0.9)
+        else:
+            print("[SKIP] Step 19: Tutup Keyboard (Back)")
+
+        # Step 20
+        if is_step_enabled(20):
+            log_step("# 20. Klik Tambahkan")
+            tap(536, 2279, jeda=2.1)
+        else:
+            print("[SKIP] Step 20: Klik Tambahkan")
+
+        # Step 21
+        if is_step_enabled(21):
+            log_step("# 21. Klik Tutup (layar blank/secure)")
+            tap(983, 2256, jeda=1.0)
+        else:
+            print("[SKIP] Step 21: Klik Tutup")
+
+        # Step 22
+        if is_step_enabled(22):
+            log_step("# 22. Scroll ke bawah mentok (Diulang 2 kali)")
+            swipe(525, 2140, 556, 220, duration=1000, jeda=0.6)
+            swipe(525, 2140, 556, 220, duration=1000, jeda=0.4)
+        else:
+            print("[SKIP] Step 22: Scroll bawah")
+
+        # Step 23
+        if is_step_enabled(23):
+            log_step("# 23. Klik Code OTP di paling bawah untuk meng-copy-nya")
+            tap(535, 2285, jeda=1.0)
+        else:
+            print("[SKIP] Step 23: Copy OTP")
+
+        # Step 24
+        if is_step_enabled(24):
+            log_step("# 24. Buka Recent Apps")
+            open_recent_apps(jeda=0.9)
+        else:
+            print("[SKIP] Step 24: Buka Recent Apps")
+
+        # Step 25
+        if is_step_enabled(25):
+            log_step("# 25. Klik Bitget Wallet di sebelah kanan")
+            tap(851, 1329, jeda=1.1)
+        else:
+            print("[SKIP] Step 25: Klik Bitget Wallet")
+
+        # Step 26
+        if is_step_enabled(26):
+            log_step("# 26. Klik tombol Tempel (di Bitget Wallet)")
+            tap(920, 426, jeda=0.6)
+        else:
+            print("[SKIP] Step 26: Tempel di Bitget Wallet")
+
+        # Step 27
+        if is_step_enabled(27):
+            log_step("# 27. Klik Ikat")
+            tap(525, 2310, jeda=1.2)
+        else:
+            print("[SKIP] Step 27: Klik Ikat")
+
+        # Step 28
+        if is_step_enabled(28):
+            log_step("# 28. Klik area kosong (agar ganti metode FP ke PIN)")
+            tap(528, 1270, jeda=1.1)
+        else:
+            print("[SKIP] Step 28: Ganti metode FP ke PIN")
+
+        # Step 29
+        if is_step_enabled(29):
+            log_step("# 29. Klik Beralih ke sandi/pin")
+            tap(546, 2302, jeda=0.9)
+        else:
+            print("[SKIP] Step 29: Beralih ke PIN")
+
+        # Step 30
+        if is_step_enabled(30):
+            log_step("# 30. Masukkan PIN dinamis via sentuhan layar")
+            tap_dynamic_pin(PIN, KEYPAD, final_jeda=2.5)
+        else:
+            print("[SKIP] Step 30: Input PIN")
+
+        # Step 31
+        if is_step_enabled(31):
+            log_step("# 31. Klik Konfirmasi (setelah kembali ke halaman WD)")
+            tap(536, 2302, jeda=0.9)
+        else:
+            print("[SKIP] Step 31: Konfirmasi WD")
+
+        # Step 32
+        if is_step_enabled(32):
+            log_step("# 32. Klik Tempel (di modal Otentikasi Google)")
+            tap(946, 2027, jeda=0.4)
+        else:
+            print("[SKIP] Step 32: Tempel OTP Google")
+
+        # Step 33
+        if is_step_enabled(33):
+            log_step("# 33. Klik Otentikasi")
+            tap(797, 2233, jeda=1.2)
+        else:
+            print("[SKIP] Step 33: Klik Otentikasi")
+
+        # Step 34
+        if is_step_enabled(34):
+            log_step("# 34. Klik area kosong (Ganti metode)")
+            tap(495, 1093, jeda=1.0)
+        else:
+            print("[SKIP] Step 34: Ganti metode")
+
+        # Step 35
+        if is_step_enabled(35):
+            log_step("# 35. Klik Beralih ke sandi/pin")
+            tap(531, 2302, jeda=0.9)
+        else:
+            print("[SKIP] Step 35: Beralih ke PIN (ke-2)")
+
+        # Step 36
+        if is_step_enabled(36):
+            log_step("# 36. Masukkan PIN dinamis lagi")
+            tap_dynamic_pin(PIN, KEYPAD, final_jeda=4.0)
+        else:
+            print("[SKIP] Step 36: Input PIN ke-2")
+
+        # Step 37
+        if is_step_enabled(37):
+            log_step("# 37. Klik Oke (Hasil penarikan dikirim)")
+            tap(533, 2310, jeda=0.5)
+        else:
+            print("[SKIP] Step 37: Klik Oke")
+
+        # Step 38
+        if is_step_enabled(38):
+            print("Proses berhasil, langsung membuka Multi App (Pemanggilan Paket)...")
+            log_step("# 38. Buka kembali Multi App Ultra (via Package Name)")
+            adb_command("shell monkey -p com.waxmoon.ma.gp -c android.intent.category.LAUNCHER 1")
+            stoppable_sleep(1.0)
+        else:
+            print("[SKIP] Step 38: Buka Multi App")
+
+        # Step 40
+        if is_step_enabled(40):
+            log_step("# 40. Klik Titik Tiga (Menu Multi App)")
+            tap(1032, 145, jeda=0.6)
+        else:
+            print("[SKIP] Step 40: Menu Multi App")
+
+        # Step 41
+        if is_step_enabled(41):
+            log_step("# 41. Klik Kill All Apps")
+            tap(773, 273, jeda=0.9)
+        else:
+            print("[SKIP] Step 41: Kill All Apps")
+
+        # Step 42
+        if is_step_enabled(42):
+            log_step("# 42. Klik Confirm (Kill All Apps)")
+            tap(846, 1284, jeda=5.5)
+        else:
+            print("[SKIP] Step 42: Confirm Kill All")
+
     print("\nSemua akun selesai diproses.")
 
 def main():

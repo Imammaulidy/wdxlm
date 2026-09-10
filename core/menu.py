@@ -66,30 +66,80 @@ def save_config(data):
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
+ALL_STEPS = [
+    (0,    "Scroll layar Multi App agar clone naik ke atas"),
+    (1,    "KLIK BITGET (Buka clone dari Multi App)"),
+    (2,    "Klik Dompet (2 kali)"),
+    ("2.1","Swipe bawah (tutup popup default)"),
+    (3,    "Klik Hadiah"),
+    (4,    "Klik XLM"),
+    (5,    "Klik Penarikan"),
+    (6,    "Klik Alamat Tujuan & Input Alamat"),
+    (7,    "Klik Semua (Max Amount)"),
+    (8,    "Klik area kosong (hilangkan keyboard)"),
+    (9,    "Klik Konfirmasi"),
+    (10,   "Klik Konfirmasi Lagi (Modal Pengingat)"),
+    (11,   "Klik Selanjutnya (Ikat Google Auth)"),
+    (12,   "Klik Copy Kode"),
+    (13,   "Klik Selanjutnya"),
+    (14,   "Buka Google Authenticator"),
+    (15,   "Klik Tambah Kode (+) di Google Auth"),
+    (16,   "Klik Masukkan Kunci Penyiapan"),
+    (17,   "Input Nama Kode (Nomor Urut)"),
+    (18,   "Klik Kunci Anda & Paste Kode"),
+    (19,   "Pencet Back (tutup keyboard)"),
+    (20,   "Klik Tambahkan"),
+    (21,   "Klik Tutup (layar blank/secure)"),
+    (22,   "Scroll ke bawah mentok (2x)"),
+    (23,   "Klik Code OTP (copy)"),
+    (24,   "Buka Recent Apps"),
+    (25,   "Klik Bitget Wallet (kanan)"),
+    (26,   "Klik Tempel di Bitget Wallet"),
+    (27,   "Klik Ikat"),
+    (28,   "Klik area kosong (ganti FP ke PIN)"),
+    (29,   "Klik Beralih ke sandi/pin"),
+    (30,   "Masukkan PIN (via koordinat sentuh)"),
+    (31,   "Klik Konfirmasi (halaman WD)"),
+    (32,   "Klik Tempel (modal Otentikasi Google)"),
+    (33,   "Klik Otentikasi"),
+    (34,   "Klik area kosong (Ganti metode ke-2)"),
+    (35,   "Klik Beralih ke sandi/pin (ke-2)"),
+    (36,   "Masukkan PIN ke-2"),
+    (37,   "Klik Oke (WD dikirim)"),
+    (38,   "Buka Multi App Ultra (via package)"),
+    (40,   "Klik Titik Tiga (Menu Multi App)"),
+    (41,   "Klik Kill All Apps"),
+    (42,   "Klik Confirm (Kill All Apps)"),
+]
+
 def print_menu():
     clear_screen()
     print("=========================================================")
     print("              BOT AUTO WD XLM BITGET                     ")
     print("=========================================================")
-    
+
     config = load_config()
     addr = config.get('alamat_wd', '')
     addr_disp = f"{addr[:15]}...{addr[-5:]}" if len(addr) > 20 else addr
+    disabled_count = len(config.get('disabled_steps', []))
+    step_status = f"[{len(ALL_STEPS) - disabled_count}/{len(ALL_STEPS)} Step Aktif]"
     print(f"[*] Address Saat Ini : {addr_disp}")
     print(f"[*] PIN Saat Ini     : {config.get('pin')}")
     print(f"[*] Total Akun WD    : {config.get('total_akun')}")
+    print(f"[*] Step Bot         : {step_status}")
     print("=========================================================")
     print("1. MULAI WD (OTOMATIS FULL)")
     print("2. MULAI WD MANUAL (VIA ENTER / STEP-BY-STEP)")
     print("3. GANTI ADDRESS PENERIMA DAN PIN")
-    print("4. PENGATURAN RESOLUSI & DPI LAYAR HP")
-    print("5. RESTART MENU UTAMA")
+    print("4. ON/OFF STEP KOORDINAT BOT")
+    print("5. PENGATURAN RESOLUSI & DPI LAYAR HP")
+    print("6. RESTART MENU UTAMA")
     if IS_TERMUX:
-        print("6. KONEK ADB LOKAL (WIRELESS DEBUGGING)")
-        print("7. INSTALL/UPDATE DEPENDENCIES")
-        print("8. BUKA PENGATURAN DEVELOPER (Shortcut)")
+        print("7. KONEK ADB LOKAL (WIRELESS DEBUGGING)")
+        print("8. INSTALL/UPDATE DEPENDENCIES")
+        print("9. BUKA PENGATURAN DEVELOPER (Shortcut)")
     else:
-        print("6. KONEK ADB & SCRCPY (KHUSUS PC)")
+        print("7. KONEK ADB & SCRCPY (KHUSUS PC)")
     print("0. EXIT")
     print("=========================================================")
 
@@ -121,6 +171,58 @@ def ganti_pengaturan():
     print("\n[!] Pengaturan berhasil disimpan!")
     input("Tekan Enter untuk kembali ke menu...")
 
+def menu_toggle_steps():
+    while True:
+        config = load_config()
+        disabled = config.get("disabled_steps", [])
+        clear_screen()
+        print("=========================================================")
+        print("        PENGATURAN ON/OFF STEP KOORDINAT BOT             ")
+        print("=========================================================")
+        print(f"  {'NO':>4}  {'STEP':<5}  {'STATUS':<6}  DESKRIPSI")
+        print("---------------------------------------------------------")
+        for idx, (step_id, desc) in enumerate(ALL_STEPS, start=1):
+            status = "[ ON ]" if step_id not in disabled else "[OFF ]"
+            print(f"  {idx:>4}. Step {str(step_id):<4} {status}  {desc}")
+        print("---------------------------------------------------------")
+        print("  A  = AKTIFKAN SEMUA STEP")
+        print("  D  = DISABLE SEMUA STEP")
+        print("  0  = Kembali ke Menu Utama")
+        print("=========================================================")
+        pil = input("Masukkan nomor step untuk toggle (atau A/D/0): ").strip().upper()
+
+        if pil == '0':
+            break
+        elif pil == 'A':
+            config["disabled_steps"] = []
+            save_config(config)
+            print("[V] Semua step DIAKTIFKAN!")
+            time.sleep(1)
+        elif pil == 'D':
+            config["disabled_steps"] = [s for s, _ in ALL_STEPS]
+            save_config(config)
+            print("[!] Semua step DINONAKTIFKAN!")
+            time.sleep(1)
+        elif pil.isdigit():
+            idx_pil = int(pil) - 1
+            if 0 <= idx_pil < len(ALL_STEPS):
+                step_id, desc = ALL_STEPS[idx_pil]
+                if step_id in disabled:
+                    disabled.remove(step_id)
+                    print(f"[V] Step {step_id} [{desc}] -> ON")
+                else:
+                    disabled.append(step_id)
+                    print(f"[!] Step {step_id} [{desc}] -> OFF")
+                config["disabled_steps"] = disabled
+                save_config(config)
+                time.sleep(0.6)
+            else:
+                print("Nomor tidak valid!")
+                time.sleep(1)
+        else:
+            print("Pilihan tidak dikenali!")
+            time.sleep(1)
+
 def menu_resolusi_layar():
     while True:
         clear_screen()
@@ -133,7 +235,7 @@ def menu_resolusi_layar():
         print("0. Kembali ke Menu Utama")
         print("=========================================================")
         pil = input("Pilih menu (0-3): ").strip()
-        
+
         if pil == '1':
             print("\n[*] Membaca status layar...")
             os.system('adb shell "wm size && wm density"')
@@ -221,37 +323,40 @@ def main():
     while True:
         print_menu()
         if IS_TERMUX:
-            pilihan = input("Pilih menu (0-8): ").strip()
+            pilihan = input("Pilih menu (0-9): ").strip()
         else:
-            pilihan = input("Pilih menu (0-6): ").strip()
-        
+            pilihan = input("Pilih menu (0-7): ").strip()
+
         if pilihan == '1':
             clear_screen()
             print(">>> MENJALANKAN WD OTOMATIS <<<\n")
             subprocess.run([sys.executable, wd_script], cwd=PROJECT_ROOT)
             print("\n")
             input("Selesai. Tekan Enter untuk kembali ke menu...")
-            
+
         elif pilihan == '2':
             clear_screen()
             print(">>> MENJALANKAN WD MANUAL (STEP-BY-STEP) <<<\n")
             subprocess.run([sys.executable, wd_script, '--manual'], cwd=PROJECT_ROOT)
             print("\n")
             input("Selesai. Tekan Enter untuk kembali ke menu...")
-            
+
         elif pilihan == '3':
             ganti_pengaturan()
-            
+
         elif pilihan == '4':
-            menu_resolusi_layar()
-            
+            menu_toggle_steps()
+
         elif pilihan == '5':
+            menu_resolusi_layar()
+
+        elif pilihan == '6':
             clear_screen()
             print("[*] Merestart ulang sistem Menu Utama...")
             time.sleep(1)
             os.execv(sys.executable, [sys.executable, __file__] + sys.argv[1:])
-            
-        elif pilihan == '6':
+
+        elif pilihan == '7':
             if IS_TERMUX:
                 clear_screen()
                 print("=========================================================")
@@ -263,25 +368,25 @@ def main():
                 input("Tekan Enter untuk kembali ke menu...")
             else:
                 konek_adb_scrcpy()
-                
-        elif pilihan == '7' and IS_TERMUX:
+
+        elif pilihan == '8' and IS_TERMUX:
             clear_screen()
             subprocess.run(['bash', setup_script], cwd=PROJECT_ROOT)
             print("\n")
             input("Tekan Enter untuk kembali ke menu...")
-            
-        elif pilihan == '8' and IS_TERMUX:
+
+        elif pilihan == '9' and IS_TERMUX:
             clear_screen()
             print("[*] Membuka Pengaturan Developer di HP Anda...")
             os.system('am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS')
             print("\n")
             input("Tekan Enter untuk kembali ke menu...")
-            
+
         elif pilihan == '0':
             clear_screen()
             print("Keluar dari program. Terima kasih!")
             sys.exit(0)
-            
+
         else:
             print("Pilihan tidak valid!")
             time.sleep(1)
