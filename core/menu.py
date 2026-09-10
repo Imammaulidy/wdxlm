@@ -66,36 +66,57 @@ def launch_mirror_screen(extra_args=""):
     else:
         print("[!] Program scrcpy.exe tidak ditemukan di folder core/scrcpy-win64-v3.3.4!")
 
-def detect_device_wifi_ip():
-    """Mendeteksi IP Wi-Fi (wlan0) dari HP yang tersambung via USB atau ADB."""
-    commands = [
-        "adb -d shell ip -f inet addr show wlan0",
-        "adb -d shell ip route",
-        "adb shell ip -f inet addr show wlan0",
-        "adb shell ip route"
-    ]
-    for cmd in commands:
+def detect_device_wifi_ip(target_serial=None):
+    """
+    Mendeteksi IP Wi-Fi murni dari interface wlan0 atau wlan1.
+    TIDAK AKAN membaca interface seluler/data (rmnet) atau loopback.
+    """
+    prefix = f"adb -s {target_serial} " if target_serial else "adb -d "
+    for iface in ["wlan0", "wlan1"]:
         try:
-            out = subprocess.run(cmd, shell=True, capture_output=True, text=True).stdout
+            out = subprocess.run(f"{prefix}shell ip -f inet addr show {iface}", shell=True, capture_output=True, text=True, timeout=3).stdout
             m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
-            if m and not m.group(1).startswith("127."):
-                return m.group(1)
-            m = re.search(r"src\s+(\d+\.\d+\.\d+\.\d+)", out)
-            if m and not m.group(1).startswith("127."):
-                return m.group(1)
+            if m:
+                ip = m.group(1)
+                if not ip.startswith("127."):
+                    return ip
         except Exception:
             pass
     return None
 
-def get_or_detect_wifi_ip():
+def is_port_reachable(ip, port=5555, timeout=1.5):
+    """Cek cepat apakah port terbuka via TCP socket (mencegah adb hang)."""
+    import socket
+    try:
+        with socket.create_connection((ip, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+def get_usb_device():
+    """Mendeteksi ID perangkat USB yang terhubung."""
+    try:
+        r = subprocess.run("adb devices", shell=True, capture_output=True, text=True, timeout=3)
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("List") or line.startswith("*"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2 and parts[1] == "device" and ":" not in parts[0]:
+                return parts[0]
+    except Exception:
+        pass
+    return None
+
+def get_or_detect_wifi_ip(target_serial=None):
     """
     Mendeteksi IP dari HP yang terhubung via USB. Jika ditemukan, simpan ke config.json.
-    Jika tidak ada HP USB, ambil IP terakhir dari config.json.
+    Jika tidak ada HP USB atau Wi-Fi mati, ambil IP terakhir dari config.json.
     """
     config = load_config()
     last_ip = config.get("last_wifi_ip", "")
 
-    detected_ip = detect_device_wifi_ip()
+    detected_ip = detect_device_wifi_ip(target_serial)
     if detected_ip:
         if detected_ip != last_ip:
             config["last_wifi_ip"] = detected_ip
@@ -464,35 +485,52 @@ def konek_adb_scrcpy():
     pil = input("Pilih mode (0-5): ").strip()
 
     if pil == '1':
-        print("\n[*] Menyiapkan koneksi nirkabel otomatis...")
-        detected_ip, is_live = get_or_detect_wifi_ip()
-        if not detected_ip:
+        print("\n[*] Menyiapkan koneksi...")
+        usb_dev = get_usb_device()
+        if not usb_dev:
             input("Silakan colokkan kabel USB dari HP ke PC, lalu tekan Enter...")
-            detected_ip, is_live = get_or_detect_wifi_ip()
+            usb_dev = get_usb_device()
 
-        if detected_ip:
-            print(f"[+] Menggunakan IP Wi-Fi HP: {detected_ip}")
-            print("[*] Menyetel port ADB ke 5555...")
-            os.system("adb -d tcpip 5555")
-            time.sleep(1)
-            print(f"[*] Menghubungkan ADB ke {detected_ip}:5555...")
-            os.system(f"adb connect {detected_ip}:5555")
-            print("\n[V] BERHASIL TERSAMBUNG KE ADB WI-FI!")
-            print("[!] KABEL USB SEKARANG SUDAH BISA DICABUT!")
-            print("[*] Membuka jendela SCRCPY...")
-            launch_mirror_screen(f"-s {detected_ip}:5555")
-        else:
-            default_prompt = f" [Tekan Enter untuk default {last_ip}]" if last_ip else ""
-            inp = input(f"[-] Gagal mendeteksi otomatis. Masukkan IP HP Anda{default_prompt}: ").strip()
-            target_ip = inp if inp else last_ip
-            if target_ip:
-                clean_ip = target_ip.split(":")[0]
-                config["last_wifi_ip"] = clean_ip
+        if usb_dev:
+            print(f"[*] Terdeteksi perangkat USB: {usb_dev}")
+            print("[*] Memeriksa status Wi-Fi HP...")
+            detected_ip = detect_device_wifi_ip(usb_dev)
+
+            wireless_ready = False
+            if detected_ip:
+                print(f"[+] Wi-Fi HP aktif. IP terdeteksi: {detected_ip}")
+                config["last_wifi_ip"] = detected_ip
                 save_config(config)
-                os.system(f"adb connect {clean_ip}:5555")
-                launch_mirror_screen(f"-s {clean_ip}:5555")
+
+                print("[*] Menyetel port ADB nirkabel ke 5555...")
+                os.system(f"adb -s {usb_dev} tcpip 5555")
+                time.sleep(1)
+
+                if is_port_reachable(detected_ip, 5555, timeout=1.5):
+                    print(f"[*] Menghubungkan ADB ke {detected_ip}:5555...")
+                    os.system(f"adb connect {detected_ip}:5555")
+                    wireless_ready = True
+                else:
+                    print(f"[-] Port {detected_ip}:5555 tidak merespons (beda Wi-Fi / AP Isolation).")
             else:
-                launch_mirror_screen()
+                print("[*] Wi-Fi HP tidak aktif / tidak terhubung ke jaringan Wi-Fi.")
+
+            if wireless_ready:
+                print("\n[V] BERHASIL TERSAMBUNG KE ADB WI-FI!")
+                print("[!] KABEL USB SEKARANG SUDAH BISA DICABUT KAPAN SAJA!")
+                print("[*] Membuka jendela SCRCPY nirkabel...")
+                launch_mirror_screen(f"-s {detected_ip}:5555")
+            else:
+                print(f"\n[*] Membuka SCRCPY langsung via koneksi USB ({usb_dev})...")
+                launch_mirror_screen(f"-s {usb_dev}")
+        else:
+            if last_ip and is_port_reachable(last_ip, 5555, timeout=1.5):
+                print(f"[*] Membuka via Wi-Fi yang diingat: {last_ip}:5555...")
+                os.system(f"adb connect {last_ip}:5555")
+                launch_mirror_screen(f"-s {last_ip}:5555")
+            else:
+                print("\n[!] Perangkat tidak ditemukan via USB maupun Wi-Fi.")
+                input("Tekan Enter untuk kembali...")
 
     elif pil == '2':
         launch_mirror_screen()
@@ -512,30 +550,34 @@ def konek_adb_scrcpy():
     elif pil == '4':
         print("\n=== AUTO-SETUP WIRELESS ===")
         print("Syarat: Sambungkan HP ke PC pakai Kabel USB sebentar saja.")
-        detected_ip, is_live = get_or_detect_wifi_ip()
-        if not detected_ip:
+        usb_dev = get_usb_device()
+        if not usb_dev:
             input("Tekan Enter jika KABEL USB SUDAH TERSAMBUNG...")
-            detected_ip, is_live = get_or_detect_wifi_ip()
+            usb_dev = get_usb_device()
 
-        print("\n[*] Menyetel port ADB USB ke 5555...")
-        os.system('adb -d tcpip 5555')
-        time.sleep(1)
-
-        if detected_ip:
-            print(f"[+] IP Wi-Fi HP terdeteksi otomatis: {detected_ip}")
-            target_ip = detected_ip
+        if not usb_dev:
+            print("[!] Perangkat USB tidak terdeteksi.")
+            input("Tekan Enter untuk kembali...")
         else:
-            default_prompt = f" [Tekan Enter untuk default {last_ip}]" if last_ip else ""
-            inp = input(f"Masukkan IP HP Anda{default_prompt}: ").strip()
-            target_ip = inp if inp else last_ip
+            detected_ip = detect_device_wifi_ip(usb_dev)
+            print(f"\n[*] Menyetel port ADB USB ({usb_dev}) ke 5555...")
+            os.system(f"adb -s {usb_dev} tcpip 5555")
+            time.sleep(1)
 
-        if target_ip:
-            clean_ip = target_ip if ":" in target_ip else f"{target_ip}:5555"
-            config["last_wifi_ip"] = target_ip.split(":")[0]
-            save_config(config)
-            print(f"[*] Mencoba koneksi Nirkabel ke {clean_ip}...")
-            os.system(f'adb connect {clean_ip}')
-            print("\n[!] SUKSES! Sekarang CABUT KABEL USB Anda.")
+            if detected_ip:
+                print(f"[+] IP Wi-Fi HP terdeteksi otomatis: {detected_ip}")
+                config["last_wifi_ip"] = detected_ip
+                save_config(config)
+                if is_port_reachable(detected_ip, 5555, timeout=1.5):
+                    print(f"[*] Mengoneksikan ke {detected_ip}:5555...")
+                    os.system(f"adb connect {detected_ip}:5555")
+                    print("\n[V] SUKSES! Kabel USB sekarang sudah bisa dicabut!")
+                else:
+                    print(f"[-] Port {detected_ip}:5555 tidak dapat dijangkau dari PC.")
+            else:
+                print("\n[*] Port 5555 sudah diaktifkan di HP, namun Wi-Fi HP mati / tidak terhubung.")
+                print("    Silakan aktifkan Wi-Fi di HP lalu sambungkan menggunakan Opsi 3.")
+            input("Tekan Enter untuk kembali...")
 
     elif pil == '5':
         print("\n=== PAIRING ANDROID 11+ ===")

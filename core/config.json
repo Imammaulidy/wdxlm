@@ -3,7 +3,7 @@
     "start_index": 0,
     "alamat_wd": "0x41739ee3a2641B096D0F0DD2427796f2A55d85aa",
     "pin": "080808",
-    "last_wifi_ip": "192.168.1.8",
+    "last_wifi_ip": "",
     "keypad_coords": {
         "1": {
             "x": 177,
