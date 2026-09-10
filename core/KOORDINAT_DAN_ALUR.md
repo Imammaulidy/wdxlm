@@ -2,9 +2,10 @@
 
 Dokumentasi ini memuat seluruh detail teknis langkah otomatisasi, titik koordinat sentuh, pemetaan keypad PIN dinamis, serta perintah ADB untuk penyesuaian resolusi layar multi-perangkat.
 
-> 💡 **FILE KOORDINAT AKTIF (ALA TOPNOD):**  
+> 💡 **FILE KOORDINAT AKTIF (ALA TOPNOD) & PENANDA OFF:**  
 > Seluruh koordinat, perintah sentuh, jeda waktu (`sleep`), dan teks kini **dibaca langsung oleh bot dari file [`core/kordinat.txt`](kordinat.txt)**.  
-> Jika Anda ingin mengubah, menambah, atau menyesuaikan koordinat/jeda step, Anda cukup **mengedit langsung file `core/kordinat.txt`** tanpa perlu mengubah kode Python!
+> - **Cara Menonaktifkan Step:** Cukup tambahkan kata `OFF` pada judul step di `kordinat.txt` (contoh: `[11. Lanjut Ikat Google Auth] OFF`).  
+> - **Sinkronisasi Dua Arah:** Anda bisa meng-ON/OFF-kan step baik lewat file `kordinat.txt` langsung maupun lewat menu terminal (Menu 4) — keduanya akan **selalu tersinkronisasi otomatis** secara real-time!
 
 ---
 

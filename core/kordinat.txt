@@ -6,7 +6,7 @@
 # File ini disimpan di folder core/kordinat.txt agar root direktori tetap rapi.
 #
 # PANDUAN FORMAT PERINTAH:
-#   [ID. Nama Langkah]              -> Judul Step / Bagian
+#   [ID. Nama Langkah]              -> Judul Step / Bagian (Tambah OFF jika di-skip)
 #   input tap X Y                   -> Tap / klik koordinat layar
 #   sleep DETIK                     -> Jeda waktu (contoh: sleep 1.5)
 #   input swipe X1 Y1 X2 Y2 DURASI  -> Geser layar (durasi dalam milidetik)
@@ -60,7 +60,7 @@ sleep 3.2
 
 [4. Klik XLM]
 # Memilih aset XLM pada daftar hadiah
-input tap 536 1316
+input tap 523 1317
 sleep 2.4
 
 --------------------------------------------------------------------------------
@@ -73,8 +73,10 @@ sleep 1.9
 --------------------------------------------------------------------------------
 
 [6. Input Alamat WD]
-# Memilih kolom alamat dan mengisi address Stellar (XLM)
-input tap 525 631
+# Memilih kolom alamat dan mengisi address EVM
+input tap 998 625
+sleep 0.8
+input tap 998 625
 sleep 0.8
 input text {ALAMAT_WD}
 sleep 1.7
@@ -83,7 +85,7 @@ sleep 1.7
 
 [7. Klik Semua Max]
 # Menarik seluruh saldo XLM yang tersedia (Max Amount)
-input tap 969 888
+input tap 995 894
 sleep 1.6
 
 --------------------------------------------------------------------------------
@@ -95,7 +97,7 @@ sleep 1.3
 
 --------------------------------------------------------------------------------
 
-[9. Konfirmasi Penarikan]
+[9. Konfirmasi]
 # Membuka dialog konfirmasi transfer
 input tap 541 2307
 sleep 1.2
@@ -109,7 +111,7 @@ sleep 1.2
 
 --------------------------------------------------------------------------------
 
-[11. Lanjut Ikat Google Auth]
+[11. Lanjut Ikat Google Auth] OFF
 # Masuk ke halaman integrasi 2FA Google Authenticator
 input tap 530 2307
 sleep 2.4
@@ -118,14 +120,14 @@ sleep 2.4
 
 [12. Salin Key 2FA]
 # Menyalin (copy) Key 2FA rahasia ke clipboard
-input tap 982 1106
+input tap 957 1155
 sleep 1.0
 
 --------------------------------------------------------------------------------
 
 [13. Lanjut Verifikasi OTP]
 # Melanjutkan ke halaman verifikasi kode OTP
-input tap 531 1676
+input tap 545 2195
 sleep 1.2
 
 --------------------------------------------------------------------------------
@@ -146,14 +148,14 @@ sleep 1.4
 
 [16. Masukkan Kunci Penyiapan]
 # Memilih opsi 'Enter a setup key'
-input tap 963 2066
+input tap 985 2066
 sleep 1.2
 
 --------------------------------------------------------------------------------
 
 [17. Masukkan Nama Akun Urut]
 # Memberi label akun sesuai nomor urut clone otomatis
-input tap 166 320
+input tap 535 330
 sleep 1.0
 input text {ACCOUNT_NUM}
 sleep 0.8
@@ -162,7 +164,7 @@ sleep 0.8
 
 [18. Tempel Kunci 2FA]
 # Menempelkan kunci 2FA yang telah disalin dari Bitget
-input tap 338 508
+input tap 552 486
 sleep 1.0
 input keyevent 279
 sleep 1.1
@@ -178,14 +180,14 @@ sleep 0.9
 
 [20. Klik Tambahkan Akun]
 # Menyimpan akun baru di Google Authenticator
-input tap 536 2279
+input tap 550 2275
 sleep 2.1
 
 --------------------------------------------------------------------------------
 
 [21. Tutup Dialog Pengingat]
 # Melewati dialog pengingat Google Auth (berdasarkan koordinat layar secure)
-input tap 983 2256
+input tap 990 2265
 sleep 1.0
 
 --------------------------------------------------------------------------------
@@ -201,19 +203,21 @@ sleep 0.4
 
 [23. Salin Kode OTP]
 # Klik kode OTP di posisi paling bawah untuk menyalin ke clipboard
-input tap 535 2285
+input tap 545 2265
 sleep 1.0
 
 --------------------------------------------------------------------------------
 
-[24. Buka Recent Apps]
+[24. Buka Recent Apps] 2X
 # Membuka layar Recent Apps (App Switcher)
 input keyevent 187
-sleep 0.9
+sleep 1
+input keyevent 187
+sleep 1
 
 --------------------------------------------------------------------------------
 
-[25. Balik ke Bitget Wallet]
+[25. Balik ke Bitget Wallet] OFF
 # Klik kartu Bitget Wallet di sebelah kanan
 input tap 851 1329
 sleep 1.1
@@ -222,33 +226,33 @@ sleep 1.1
 
 [26. Tempel OTP di Bitget]
 # Klik tombol Tempel (Paste) di dalam aplikasi Bitget
-input tap 920 426
+input tap 940 693
 sleep 0.6
 
 --------------------------------------------------------------------------------
 
 [27. Klik Ikat OTP]
 # Mengikat kode 2FA ke akun Bitget
-input tap 525 2310
+input tap 555 2200
 sleep 1.2
 
 --------------------------------------------------------------------------------
 
-[28. Ganti Metode ke PIN]
+[28. Ganti Metode ke PIN] OFF
 # Klik area kosong agar popup ganti metode fingerprint ke PIN
 input tap 528 1270
 sleep 1.1
 
 --------------------------------------------------------------------------------
 
-[29. Beralih ke Sandi PIN]
+[29. Beralih ke Sandi PIN] OFF
 # Menekan tombol 'Beralih ke sandi/PIN'
 input tap 546 2302
 sleep 0.9
 
 --------------------------------------------------------------------------------
 
-[30. Masukkan PIN Dinamis]
+[30. Masukkan PIN Dinamis] OFF
 # Mengetik PIN via koordinat sentuh keypad dinamis
 pin {PIN} 2.5
 
@@ -256,19 +260,19 @@ pin {PIN} 2.5
 
 [31. Konfirmasi WD Final]
 # Klik tombol Konfirmasi setelah kembali ke halaman penarikan
-input tap 536 2302
+input tap 540 2305
 sleep 0.9
 
 --------------------------------------------------------------------------------
 
 [32. Tempel OTP Konfirmasi]
 # Tempel kode OTP di modal otentikasi Google
-input tap 946 2027
+input tap 946 1588
 sleep 0.4
 
 --------------------------------------------------------------------------------
 
-[33. Klik Otentikasi]
+[33. Klik Otentikasi] OFF
 # Konfirmasi otentikasi penarikan
 input tap 797 2233
 sleep 1.2
@@ -277,14 +281,14 @@ sleep 1.2
 
 [34. Ganti Metode ke PIN 2]
 # Klik area kosong agar dialog berpindah ke opsi PIN
-input tap 495 1093
+input tap 595 1193
 sleep 1.0
 
 --------------------------------------------------------------------------------
 
 [35. Beralih ke Sandi PIN 2]
 # Menekan tombol 'Beralih ke sandi/PIN' kedua kali
-input tap 531 2302
+input tap 535 2305
 sleep 0.9
 
 --------------------------------------------------------------------------------
@@ -297,7 +301,7 @@ pin {PIN} 4.0
 
 [37. Klik Oke Selesai WD]
 # Klik tombol Oke (Hasil penarikan berhasil dikirim)
-input tap 533 2310
+input tap 545 2310
 sleep 0.5
 
 --------------------------------------------------------------------------------
@@ -311,19 +315,21 @@ sleep 1.0
 
 [40. Menu Titik Tiga Multi App]
 # Menekan tombol titik tiga (menu) Multi App Ultra
-input tap 1032 145
-sleep 0.6
+input tap 880 135
+sleep 0.5
+input tap 880 135
+sleep 0.5
 
 --------------------------------------------------------------------------------
 
-[41. Klik Kill All Apps]
+[41. Klik Kill All Apps] OFF
 # Memilih menu Kill All Apps
 input tap 773 273
 sleep 0.9
 
 --------------------------------------------------------------------------------
 
-[42. Konfirmasi Kill All Apps]
+[42. Konfirmasi Kill All Apps] OFF
 # Menyetujui konfirmasi pembersihan RAM / penutupan aplikasi clone
 input tap 846 1284
 sleep 5.5

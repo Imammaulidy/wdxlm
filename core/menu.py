@@ -68,6 +68,44 @@ def save_config(data):
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
+def parse_step_header(line):
+    """
+    Mem-parsing baris judul step, mendeteksi status OFF, ID, dan nama step.
+    Contoh: [11. Lanjut Ikat Google Auth] OFF, [24. Buka Recent Apps] 2X, dll.
+    """
+    m = re.match(r'^\[\s*([^\]]+?)\s*\](?:\s*(.*?))?$', line.strip())
+    if not m:
+        return None
+    inner = m.group(1).strip()
+    suffix = (m.group(2) or "").strip()
+
+    is_off = False
+    if suffix.upper() == "OFF" or suffix.upper().endswith("OFF"):
+        is_off = True
+    elif inner.upper().endswith(" OFF"):
+        is_off = True
+        inner = re.sub(r'\s+OFF$', '', inner, flags=re.IGNORECASE).strip()
+
+    id_m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', inner)
+    if id_m:
+        raw_id = id_m.group(1)
+        step_id = int(raw_id) if raw_id.isdigit() else raw_id
+        step_name = id_m.group(2).strip() or inner
+    else:
+        step_id = inner
+        step_name = inner
+
+    if suffix and suffix.upper() != "OFF":
+        step_name = f"{step_name} ({suffix})"
+
+    return {
+        "id": step_id,
+        "name": step_name,
+        "full_title": inner,
+        "is_off": is_off,
+        "suffix": suffix
+    }
+
 def get_kordinat_steps():
     """Membaca daftar step langsung dari kordinat.txt secara dinamis."""
     if not os.path.exists(KORDINAT_FILE):
@@ -76,19 +114,89 @@ def get_kordinat_steps():
     with open(KORDINAT_FILE, 'r', encoding='utf-8') as f:
         for line in f:
             stripped = line.strip()
-            header_match = re.match(r'^\[\s*(.*?)\s*\]$', stripped)
-            if header_match:
-                full_title = header_match.group(1).strip()
-                m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', full_title)
-                if m:
-                    raw_id = m.group(1)
-                    step_id = int(raw_id) if raw_id.isdigit() else raw_id
-                    step_name = m.group(2).strip() or full_title
-                else:
-                    step_id = full_title
-                    step_name = full_title
-                steps.append((step_id, step_name))
+            header = parse_step_header(stripped)
+            if header:
+                steps.append(header)
     return steps
+
+def sync_kordinat_and_config():
+    """
+    Menyinkronkan penanda 'OFF' di kordinat.txt dengan disabled_steps di config.json.
+    File kordinat.txt menjadi acuan utama status aktif/nonaktif setiap langkah.
+    """
+    if not os.path.exists(KORDINAT_FILE) or not os.path.exists(CONFIG_FILE):
+        return
+    steps = get_kordinat_steps()
+    file_disabled = [s['id'] for s in steps if s['is_off']]
+    
+    config = load_config()
+    current_disabled = config.get("disabled_steps", [])
+    
+    if sorted([str(x) for x in current_disabled]) != sorted([str(x) for x in file_disabled]):
+        config["disabled_steps"] = file_disabled
+        save_config(config)
+
+def update_kordinat_txt_step(target_step_id, set_off):
+    """
+    Menulis atau menghapus penanda 'OFF' pada judul step di core/kordinat.txt.
+    """
+    if not os.path.exists(KORDINAT_FILE):
+        return
+    with open(KORDINAT_FILE, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    new_lines = []
+    for line in lines:
+        m = re.match(r'^(\[\s*([^\]]+?)\s*\])(.*)$', line)
+        if not m:
+            new_lines.append(line)
+            continue
+        inner = m.group(2).strip()
+        after = m.group(3)
+        id_m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', inner)
+        raw_id = id_m.group(1) if id_m else inner
+        s_id = int(raw_id) if raw_id.isdigit() else raw_id
+        if str(s_id) != str(target_step_id):
+            new_lines.append(line)
+            continue
+
+        clean_after = re.sub(r'\bOFF\b', '', after, flags=re.IGNORECASE).strip()
+        clean_inner = re.sub(r'\s+OFF\b', '', inner, flags=re.IGNORECASE).strip()
+        new_bracket = f"[{clean_inner}]"
+        if set_off:
+            new_line = f"{new_bracket} {clean_after} OFF\n" if clean_after else f"{new_bracket} OFF\n"
+        else:
+            new_line = f"{new_bracket} {clean_after}\n" if clean_after else f"{new_bracket}\n"
+        new_lines.append(new_line)
+
+    with open(KORDINAT_FILE, 'w', encoding='utf-8') as f:
+        f.writelines(new_lines)
+
+def update_all_kordinat_txt_steps(set_off):
+    """
+    Menyetel penanda 'OFF' untuk seluruh step di core/kordinat.txt (untuk pilihan A atau D).
+    """
+    if not os.path.exists(KORDINAT_FILE):
+        return
+    with open(KORDINAT_FILE, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    new_lines = []
+    for line in lines:
+        m = re.match(r'^(\[\s*([^\]]+?)\s*\])(.*)$', line)
+        if not m:
+            new_lines.append(line)
+            continue
+        inner = m.group(2).strip()
+        after = m.group(3)
+        clean_after = re.sub(r'\bOFF\b', '', after, flags=re.IGNORECASE).strip()
+        clean_inner = re.sub(r'\s+OFF\b', '', inner, flags=re.IGNORECASE).strip()
+        new_bracket = f"[{clean_inner}]"
+        if set_off:
+            new_lines.append(f"{new_bracket} {clean_after} OFF\n" if clean_after else f"{new_bracket} OFF\n")
+        else:
+            new_lines.append(f"{new_bracket} {clean_after}\n" if clean_after else f"{new_bracket}\n")
+    with open(KORDINAT_FILE, 'w', encoding='utf-8') as f:
+        f.writelines(new_lines)
 
 def print_menu():
     clear_screen()
@@ -96,13 +204,14 @@ def print_menu():
     print("              BOT AUTO WD XLM BITGET                     ")
     print("=========================================================")
 
+    sync_kordinat_and_config()
     config = load_config()
     addr = config.get('alamat_wd', '')
     addr_disp = f"{addr[:15]}...{addr[-5:]}" if len(addr) > 20 else addr
     steps = get_kordinat_steps()
     disabled = config.get('disabled_steps', [])
     disabled_str = [str(x) for x in disabled]
-    disabled_count = len([s for s, _ in steps if s in disabled or str(s) in disabled_str])
+    disabled_count = len([s for s in steps if s['is_off'] or s['id'] in disabled or str(s['id']) in disabled_str])
     total_steps = len(steps)
     step_status = f"[{total_steps - disabled_count}/{total_steps} Step Aktif]"
     print(f"[*] Address Saat Ini : {addr_disp}")
@@ -155,6 +264,7 @@ def ganti_pengaturan():
 
 def menu_toggle_steps():
     while True:
+        sync_kordinat_and_config()
         config = load_config()
         disabled = config.get("disabled_steps", [])
         disabled_str = [str(x) for x in disabled]
@@ -162,17 +272,18 @@ def menu_toggle_steps():
         clear_screen()
         print("=========================================================")
         print("        PENGATURAN ON/OFF STEP KOORDINAT BOT             ")
-        print("   (Data dibaca otomatis dari core/kordinat.txt)         ")
+        print("   (Data tersinkronisasi otomatis dengan kordinat.txt)   ")
         print("=========================================================")
         print(f"  {'NO':>4}  {'STEP':<5}  {'STATUS':<6}  DESKRIPSI")
         print("---------------------------------------------------------")
-        for idx, (step_id, desc) in enumerate(steps, start=1):
-            is_active = step_id not in disabled and str(step_id) not in disabled_str
-            status = "[ ON ]" if is_active else "[OFF ]"
-            print(f"  {idx:>4}. Step {str(step_id):<4} {status}  {desc}")
+        for idx, step in enumerate(steps, start=1):
+            s_id = step['id']
+            is_off = step['is_off'] or s_id in disabled or str(s_id) in disabled_str
+            status = "[ ON ]" if not is_off else "[OFF ]"
+            print(f"  {idx:>4}. Step {str(s_id):<4} {status}  {step['name']}")
         print("---------------------------------------------------------")
-        print("  A  = AKTIFKAN SEMUA STEP")
-        print("  D  = DISABLE SEMUA STEP")
+        print("  A  = AKTIFKAN SEMUA STEP (Hapus penanda OFF di file)")
+        print("  D  = DISABLE SEMUA STEP (Pasang penanda OFF di file)")
         print("  0  = Kembali ke Menu Utama")
         print("=========================================================")
         pil = input("Masukkan nomor step untuk toggle (atau A/D/0): ").strip().upper()
@@ -182,24 +293,35 @@ def menu_toggle_steps():
         elif pil == 'A':
             config["disabled_steps"] = []
             save_config(config)
-            print("[V] Semua step DIAKTIFKAN!")
+            update_all_kordinat_txt_steps(set_off=False)
+            print("[V] Semua step DIAKTIFKAN di menu & kordinat.txt!")
             time.sleep(1)
         elif pil == 'D':
-            config["disabled_steps"] = [s for s, _ in steps]
+            config["disabled_steps"] = [s['id'] for s in steps]
             save_config(config)
-            print("[!] Semua step DINONAKTIFKAN!")
+            update_all_kordinat_txt_steps(set_off=True)
+            print("[!] Semua step DINONAKTIFKAN di menu & kordinat.txt!")
             time.sleep(1)
         elif pil.isdigit():
             idx_pil = int(pil) - 1
             if 0 <= idx_pil < len(steps):
-                step_id, desc = steps[idx_pil]
-                is_disabled = step_id in disabled or str(step_id) in disabled_str
-                if is_disabled:
-                    disabled = [x for x in disabled if x != step_id and str(x) != str(step_id)]
-                    print(f"[V] Step {step_id} [{desc}] -> ON")
+                step = steps[idx_pil]
+                s_id = step['id']
+                is_currently_off = step['is_off'] or s_id in disabled or str(s_id) in disabled_str
+                new_off_state = not is_currently_off
+
+                if new_off_state:
+                    # Menjadi OFF
+                    if s_id not in disabled and str(s_id) not in disabled_str:
+                        disabled.append(s_id)
+                    update_kordinat_txt_step(s_id, set_off=True)
+                    print(f"[!] Step {s_id} [{step['name']}] -> OFF (kordinat.txt disinkronkan)")
                 else:
-                    disabled.append(step_id)
-                    print(f"[!] Step {step_id} [{desc}] -> OFF")
+                    # Menjadi ON
+                    disabled = [x for x in disabled if x != s_id and str(x) != str(s_id)]
+                    update_kordinat_txt_step(s_id, set_off=False)
+                    print(f"[V] Step {s_id} [{step['name']}] -> ON (kordinat.txt disinkronkan)")
+
                 config["disabled_steps"] = disabled
                 save_config(config)
                 time.sleep(0.6)

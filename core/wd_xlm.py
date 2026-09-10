@@ -221,9 +221,56 @@ atexit.register(restore_screen_resolution)
 
 DISABLED_STEPS = []
 
-def is_step_enabled(step_num):
-    """Cek apakah step tertentu aktif (tidak di-disable)."""
-    return step_num not in DISABLED_STEPS and str(step_num) not in [str(x) for x in DISABLED_STEPS]
+def parse_step_header(line):
+    """
+    Mem-parsing baris judul step, mendeteksi status OFF, ID, dan nama step.
+    Contoh: [11. Lanjut Ikat Google Auth] OFF, [24. Buka Recent Apps] 2X, dll.
+    """
+    m = re.match(r'^\[\s*([^\]]+?)\s*\](?:\s*(.*?))?$', line.strip())
+    if not m:
+        return None
+    inner = m.group(1).strip()
+    suffix = (m.group(2) or "").strip()
+
+    is_off = False
+    if suffix.upper() == "OFF" or suffix.upper().endswith("OFF"):
+        is_off = True
+    elif inner.upper().endswith(" OFF"):
+        is_off = True
+        inner = re.sub(r'\s+OFF$', '', inner, flags=re.IGNORECASE).strip()
+
+    # Ekstrak step id (misal 0, 1, 2.1, 11) dan deskripsi
+    id_m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', inner)
+    if id_m:
+        raw_id = id_m.group(1)
+        step_id = int(raw_id) if raw_id.isdigit() else raw_id
+        step_name = id_m.group(2).strip() or inner
+    else:
+        step_id = inner
+        step_name = inner
+
+    if suffix and suffix.upper() != "OFF":
+        step_name = f"{step_name} ({suffix})"
+
+    return {
+        "id": step_id,
+        "name": step_name,
+        "full_title": inner,
+        "is_off": is_off,
+        "suffix": suffix
+    }
+
+def is_step_enabled(step_item):
+    """
+    Cek apakah step tertentu aktif.
+    Step dianggap NONAKTIF jika:
+    1. Ditandai 'OFF' langsung pada judul di kordinat.txt (step_item['is_off']), ATAU
+    2. Terdaftar di disabled_steps pada config.json.
+    """
+    if step_item.get('is_off', False):
+        return False
+    step_id = step_item.get('id')
+    return step_id not in DISABLED_STEPS and str(step_id) not in [str(x) for x in DISABLED_STEPS]
 
 def parse_kordinat_file(filepath=KORDINAT_FILE):
     """Membaca dan mem-parsing seluruh langkah dan perintah ADB dari kordinat.txt."""
@@ -240,22 +287,13 @@ def parse_kordinat_file(filepath=KORDINAT_FILE):
             if not stripped:
                 continue
 
-            header_match = re.match(r'^\[\s*(.*?)\s*\]$', stripped)
-            if header_match:
-                full_title = header_match.group(1).strip()
-                m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', full_title)
-                if m:
-                    raw_id = m.group(1)
-                    step_id = int(raw_id) if raw_id.isdigit() else raw_id
-                    step_name = m.group(2).strip() or full_title
-                else:
-                    step_id = full_title
-                    step_name = full_title
-
+            header = parse_step_header(stripped)
+            if header:
                 current_step = {
-                    'id': step_id,
-                    'name': step_name,
-                    'full_title': full_title,
+                    'id': header['id'],
+                    'name': header['name'],
+                    'full_title': header['full_title'],
+                    'is_off': header['is_off'],
                     'commands': []
                 }
                 steps.append(current_step)
@@ -358,6 +396,17 @@ def run_bot(config):
     steps = parse_kordinat_file(KORDINAT_FILE)
     print(f"[*] Berhasil memuat {len(steps)} langkah automasi dari core/kordinat.txt")
 
+    # Sinkronisasi status OFF dari kordinat.txt ke config.json jika ada perbedaan
+    file_disabled = [s['id'] for s in steps if s['is_off']]
+    if sorted([str(x) for x in DISABLED_STEPS]) != sorted([str(x) for x in file_disabled]):
+        DISABLED_STEPS = file_disabled
+        config["disabled_steps"] = DISABLED_STEPS
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(config, f, indent=4)
+        except Exception:
+            pass
+
     if DISABLED_STEPS:
         print(f"[!] Step yang di-SKIP: {DISABLED_STEPS}")
 
@@ -376,7 +425,7 @@ def run_bot(config):
 
         for step in steps:
             step_id = step["id"]
-            if not is_step_enabled(step_id):
+            if not is_step_enabled(step):
                 print(f"[SKIP] Step {step_id}: {step['name']}")
                 continue
 
