@@ -17,5 +17,6 @@ venv/
 *.log
 .DS_Store
 
-# Konfigurasi aplikasi pihak ketiga (QtScrcpy)
+# Konfigurasi aplikasi pihak ketiga (scrcpy)
 config/
+core/scrcpy-win64-v3.3.4/

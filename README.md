@@ -22,11 +22,11 @@ python core/menu.py
 
 ## ✨ Fitur Utama
 - 🖥️ **CLI Interaktif:** Menu navigasi lengkap di terminal (PC & Termux).
-- 📐 **Auto-Set & Auto-Restore Layar:** Otomatis menyesuaikan resolusi & DPI layar HP (`1080x2400 @ 352 DPI`) saat bot mulai, dan otomatis reset ke setelan bawaan pabrik setelah selesai.
+- 📐 **Auto-Set & Auto-Restore Layar:** Otomatis merekam resolusi & DPI asli HP, menyesuaikan ke standar bot (`1080x2400 @ 352 DPI`) saat mulai, dan otomatis mengembalikan ke ukuran terekam setelah selesai.
 - 📝 **Script Koordinat Dinamis (`core/kordinat.txt`):** Seluruh perintah sentuh, swipe, jeda waktu (`sleep`), dan teks dibaca langsung dari file teks ala TopNod.
 - 🎛️ **Fitur ON/OFF Step Dua Arah:** Langkah bot bisa diaktifkan/dinonaktifkan baik lewat Menu 4 di terminal maupun dengan menambahkan kata `OFF` pada judul step di `core/kordinat.txt`.
 - 🔢 **PIN Keypad Dinamis:** Koordinat angka PIN 0–9 otomatis disesuaikan secara dinamis.
-- 💻 **Dua Platform:** Mendukung Windows PC (dengan QtScrcpy mirroring) dan Android Termux (Wireless Debugging).
+- 💻 **Dua Platform:** Mendukung Windows PC (dengan scrcpy mirroring) dan Android Termux (Wireless Debugging).
 
 ---
 
@@ -41,7 +41,7 @@ python core/menu.py
 
 ### 💻 Di PC / Windows:
 - Python 3.8+ terinstall (Centang *"Add Python to PATH"*).
-- Driver ADB & QtScrcpy sudah tersedia di folder `core/`.
+- Driver ADB & scrcpy sudah tersedia di folder `core/`.
 
 ### 📱 Di Android (Termux):
 - Unduh dan buka aplikasi **Termux** (disarankan versi F-Droid).

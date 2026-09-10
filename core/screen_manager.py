@@ -17,7 +17,6 @@ IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/dat
 # Setup path ADB untuk PC
 if not IS_TERMUX:
     candidates = [
-        os.path.join(PROJECT_ROOT, "core", "QtScrcpy-win-x64-v3.3.3"),
         os.path.join(PROJECT_ROOT, "core", "scrcpy-win64-v3.3.4"),
         r"C:\Users\KAGE\Desktop\scrcpy-win64-v3.3.4",
         os.path.join(os.path.expanduser("~"), "Desktop", "scrcpy-win64-v3.3.4"),

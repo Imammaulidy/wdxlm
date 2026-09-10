@@ -84,7 +84,7 @@ Keypad diatur secara dinamis sehingga jika PIN Anda diubah di menu, bot secara o
 
 ## 📱 3. Kumpulan Perintah ADB Pengaturan Layar (Terminal Cheat Sheet)
 
-Semua perintah di bawah ini siap Anda copy-paste langsung ke Terminal / CMD / QtScrcpy:
+Semua perintah di bawah ini siap Anda copy-paste langsung ke Terminal / CMD / scrcpy:
 
 ### 🔍 Cek Info Resolusi & DPI Saat Ini:
 ```bash
