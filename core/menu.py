@@ -427,7 +427,6 @@ def konek_adb_scrcpy():
 def main():
     wd_script = os.path.join(os.path.dirname(__file__), 'wd_xlm.py')
     konek_script = os.path.join(PROJECT_ROOT, 'termux', 'konek_adb.py')
-    setup_script = os.path.join(PROJECT_ROOT, 'termux', 'setup.sh')
 
     while True:
         print_menu()
@@ -480,9 +479,10 @@ def main():
 
         elif pilihan == '8' and IS_TERMUX:
             clear_screen()
-            subprocess.run(['bash', setup_script], cwd=PROJECT_ROOT)
+            print("[*] Memperbarui dan menginstal dependensi Termux...")
+            subprocess.run('pkg update -y && pkg install python nmap android-tools -y', shell=True, cwd=PROJECT_ROOT)
             print("\n")
-            input("Tekan Enter untuk kembali ke menu...")
+            input("Selesai. Tekan Enter untuk kembali ke menu...")
 
         elif pilihan == '9' and IS_TERMUX:
             clear_screen()

@@ -1,7 +1,7 @@
 {
-    "total_akun": 5,
-    "start_index": 51,
-    "alamat_wd": "GAEL2XQRRNPV2TCCFJFHHP277MN3MXUU2EZMRXRQBDVIUZLLODVH2SS5",
+    "total_akun": 1,
+    "start_index": 0,
+    "alamat_wd": "0x0000000000000000000000000000000000000000",
     "pin": "080808",
     "keypad_coords": {
         "1": {
@@ -45,5 +45,14 @@
             "y": 2258
         }
     },
-    "disabled_steps": []
+    "disabled_steps": [
+        11,
+        25,
+        28,
+        29,
+        30,
+        33,
+        41,
+        42
+    ]
 }

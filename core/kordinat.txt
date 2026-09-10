@@ -21,14 +21,14 @@
 # ALUR UTAMA BOT WD XLM (Step 0 s/d Step 42)
 # ==============================================================================
 
-[0. Scroll Multi App]
+[0. Scroll Multi App] OFF
 # Menggeser layar Multi App Ultra agar clone akun berikutnya muncul ke atas
 input swipe 546 820 546 500 1200
 sleep 1.0
 
 --------------------------------------------------------------------------------
 
-[1. Buka Bitget]
+[1. Buka Bitget] OFF
 # KLIK BITGET (Membuka clone aplikasi dari Multi App Ultra)
 input tap 164 423
 sleep 6.6

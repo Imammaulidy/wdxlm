@@ -376,21 +376,13 @@ def run_bot(config):
     KEYPAD = config.get("keypad_coords", {})
     DISABLED_STEPS = config.get("disabled_steps", [])
 
-    # Nomor Urut Awal untuk Penamaan di Google Authenticator
-    START_INDEX = config.get("start_index", 51)
+    # Nomor Urut Awal untuk Penamaan di Google Authenticator (Default: 0)
+    START_INDEX = config.get("start_index", 0)
 
     print(f"\n[?] Bot akan memproses {TOTAL_AKUN} akun sekaligus.")
     inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter untuk {START_INDEX}): ").strip()
     if inp_start.isdigit():
         START_INDEX = int(inp_start)
-
-    # Simpan index berikutnya ke config.json agar diingat pada eksekusi selanjutnya
-    config["start_index"] = START_INDEX + TOTAL_AKUN
-    try:
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f, indent=4)
-    except Exception:
-        pass
 
     # Baca file koordinat kordinat.txt
     steps = parse_kordinat_file(KORDINAT_FILE)
@@ -432,6 +424,13 @@ def run_bot(config):
             log_step(f"# {step['full_title']}")
             for cmd in step["commands"]:
                 execute_step_command(cmd, context)
+
+            if MANUAL_MODE:
+                print(f"\n[STEP-BY-STEP] Selesai: {step['full_title']}")
+                user_key = input("--> Tekan ENTER untuk lanjut ke langkah berikutnya (atau 'Q' lalu Enter untuk berhenti): ").strip().lower()
+                if user_key in ('q', 'exit'):
+                    print("\n[X] Eksekusi dihentikan oleh pengguna.")
+                    return
 
     print("\nSemua akun selesai diproses.")
 

@@ -78,7 +78,7 @@ def main():
     print("=========================================================")
     if berhasil:
         print("SUKSES! Perangkat berhasil dikoneksikan.")
-        print("Anda sekarang bisa menjalankan: bash termux.sh atau python core/wd_xlm.py")
+        print("Anda sekarang bisa menjalankan: bash run.sh atau python core/wd_xlm.py")
     else:
         print("GAGAL KONEK!")
         print("Jika diminta pairing (Android 11+), lakukan Split Screen:")
