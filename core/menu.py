@@ -60,8 +60,11 @@ def get_scrcpy_exe():
 def launch_mirror_screen(extra_args=""):
     scrcpy_exe = get_scrcpy_exe()
     if scrcpy_exe:
-        print("[*] Menjalankan scrcpy...")
-        cmd = f'start "" "{scrcpy_exe}" {extra_args}'.strip() if os.name == 'nt' else f'"{scrcpy_exe}" {extra_args} &'
+        print("[*] Menjalankan scrcpy (Layar HP fisik dimatikan: -S -w)...")
+        flags = extra_args.strip()
+        if "-S" not in flags:
+            flags = f"{flags} -S -w".strip()
+        cmd = f'start "" "{scrcpy_exe}" {flags}'.strip() if os.name == 'nt' else f'"{scrcpy_exe}" {flags} &'
         os.system(cmd)
     else:
         print("[!] Program scrcpy.exe tidak ditemukan di folder core/scrcpy-win64-v3.3.4!")
@@ -292,12 +295,12 @@ def print_menu():
     step_status = f"[{total_steps - disabled_count}/{total_steps} Step Aktif]"
     print(f"[*] Address Saat Ini : {addr_disp}")
     print(f"[*] PIN Saat Ini     : {config.get('pin')}")
-    print(f"[*] Total Akun WD    : {config.get('total_akun')}")
+    print(f"[*] Clone Berikutnya : Clone ke-{config.get('start_index', 0)}")
     print(f"[*] Step Bot         : {step_status}")
     print("=========================================================")
-    print("1. MULAI WD (OTOMATIS FULL)")
+    print("1. MULAI WD (OTOMATIS FULL - LOOP VIA ENTER)")
     print("2. MULAI WD MANUAL / REKAM DELAY (VIA ENTER)")
-    print("3. GANTI ADDRESS PENERIMA DAN PIN")
+    print("3. GANTI ADDRESS PENERIMA, PIN & CLONE AWAL")
     print("4. ON/OFF STEP KOORDINAT BOT")
     print("5. PENGATURAN RESOLUSI & DPI LAYAR HP")
     print("6. RESTART MENU UTAMA")
@@ -327,12 +330,12 @@ def ganti_pengaturan():
             print("ERROR: PIN harus berupa angka!")
         else:
             config['pin'] = baru_pin
-            
-    # Total Akun
-    baru_total = input(f"Total Akun ({config.get('total_akun')}): ").strip()
-    if baru_total != "":
-        if baru_total.isdigit():
-            config['total_akun'] = int(baru_total)
+
+    # Clone Nomor Berikutnya (Start Index)
+    baru_clone = input(f"Nomor Clone Berikutnya ({config.get('start_index', 0)}): ").strip()
+    if baru_clone != "":
+        if baru_clone.isdigit():
+            config['start_index'] = int(baru_clone)
             
     save_config(config)
     print("\n[!] Pengaturan berhasil disimpan!")
@@ -615,10 +618,9 @@ def main():
                 # Pastikan resolusi bot terpasang jika HP baru saja dihubungkan
                 record_and_apply_bot_screen(silent=True)
                 clear_screen()
-                print(">>> MENJALANKAN WD OTOMATIS <<<\n")
+                print(">>> MENJALANKAN WD OTOMATIS (LOOP VIA ENTER) <<<\n")
                 subprocess.run([sys.executable, wd_script], cwd=PROJECT_ROOT)
-                print("\n")
-                input("Selesai. Tekan Enter untuk kembali ke menu...")
+                time.sleep(0.5)
 
             elif pilihan == '2':
                 clear_screen()

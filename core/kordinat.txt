@@ -223,8 +223,6 @@ sleep 0.8
 [22. Scroll Bawah List OTP]
 # Menggeser daftar OTP ke entri paling bawah (diulang 2x)
 input swipe 525 2140 556 220 1000
-sleep 0.6
-input swipe 525 2140 556 220 1000
 sleep 1.0
 
 
@@ -238,17 +236,15 @@ sleep 0.8
 
 --------------------------------------------------------------------------------
 
-[24. Buka Recent Apps] 2X
+[24. Buka Recent Apps]
 # Membuka layar Recent Apps (App Switcher)
-input keyevent 187
-sleep 2
 input keyevent 187
 sleep 1.5
 
 
 --------------------------------------------------------------------------------
 
-[25. Balik ke Bitget Wallet] OFF
+[25. Balik ke Bitget Wallet]
 # Klik kartu Bitget Wallet di sebelah kanan
 input tap 851 1329
 sleep 1.1

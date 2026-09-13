@@ -201,11 +201,18 @@ def tap_dynamic_pin(pin_str, keypad_coords, final_jeda=5.0):
 
 def load_config():
     try:
-        with open(CONFIG_FILE, 'r') as f:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
         print(f"Gagal memuat {CONFIG_FILE}: {e}")
         sys.exit(1)
+
+def save_config(data):
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print(f"Gagal menyimpan {CONFIG_FILE}: {e}")
 
 
 DISABLED_STEPS = []
@@ -517,20 +524,24 @@ def run_rekam_delay(config):
 
 def run_bot(config):
     global DISABLED_STEPS
-    # Konfigurasi Looping
-    TOTAL_AKUN = config.get("total_akun", 5)
+    # Konfigurasi Akun & Kredensial
     ALAMAT_WD  = config.get("alamat_wd", "")
     PIN        = config.get("pin", "080808")
     KEYPAD     = config.get("keypad_coords", {})
     DISABLED_STEPS = config.get("disabled_steps", [])
 
-    # Nomor Urut Awal untuk Penamaan di Google Authenticator (Default: 0)
+    # Nomor Urut Terakhir / Awal untuk Penamaan di Google Authenticator (Default: 0)
     START_INDEX = config.get("start_index", 0)
 
-    print(f"\n[?] Bot akan memproses {TOTAL_AKUN} akun sekaligus.")
+    print(f"\n[?] Bot berjalan dalam mode loop akun (1 per 1 via ENTER).")
     inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter untuk {START_INDEX}): ").strip()
     if inp_start.isdigit():
         START_INDEX = int(inp_start)
+
+    # Simpan nomor awal yang dipilih jika berbeda
+    if config.get("start_index") != START_INDEX:
+        config["start_index"] = START_INDEX
+        save_config(config)
 
     # Baca file koordinat kordinat.txt
     steps = parse_kordinat_file(KORDINAT_FILE)
@@ -541,46 +552,79 @@ def run_bot(config):
     if sorted([str(x) for x in DISABLED_STEPS]) != sorted([str(x) for x in file_disabled]):
         DISABLED_STEPS = file_disabled
         config["disabled_steps"] = DISABLED_STEPS
-        try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(config, f, indent=4)
-        except Exception:
-            pass
+        save_config(config)
 
     if DISABLED_STEPS:
         print(f"[!] Step yang di-SKIP: {DISABLED_STEPS}")
 
-    print(f"\n[*] PROSES DIMULAI DARI CLONE KE-{START_INDEX} ...\n")
+    current_account_num = START_INDEX
 
-    for i in range(TOTAL_AKUN):
-        current_account_num = START_INDEX + i
-        print(f"\n========== MEMPROSES AKUN KE-{current_account_num} ==========")
+    try:
+        while True:
+            print(f"\n=========================================================")
+            print(f"           MEMPROSES AKUN CLONE KE-{current_account_num}          ")
+            print(f"=========================================================\n")
 
-        context = {
-            "ALAMAT_WD": ALAMAT_WD,
-            "ACCOUNT_NUM": current_account_num,
-            "PIN": PIN,
-            "KEYPAD": KEYPAD
-        }
+            context = {
+                "ALAMAT_WD": ALAMAT_WD,
+                "ACCOUNT_NUM": current_account_num,
+                "PIN": PIN,
+                "KEYPAD": KEYPAD
+            }
 
-        for step in steps:
-            step_id = step["id"]
-            if not is_step_enabled(step):
-                print(f"[SKIP] Step {step_id}: {step['name']}")
-                continue
+            user_aborted = False
+            for step in steps:
+                step_id = step["id"]
+                if not is_step_enabled(step):
+                    print(f"[SKIP] Step {step_id}: {step['name']}")
+                    continue
 
-            log_step(f"# {step['full_title']}")
-            for cmd in step["commands"]:
-                execute_step_command(cmd, context)
+                log_step(f"# {step['full_title']}")
+                for cmd in step["commands"]:
+                    execute_step_command(cmd, context)
 
-            if MANUAL_MODE:
-                print(f"\n[STEP-BY-STEP] Selesai: {step['full_title']}")
-                user_key = input("--> Tekan ENTER untuk lanjut ke langkah berikutnya (atau 'Q' lalu Enter untuk berhenti): ").strip().lower()
-                if user_key in ('q', 'exit'):
-                    print("\n[X] Eksekusi dihentikan oleh pengguna.")
-                    return
+                if MANUAL_MODE:
+                    print(f"\n[STEP-BY-STEP] Selesai: {step['full_title']}")
+                    user_key = input("--> Tekan ENTER untuk lanjut ke langkah berikutnya (atau 'Q' lalu Enter untuk berhenti): ").strip().lower()
+                    if user_key in ('q', 'exit'):
+                        print("\n[X] Eksekusi dihentikan oleh pengguna.")
+                        user_aborted = True
+                        break
 
-    print("\nSemua akun selesai diproses.")
+            if user_aborted:
+                config["start_index"] = current_account_num
+                save_config(config)
+                return
+
+            # Akun saat ini berhasil selesai diproses!
+            next_account_num = current_account_num + 1
+
+            # Ingat urutan terakhir: simpan nomor clone berikutnya ke config.json
+            config["start_index"] = next_account_num
+            save_config(config)
+
+            print(f"\n=========================================================")
+            print(f"[V] AKUN CLONE KE-{current_account_num} BERHASIL SELESAI DIPROSES!")
+            print(f"[*] Urutan berikutnya tersimpan di config: Clone ke-{next_account_num}")
+            print(f"=========================================================")
+            print(f"--> Tekan ENTER untuk lanjut loop WD clone berikutnya (ke-{next_account_num})")
+            user_next = input("    (atau ketik nomor clone lain, atau 'Q' lalu Enter untuk kembali): ").strip()
+
+            if user_next.lower() in ('q', 'quit', 'exit', '0'):
+                print(f"\n[*] Selesai. Urutan terakhir tersimpan untuk eksekusi berikutnya: Clone ke-{next_account_num}.")
+                break
+            elif user_next.isdigit():
+                current_account_num = int(user_next)
+                config["start_index"] = current_account_num
+                save_config(config)
+            else:
+                current_account_num = next_account_num
+
+    except KeyboardInterrupt:
+        print(f"\n\n[!] Eksekusi dihentikan oleh pengguna (Ctrl+C). Urutan terakhir tersimpan: Clone ke-{current_account_num}.")
+        config["start_index"] = current_account_num
+        save_config(config)
+        return
 
 def main():
     config = load_config()

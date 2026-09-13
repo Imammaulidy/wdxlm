@@ -133,16 +133,16 @@ def main():
         else:
             print("[*] Wi-Fi HP tidak aktif / tidak terhubung ke Wi-Fi lokal.")
 
-        # Eksekusi Scrcpy
+        # Eksekusi Scrcpy (Screen Off & Stay Awake & 120 FPS)
         if wireless_ready:
             print("\n[V] MODE NIRKABEL AKTIF!")
             print("[!] KABEL USB SEKARANG SUDAH BISA DICABUT KAPAN SAJA!")
-            print(f"[*] Membuka SCRCPY nirkabel ({wifi_ip}:5555)...")
-            subprocess.Popen([SCRCPY_EXE, "-s", f"{wifi_ip}:5555"], cwd=SCRCPY_DIR)
+            print(f"[*] Membuka SCRCPY nirkabel ({wifi_ip}:5555) dengan layar HP fisik dimatikan (120 FPS)...")
+            subprocess.Popen([SCRCPY_EXE, "-s", f"{wifi_ip}:5555", "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
         else:
-            print(f"\n[*] Membuka SCRCPY langsung via koneksi USB ({usb_dev})...")
-            subprocess.Popen([SCRCPY_EXE, "-s", usb_dev], cwd=SCRCPY_DIR)
-            print("[V] SCRCPY berhasil dibuka via USB.")
+            print(f"\n[*] Membuka SCRCPY via USB ({usb_dev}) dengan layar HP fisik dimatikan (120 FPS)...")
+            subprocess.Popen([SCRCPY_EXE, "-s", usb_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+            print("[V] SCRCPY berhasil dibuka via USB (Layar HP Off @ 120 FPS).")
 
         time.sleep(1.5)
         return
@@ -150,8 +150,8 @@ def main():
     # KASUS 2: Tidak ada USB, cek perangkat TCP/IP yang sudah aktif
     if tcp_devices:
         tcp_dev = tcp_devices[0]
-        print(f"[*] Menggunakan koneksi ADB nirkabel aktif: {tcp_dev}")
-        subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev], cwd=SCRCPY_DIR)
+        print(f"[*] Menggunakan koneksi ADB nirkabel aktif: {tcp_dev} (Layar HP Off @ 120 FPS)")
+        subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
         time.sleep(1.5)
         return
 
@@ -161,8 +161,8 @@ def main():
         if is_port_reachable(last_ip, 5555, timeout=1.5):
             print(f"[*] Menghubungkan ADB ke {last_ip}:5555...")
             run_cmd(f"adb connect {last_ip}:5555", timeout=3)
-            subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555"], cwd=SCRCPY_DIR)
-            print("[V] SCRCPY berhasil dibuka via Wi-Fi.")
+            subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555", "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+            print("[V] SCRCPY berhasil dibuka via Wi-Fi (Layar HP Off @ 120 FPS).")
             time.sleep(1.5)
             return
         else:
