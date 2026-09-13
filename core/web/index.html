@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitget XLM — ADB Auto WD Control Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER BAR -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="logo-icon">⚡</div>
+                <div class="brand-text">
+                    <h1>BITGET XLM <span>AUTO WD</span></h1>
+                    <p class="subtitle">ADB Precision Automation & Mirroring Controller</p>
+                </div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="badge badge-device" id="deviceBadge" title="Status Koneksi ADB HP">
+                    <span class="pulse-dot"></span>
+                    <span id="deviceText">Mendeteksi Device...</span>
+                </div>
+                <div class="badge badge-screen" id="screenBadge" title="Resolusi Layar Saat Ini">
+                    <span class="icon">📐</span>
+                    <span id="screenText">Layar: ...</span>
+                </div>
+                <div class="badge badge-state state-idle" id="botStateBadge" title="Status Mesin Bot">
+                    <span class="state-indicator"></span>
+                    <span id="botStateText">IDLE</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN GRID LAYOUT -->
+        <main class="dashboard-grid">
+            
+            <!-- LEFT COLUMN: CONTROLS & SETTINGS -->
+            <section class="col-controls">
+                
+                <!-- BOT ACTION CARD -->
+                <div class="card glass-card card-primary-actions">
+                    <div class="card-header">
+                        <h2>🎮 Kontrol Eksekusi Bot</h2>
+                        <span class="tag-status" id="cloneBadge">Clone: -</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="action-btn-group">
+                            <button id="btnStartBot" class="btn btn-primary btn-glow">
+                                <span class="btn-icon">🚀</span>
+                                <div class="btn-text">
+                                    <strong>Mulai Auto WD</strong>
+                                    <small>Jalankan loop penarikan otomatis</small>
+                                </div>
+                            </button>
+                            
+                            <button id="btnNextClone" class="btn btn-next" disabled>
+                                <span class="btn-icon">⏩</span>
+                                <div class="btn-text">
+                                    <strong id="btnNextText">Lanjut Clone Berikutnya (ENTER)</strong>
+                                    <small>Lanjut eksekusi akun berikutnya</small>
+                                </div>
+                            </button>
+                            
+                            <button id="btnStopBot" class="btn btn-danger" disabled>
+                                <span class="btn-icon">⏹</span>
+                                <div class="btn-text">
+                                    <strong>Hentikan Bot</strong>
+                                    <small>Kirim sinyal stop (Q) / kill</small>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div class="bot-options">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="checkManualMode">
+                                <span class="checkmark"></span>
+                                <span class="label-text">Mode Step-by-Step (Pause di setiap langkah)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QUICK UTILITIES CARD -->
+                <div class="card glass-card card-tools">
+                    <div class="card-header">
+                        <h2>🛠 Utilitas Layar & Mirroring</h2>
+                    </div>
+                    <div class="card-body tools-grid">
+                        <button id="btnLaunchScrcpy" class="btn btn-tool" title="Buka mirroring scrcpy dengan layar fisik off @ 120 FPS">
+                            <span class="tool-icon">📱</span>
+                            <span>Buka SCRCPY (120 FPS)</span>
+                        </button>
+                        <button id="btnSetScreenBot" class="btn btn-tool" title="Terapkan standar resolusi 1080x2400 @ 352 DPI">
+                            <span class="tool-icon">📐</span>
+                            <span>Format Layar Bot</span>
+                        </button>
+                        <button id="btnRestoreScreen" class="btn btn-tool" title="Kembalikan resolusi asli HP yang tersimpan">
+                            <span class="tool-icon">🔄</span>
+                            <span>Kembalikan Layar Asli</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- CONFIGURATION FORM CARD -->
+                <div class="card glass-card card-config">
+                    <div class="card-header">
+                        <h2>⚙️ Parameter & Konfigurasi</h2>
+                        <button id="btnSaveConfig" class="btn btn-sm btn-accent">💾 Simpan</button>
+                    </div>
+                    <div class="card-body">
+                        <form id="configForm" onsubmit="return false;">
+                            <div class="form-group">
+                                <label for="inputStartIndex">Nomor Clone Mulai (Start Index)</label>
+                                <div class="input-stepper">
+                                    <button type="button" class="btn-step" id="btnDecIndex">-</button>
+                                    <input type="number" id="inputStartIndex" min="1" max="999" value="1">
+                                    <button type="button" class="btn-step" id="btnIncIndex">+</button>
+                                </div>
+                                <small>Nomor akun clone yang akan dieksekusi pertama kali.</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="inputAlamatWd">Alamat Wallet Tujuan (XLM)</label>
+                                <input type="text" id="inputAlamatWd" placeholder="0x... atau G..." autocomplete="off">
+                                <small>Alamat deposit Bitget yang akan di-paste ke form WD.</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="inputPin">PIN Keamanan (6 Digit)</label>
+                                <input type="password" id="inputPin" maxlength="12" placeholder="Contoh: 080808">
+                                <small>PIN transaksi yang akan diketik via virtual keypad.</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="inputWifiIp">IP ADB Wi-Fi (Teringat)</label>
+                                <input type="text" id="inputWifiIp" placeholder="192.168.x.x">
+                                <small>IP Wi-Fi HP terakhir yang tersimpan untuk koneksi nirkabel.</small>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- RIGHT COLUMN: LIVE LOG TERMINAL & STEPS MANAGER -->
+            <section class="col-main">
+                
+                <!-- LIVE CONSOLE TERMINAL -->
+                <div class="card glass-card card-terminal">
+                    <div class="card-header">
+                        <div class="terminal-title">
+                            <span class="term-dots">
+                                <span class="dot red"></span>
+                                <span class="dot yellow"></span>
+                                <span class="dot green"></span>
+                            </span>
+                            <h2>📟 Live ADB Terminal Log</h2>
+                        </div>
+                        <div class="terminal-actions">
+                            <label class="checkbox-container auto-scroll-toggle" title="Scroll otomatis ke baris terbaru">
+                                <input type="checkbox" id="checkAutoScroll" checked>
+                                <span class="checkmark"></span>
+                                <span class="label-text">Auto-Scroll</span>
+                            </label>
+                            <button id="btnClearLogs" class="btn btn-sm btn-ghost" title="Bersihkan log dari tampilan">🗑 Clear</button>
+                        </div>
+                    </div>
+                    <div class="terminal-container" id="terminalContainer">
+                        <pre id="terminalOutput" class="terminal-output"><span class="log-system">Menghubungkan ke server stream log...</span></pre>
+                    </div>
+                </div>
+
+                <!-- MACRO STEPS MANAGER CARD -->
+                <div class="card glass-card card-steps">
+                    <div class="card-header">
+                        <div class="steps-title-box">
+                            <h2>📋 Kelola Langkah Macro (kordinat.txt)</h2>
+                            <span class="tag-counter" id="stepsCounter">0 Steps</span>
+                        </div>
+                        <div class="steps-filter-box">
+                            <input type="text" id="filterStepsInput" placeholder="Cari nama atau perintah step..." class="input-search">
+                            <button id="btnEnableAllSteps" class="btn btn-sm btn-outline-success">Aktifkan Semua</button>
+                            <button id="btnDisableAllSteps" class="btn btn-sm btn-outline-danger">Nonaktifkan Semua</button>
+                        </div>
+                    </div>
+                    <div class="card-body steps-body">
+                        <div class="steps-list" id="stepsList">
+                            <div class="loading-spinner">Memuat langkah-langkah macro...</div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="app-footer">
+            <p>Bitget XLM Auto WD Bot &bull; Pure & Lean ADB Automation &bull; Native Screen Auto-Restore Protected</p>
+        </footer>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -310,6 +310,7 @@ def print_menu():
         print("9. BUKA PENGATURAN DEVELOPER (Shortcut)")
     else:
         print("7. KONEK ADB & SCRCPY (KHUSUS PC)")
+        print("8. BUKA WEB UI DASHBOARD (BROWSER)")
     print("0. EXIT")
     print("=========================================================")
 
@@ -689,6 +690,23 @@ def main():
                 subprocess.run('pkg update -y && pkg install python nmap android-tools -y', shell=True, cwd=PROJECT_ROOT)
                 print("\n")
                 input("Selesai. Tekan Enter untuk kembali ke menu...")
+
+            elif pilihan == '8' and not IS_TERMUX:
+                clear_screen()
+                print("=========================================================")
+                print("         MEMBUKA WEB UI DASHBOARD (BROWSER)              ")
+                print("=========================================================")
+                print("  URL : http://127.0.0.1:5000                            ")
+                print("  Tekan Ctrl+C di terminal ini jika ingin keluar Web UI. ")
+                print("=========================================================")
+                if os.name == 'nt':
+                    os.system('start "" "http://127.0.0.1:5000"')
+                server_script = os.path.join(CORE_DIR, 'server.py')
+                try:
+                    subprocess.run([sys.executable, server_script], cwd=PROJECT_ROOT)
+                except KeyboardInterrupt:
+                    pass
+                input("\nWeb UI selesai. Tekan Enter untuk kembali ke menu...")
 
             elif pilihan == '9' and IS_TERMUX:
                 clear_screen()

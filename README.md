@@ -1,32 +1,51 @@
 # 🚀 BOT AUTO WD XLM BITGET WALLET (ADB MULTI-DEVICE)
 
-Bot otomatisasi cerdas untuk melakukan **Withdraw (WD) XLM secara massal** dari akun kloningan Bitget Wallet menggunakan ADB.
+Bot otomatisasi cerdas untuk melakukan **Withdraw (WD) XLM secara massal** dari akun kloningan Bitget Wallet menggunakan ADB, dilengkapi **Web UI Dashboard** modern berbasis Glassmorphism serta CLI terminal interaktif.
 
 ---
 
 ## ⚡ SHORTCUT MENJALANKAN BOT
 
-### 📱 Mode Termux (Android tanpa PC):
-Cukup jalankan satu baris perintah all-in-one ini (otomatis install dependensi & buka menu):
-```bash
-bash run.sh
-```
+### 🌐 Mode Web UI Dashboard (Rekomendasi PC):
+Cukup double-click **`WEB_UI.bat`** di Windows!
+Browser otomatis terbuka di:
+👉 **`http://127.0.0.1:5000`**
 
-### 💻 Mode PC / Windows:
-Cukup double-click **`GAS WD.bat`** atau jalankan via terminal:
+### 💻 Mode Terminal / CLI (Windows):
+Double-click **`GAS WD.bat`** atau jalankan via terminal:
 ```bash
 python core/menu.py
+```
+
+### 📱 Mode Termux (Android tanpa PC):
+Jalankan runner all-in-one di aplikasi Termux:
+```bash
+bash run.sh
 ```
 
 ---
 
 ## ✨ Fitur Utama
-- 🖥️ **CLI Interaktif:** Menu navigasi lengkap di terminal (PC & Termux).
-- 📐 **Auto-Set & Auto-Restore Layar:** Otomatis merekam resolusi & DPI asli HP, menyesuaikan ke standar bot (`1080x2400 @ 352 DPI`) saat mulai, dan otomatis mengembalikan ke ukuran terekam setelah selesai.
-- 📝 **Script Koordinat Dinamis (`core/kordinat.txt`):** Seluruh perintah sentuh, swipe, jeda waktu (`sleep`), dan teks dibaca langsung dari file teks ala TopNod.
-- 🎛️ **Fitur ON/OFF Step Dua Arah:** Langkah bot bisa diaktifkan/dinonaktifkan baik lewat Menu 4 di terminal maupun dengan menambahkan kata `OFF` pada judul step di `core/kordinat.txt`.
-- 🔢 **PIN Keypad Dinamis:** Koordinat angka PIN 0–9 otomatis disesuaikan secara dinamis.
-- 💻 **Dua Platform:** Mendukung Windows PC (dengan scrcpy mirroring) dan Android Termux (Wireless Debugging).
+
+- 🌐 **Web UI Controller Dashboard:**
+  - Dashboard modern bertema Dark Glassmorphism.
+  - Streaming log terminal real-time via Server-Sent Events (SSE).
+  - Kontrol one-click: Mulai Bot, Lanjut Loop Akun Berikutnya (ENTER), Stop Bot.
+  - Shortcut keyboard: Cukup tekan tombol `ENTER` untuk melanjutkan ke clone berikutnya.
+  - Pengelola visual 43 langkah macro (`kordinat.txt`): toggle switch ON/OFF dan edit jeda waktu (`sleep`).
+  - Quick tools: Buka SCRCPY mirroring (120 FPS), set format bot, dan restore layar HP asli.
+- 📐 **Zero-Factory-Reset Screen Protection:**
+  - Otomatis membaca & merekam resolusi & DPI aktif yang sedang dipakai HP saat awal bot dijalankan.
+  - Menerapkan format bot (`1080x2400 @ 352 DPI`).
+  - Saat bot selesai atau ditutup, layar otomatis dipulihkan ke ukuran terekam (tanpa perintah `wm size reset` / `wm density reset`).
+- 🔁 **Continuous Loop Account WD:**
+  - Menyimpan nomor urutan clone terakhir (`start_index`) secara otomatis.
+  - Selesai satu akun, bot berhenti sejenak dan menunggu konfirmasi ENTER sebelum mengeksekusi akun berikutnya.
+- 📱 **Smart SCRCPY & Wi-Fi Auto-Detect:**
+  - Deteksi otomatis koneksi USB dan IP Wi-Fi lokal (`wlan0`/`wlan1`).
+  - Kabel USB dapat dicabut setelah tersambung tanpa mematikan sesi mirroring.
+- 📝 **Script Koordinat Dinamis (`core/kordinat.txt`):**
+  - Seluruh alur step, tap, swipe, sleep, dan PIN keypad 0–9 dapat dikustomisasi langsung.
 
 ---
 
@@ -40,7 +59,7 @@ python core/menu.py
    - Aktifkan *Proses Debug Nirkabel* / *Wireless Debugging* (untuk Termux).
 
 ### 💻 Di PC / Windows:
-- Python 3.8+ terinstall (Centang *"Add Python to PATH"*).
+- Python 3.8+ terinstall (dengan Flask: `pip install flask`).
 - Driver ADB & scrcpy sudah tersedia di folder `core/`.
 
 ### 📱 Di Android (Termux):
@@ -48,31 +67,22 @@ python core/menu.py
 
 ---
 
-## 📥 PANDUAN PENGGUNAAN LENGKAP
+## 📥 PANDUAN PENGGUNAAN
 
-### 📱 Menjalankan di Termux (Tanpa PC):
-1. **Jalankan Runner All-in-One:**
-   ```bash
-   bash run.sh
-   ```
-   *(Script otomatis meminta izin storage, menginstal Python, NMAP, ADB, menyiapkan config, dan membuka menu utama).*
-2. **Di Menu Utama:**
-   - Pilih **Opsi 7** (`KONEK ADB LOKAL`) $\rightarrow$ Masukkan IP & Port Wireless Debugging.
-   - Pilih **Opsi 1** (`MULAI WD OTOMATIS`) atau **Opsi 2** (`MULAI WD MANUAL`).
+### 🌐 1. Menggunakan Web UI Dashboard:
+1. Hubungkan HP via kabel USB (USB Debugging aktif).
+2. Jalankan file **`WEB_UI.bat`**.
+3. Browser akan otomatis membuka `http://127.0.0.1:5000`.
+4. Anda dapat:
+   - Mengatur nomor clone awal, alamat wallet XLM, dan PIN.
+   - Mengaktifkan/menonaktifkan langkah macro sesuai kebutuhan.
+   - Mengklik tombol **Mulai Auto WD**.
+   - Ketika selesai memproses 1 akun, tekan **Lanjut Clone Berikutnya** atau tekan tombol **ENTER** di keyboard.
 
----
-
-### 💻 Menjalankan di PC / Windows:
-1. **Jalankan Menu:**
-   Double-click file **`GAS WD.bat`** atau jalankan:
-   ```bash
-   python core/menu.py
-   ```
-2. **Hubungkan HP:**
-   - Pilih **Opsi 7** (`KONEK ADB & SCRCPY`) $\rightarrow$ Pilih Opsi 1 (Cek device) atau Opsi 4 (Auto-Setup Wireless).
-3. **Jalankan Bot:**
-   - **Menu 1:** `MULAI WD (OTOMATIS FULL)`
-   - **Menu 2:** `MULAI WD MANUAL (VIA ENTER / STEP-BY-STEP)`
+### 💻 2. Menggunakan Menu Terminal (GAS WD.bat):
+1. Jalankan **`GAS WD.bat`**.
+2. Pilih **Opsi 7** (`KONEK ADB & SCRCPY`) untuk menghubungkan perangkat.
+3. Pilih **Opsi 1** (`MULAI WD OTOMATIS FULL`) untuk memulai proses loop.
 
 ---
 
@@ -83,32 +93,14 @@ Untuk melihat, menambah, merevisi seluruh koordinat klik, swipe, jeda waktu (*ti
 👉 **[`core/kordinat.txt`](core/kordinat.txt)**
 
 ### 🔧 Konfigurasi (`core/config.json`)
-Dapat diedit langsung lewat menu terminal (**Opsi 3**) atau manual:
+Dapat diedit langsung lewat Web Dashboard, menu terminal (**Opsi 3**), atau manual:
 ```json
 {
     "total_akun": 1,
-    "start_index": 0,
-    "alamat_wd": "ALAMAT_EVM_ATAU_XLM_ANDA",
+    "start_index": 43,
+    "alamat_wd": "0x41739ee3a2641B096D0F0DD2427796f2A55d85aa",
     "pin": "080808",
-    "disabled_steps": [11, 25, 28, 29, 30, 33, 41, 42]
+    "last_wifi_ip": "192.168.1.24",
+    "disabled_steps": [0, 1, 11, 28, 29, 30, 33, 41, 42]
 }
-```
-
----
-
-## 📱 PERINTAH MANUAL ADB LAYAR
-
-### 🔍 Cek Info Layar & DPI Saat Ini:
-```bash
-adb shell "wm size && wm density"
-```
-
-### 🟢 Samakan Layar ke Format Acuan Bot (Poco F4 - 1080x2400 @ 352 DPI):
-```bash
-adb shell "wm size 1080x2400 && wm density 352"
-```
-
-### 🔄 Kembalikan Layar ke Bawaan Asli HP (Reset Total):
-```bash
-adb shell "wm size reset && wm density reset"
 ```
