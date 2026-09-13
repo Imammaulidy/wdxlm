@@ -56,83 +56,240 @@ def log_step(text):
 MANUAL_MODE = "--manual" in sys.argv
 REKAM_MODE  = "--rekam"  in sys.argv
 
+def handle_pause(pause_reason="TOMBOL 'P' / CTRL+C DITEKAN", remaining_time=0):
+    """
+    Menangani status PAUSE pada bot dan menunggu shortcut Lanjut / Keluar:
+    - Shortcut Lanjut: ENTER atau Ctrl+V
+    - Shortcut Keluar: 'q' / 'Q'
+    """
+    global current_step_info
+    print(f"\n\n[!!!] PROGRAM DIPAUSE ({pause_reason}) [!!!]")
+    print(f"[*] POSISI TERAKHIR: {current_step_info}")
+    print("Silakan perbaiki posisi layar HP Anda jika diperlukan.")
+    print(" --> Tekan ENTER atau CTRL+V untuk MELANJUTKAN")
+    print(" --> Tekan 'Q' untuk BERHENTI / KELUAR")
+
+    while True:
+        if platform.system() == "Windows" and sys.stdin.isatty():
+            try:
+                ch = msvcrt.getch()
+            except KeyboardInterrupt:
+                continue
+
+            # Shortcut Lanjut: ENTER (\r, \n) atau Ctrl+V (\x16)
+            if ch in (b'\r', b'\n', b'\x16'):
+                key_name = "Ctrl+V" if ch == b'\x16' else "ENTER"
+                print(f"\n[>] Shortcut '{key_name}' terdeteksi! Melanjutkan proses dalam 2 detik...")
+                time.sleep(1)
+                print("GO!\n")
+                return True
+            # Shortcut Keluar: 'q' / 'Q'
+            elif ch in (b'q', b'Q', b'x', b'X'):
+                print("\n[X] EKSEKUSI DIHENTIKAN OLEH PENGGUNA ('Q').")
+                sys.exit(0)
+        else:
+            try:
+                line = sys.stdin.readline().strip().lower()
+            except KeyboardInterrupt:
+                continue
+
+            if line in ('q', 'quit', 'exit'):
+                print("\n[X] EKSEKUSI DIHENTIKAN OLEH PENGGUNA ('Q').")
+                sys.exit(0)
+            else:
+                print("\n[>] Melanjutkan proses...")
+                return True
+
+def prompt_manual_step(step_title):
+    """Di mode manual: Enter / Ctrl+V = lanjut, p / Ctrl+C = pause, q = keluar."""
+    print(f"\n[STEP-BY-STEP] Selesai: {step_title}")
+    sys.stdout.write("--> Tekan ENTER atau CTRL+V untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
+    sys.stdout.flush()
+
+    if platform.system() == "Windows" and sys.stdin.isatty():
+        while True:
+            try:
+                ch = msvcrt.getch()
+            except KeyboardInterrupt:
+                handle_pause("CTRL+C DITEKAN")
+                sys.stdout.write("\n--> Tekan ENTER atau CTRL+V untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
+                sys.stdout.flush()
+                continue
+
+            if ch in (b'\r', b'\n', b'\x16'):
+                key_label = "Ctrl+V" if ch == b'\x16' else "ENTER"
+                sys.stdout.write(f" [{key_label}]\n")
+                sys.stdout.flush()
+                return 'next'
+            elif ch in (b'p', b'P'):
+                handle_pause("TOMBOL 'P' DITEKAN")
+                sys.stdout.write("\n--> Tekan ENTER atau CTRL+V untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
+                sys.stdout.flush()
+            elif ch in (b'q', b'Q'):
+                sys.stdout.write("q\n")
+                sys.stdout.flush()
+                return 'q'
+    else:
+        try:
+            line = sys.stdin.readline().strip()
+        except KeyboardInterrupt:
+            handle_pause("CTRL+C DITEKAN")
+            return prompt_manual_step(step_title)
+
+        if line.lower() in ('q', 'quit', 'exit'):
+            return 'q'
+        return 'next'
+
+def prompt_next_clone(next_account_num):
+    """
+    Menunggu keputusan user setelah 1 akun clone selesai:
+    - Shortcut Lanjut: ENTER atau Ctrl+V
+    - Shortcut Pause : 'p' / 'P' atau Ctrl+C
+    - Shortcut Keluar: 'q' / 'Q'
+    - Input angka    : Ketik nomor clone manual lalu Enter / Ctrl+V
+    """
+    print(f"--> Tekan ENTER atau CTRL+V untuk lanjut loop WD clone berikutnya (ke-{next_account_num})")
+    sys.stdout.write(f"    (atau ketik nomor clone lain, atau 'Q' untuk kembali): ")
+    sys.stdout.flush()
+
+    if platform.system() == "Windows" and sys.stdin.isatty():
+        buf = []
+        while True:
+            try:
+                ch = msvcrt.getch()
+            except KeyboardInterrupt:
+                handle_pause("CTRL+C DITEKAN")
+                print(f"\n--> Tekan ENTER atau CTRL+V untuk lanjut loop WD clone berikutnya (ke-{next_account_num})")
+                sys.stdout.write(f"    (atau ketik nomor clone lain, atau 'Q' untuk kembali): {''.join(buf)}")
+                sys.stdout.flush()
+                continue
+
+            # 1. LANJUT: ENTER (\r, \n) atau Ctrl+V (\x16)
+            if ch in (b'\r', b'\n', b'\x16'):
+                key_label = "Ctrl+V" if ch == b'\x16' else "ENTER"
+                if buf:
+                    typed = "".join(buf).strip()
+                    sys.stdout.write(f" [{key_label}]\n")
+                    sys.stdout.flush()
+                    if typed.isdigit():
+                        return int(typed)
+                    elif typed.lower() in ('q', 'quit', 'exit'):
+                        return 'q'
+                    return next_account_num
+                else:
+                    if ch == b'\x16':
+                        sys.stdout.write("[Ctrl+V]\n")
+                    else:
+                        sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    return next_account_num
+
+            # 2. PAUSE: 'p' / 'P'
+            elif ch in (b'p', b'P') and not buf:
+                handle_pause("TOMBOL 'P' DITEKAN")
+                print(f"\n--> Tekan ENTER atau CTRL+V untuk lanjut loop WD clone berikutnya (ke-{next_account_num})")
+                sys.stdout.write(f"    (atau ketik nomor clone lain, atau 'Q' untuk kembali): ")
+                sys.stdout.flush()
+
+            # 3. KELUAR: 'q' / 'Q'
+            elif ch in (b'q', b'Q') and not buf:
+                sys.stdout.write("q\n")
+                sys.stdout.flush()
+                return 'q'
+
+            # 4. BACKSPACE
+            elif ch == b'\x08':
+                if buf:
+                    buf.pop()
+                    sys.stdout.write('\b \b')
+                    sys.stdout.flush()
+
+            # 5. INPUT ANGKA / KARAKTER
+            else:
+                try:
+                    char = ch.decode('latin1')
+                    if char.isprintable():
+                        buf.append(char)
+                        sys.stdout.write(char)
+                        sys.stdout.flush()
+                except Exception:
+                    pass
+    else:
+        try:
+            line = sys.stdin.readline().strip()
+        except KeyboardInterrupt:
+            handle_pause("CTRL+C DITEKAN")
+            return prompt_next_clone(next_account_num)
+
+        if line == "" or "\x16" in line:
+            return next_account_num
+        elif line.lower() in ('q', 'quit', 'exit'):
+            return 'q'
+        elif line.lower() in ('p', 'pause'):
+            handle_pause("TOMBOL 'P' DITEKAN")
+            return prompt_next_clone(next_account_num)
+        elif line.isdigit():
+            return int(line)
+        else:
+            return next_account_num
+
 def stoppable_sleep(jeda):
-    """Tunggu selama 'jeda' detik. Jika di Windows dan ENTER ditekan, PAUSE script."""
+    """
+    Tunggu selama 'jeda' detik.
+    - Shortcut Pause : Tombol 'p' / 'P' atau 'Ctrl+C'
+    - Shortcut Lanjut: Tombol ENTER atau 'Ctrl+V'
+    - Shortcut Keluar: Tombol 'q' / 'Q'
+    """
     end_time = time.time() + jeda
     has_manual_paused = False
+
     while time.time() < end_time:
         paused = False
+        pause_reason = ""
+
         if MANUAL_MODE and not has_manual_paused:
             paused = True
             has_manual_paused = True
-            
-        if platform.system() == "Windows":
-            if msvcrt.kbhit():
-                key = msvcrt.getch()
-                if key in (b'\r', b'\n'):
-                    paused = True
-        else:
-            import select
-            i, o, e = select.select([sys.stdin], [], [], 0)
-            if i:
-                sys.stdin.readline() # consume the input
+            pause_reason = "MODE STEP-BY-STEP"
+
+        if platform.system() == "Windows" and sys.stdin.isatty():
+            try:
+                if msvcrt.kbhit():
+                    key = msvcrt.getch()
+                    # Shortcut Pause: 'p' / 'P' atau Ctrl+C (\x03)
+                    if key in (b'p', b'P', b'\x03'):
+                        paused = True
+                        pause_reason = "TOMBOL 'P' DITEKAN" if key in (b'p', b'P') else "CTRL+C DITEKAN"
+                    # Shortcut Keluar: 'q' / 'Q'
+                    elif key in (b'q', b'Q'):
+                        print("\n\n[X] EKSEKUSI DIHENTIKAN OLEH PENGGUNA ('Q' DITEKAN).")
+                        sys.exit(0)
+            except KeyboardInterrupt:
                 paused = True
-                
+                pause_reason = "CTRL+C DITEKAN"
+        else:
+            try:
+                import select
+                i, o, e = select.select([sys.stdin], [], [], 0)
+                if i:
+                    line = sys.stdin.readline().strip().lower()
+                    if line in ('p', 'pause'):
+                        paused = True
+                        pause_reason = "TOMBOL 'P' DITEKAN"
+                    elif line in ('q', 'exit'):
+                        print("\n\n[X] EKSEKUSI DIHENTIKAN OLEH PENGGUNA ('Q' DITEKAN).")
+                        sys.exit(0)
+            except KeyboardInterrupt:
+                paused = True
+                pause_reason = "CTRL+C DITEKAN"
+            except Exception:
+                pass
+
         if paused:
             sisa_waktu = max(0, end_time - time.time())
-            if MANUAL_MODE:
-                print(f"\n[STEP-BY-STEP] Menunggu konfirmasi...")
-                print(f"[*] SELESAI: {current_step_info}")
-                print(" --> Tekan ENTER untuk MELANJUTKAN eksekusi berikutnya")
-            else:
-                print("\n\n[!!!] PROGRAM DIPAUSE (TOMBOL ENTER DITEKAN) [!!!]")
-                print(f"[*] POSISI TERAKHIR: {current_step_info}")
-                print("Silakan perbaiki posisi layar HP Anda agar sesuai dengan langkah di atas.")
-                print(" --> Tekan ENTER lagi untuk MELANJUTKAN")
-            print(" --> Ketik 'Q' lalu ENTER untuk BERHENTI TOTAL")
-            while True:
-                if platform.system() == "Windows":
-                    resume_key = msvcrt.getch()
-                    if resume_key in (b'\r', b'\n'):
-                        break
-                    elif resume_key in (b'q', b'Q', b'x', b'X'):
-                        print("\n[X] EKSEKUSI DIHENTIKAN PAKSA OLEH PENGGUNA.")
-                        sys.exit(0)
-                else:
-                    import select
-                    i, o, e = select.select([sys.stdin], [], [], 0.1)
-                    if i:
-                        resume_key = sys.stdin.readline().strip().lower()
-                        if resume_key in ('q', 'x'):
-                            print("\n[>] MELANJUTKAN PROSES DALAM 3 DETIK...")
-                            print("[!] SEGERA TUTUP KEYBOARD ATAU KEMBALI KE APLIKASI!")
-                            time.sleep(1)
-                            print("3...")
-                            time.sleep(1)
-                            print("2...")
-                            time.sleep(1)
-                            print("1...")
-                            time.sleep(1)
-                            print("GO!\n")
-                            end_time = time.time() + sisa_waktu
-                            break
-                        elif resume_key in ('q', 'x'):
-                            print("\n[X] EKSEKUSI DIHENTIKAN PAKSA OLEH PENGGUNA.")
-                            sys.exit(0)
-                        else:
-                            print("\n[>] MELANJUTKAN PROSES DALAM 3 DETIK...")
-                            print("[!] SEGERA TUTUP KEYBOARD ATAU KEMBALI KE APLIKASI!")
-                            time.sleep(1)
-                            print("3...")
-                            time.sleep(1)
-                            print("2...")
-                            time.sleep(1)
-                            print("1...")
-                            time.sleep(1)
-                            print("GO!\n")
-                            end_time = time.time() + sisa_waktu
-                            break
-            
+            handle_pause(pause_reason, sisa_waktu)
+            end_time = time.time() + sisa_waktu
+
         time.sleep(0.05)
 
 # Gunakan perintah adb global (telah di-inject oleh menu.py)
@@ -533,8 +690,11 @@ def run_bot(config):
     # Nomor Urut Terakhir / Awal untuk Penamaan di Google Authenticator (Default: 0)
     START_INDEX = config.get("start_index", 0)
 
-    print(f"\n[?] Bot berjalan dalam mode loop akun (1 per 1 via ENTER).")
-    inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter untuk {START_INDEX}): ").strip()
+    print(f"\n[?] Bot berjalan dalam mode loop akun.")
+    print(f"[?] Shortcut Lanjut: ENTER atau Ctrl+V | Pause: 'P' atau Ctrl+C | Keluar: 'Q'")
+    inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter / Ctrl+V untuk {START_INDEX}): ").strip()
+    if "\x16" in inp_start:
+        inp_start = ""
     if inp_start.isdigit():
         START_INDEX = int(inp_start)
 
@@ -584,9 +744,8 @@ def run_bot(config):
                     execute_step_command(cmd, context)
 
                 if MANUAL_MODE:
-                    print(f"\n[STEP-BY-STEP] Selesai: {step['full_title']}")
-                    user_key = input("--> Tekan ENTER untuk lanjut ke langkah berikutnya (atau 'Q' lalu Enter untuk berhenti): ").strip().lower()
-                    if user_key in ('q', 'exit'):
+                    step_action = prompt_manual_step(step['full_title'])
+                    if step_action == 'q':
                         print("\n[X] Eksekusi dihentikan oleh pengguna.")
                         user_aborted = True
                         break
@@ -607,21 +766,20 @@ def run_bot(config):
             print(f"[V] AKUN CLONE KE-{current_account_num} BERHASIL SELESAI DIPROSES!")
             print(f"[*] Urutan berikutnya tersimpan di config: Clone ke-{next_account_num}")
             print(f"=========================================================")
-            print(f"--> Tekan ENTER untuk lanjut loop WD clone berikutnya (ke-{next_account_num})")
-            user_next = input("    (atau ketik nomor clone lain, atau 'Q' lalu Enter untuk kembali): ").strip()
+            user_choice = prompt_next_clone(next_account_num)
 
-            if user_next.lower() in ('q', 'quit', 'exit', '0'):
+            if isinstance(user_choice, str) and user_choice.lower() in ('q', 'quit', 'exit', '0'):
                 print(f"\n[*] Selesai. Urutan terakhir tersimpan untuk eksekusi berikutnya: Clone ke-{next_account_num}.")
                 break
-            elif user_next.isdigit():
-                current_account_num = int(user_next)
+            elif isinstance(user_choice, int):
+                current_account_num = user_choice
                 config["start_index"] = current_account_num
                 save_config(config)
             else:
                 current_account_num = next_account_num
 
     except KeyboardInterrupt:
-        print(f"\n\n[!] Eksekusi dihentikan oleh pengguna (Ctrl+C). Urutan terakhir tersimpan: Clone ke-{current_account_num}.")
+        handle_pause("CTRL+C DITEKAN")
         config["start_index"] = current_account_num
         save_config(config)
         return

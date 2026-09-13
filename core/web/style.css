@@ -353,6 +353,42 @@ body {
     to { transform: scale(1.02); box-shadow: 0 0 26px rgba(251, 191, 36, 0.7); }
 }
 
+.btn-warning {
+    background: rgba(251, 191, 36, 0.12);
+    color: var(--yellow);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: var(--yellow);
+    color: #261601;
+    box-shadow: 0 4px 18px var(--yellow-glow);
+}
+
+.shortcuts-hint {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.shortcuts-hint small {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.shortcuts-hint kbd {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--primary);
+}
+
 .btn-danger {
     background: rgba(244, 63, 94, 0.12);
     color: var(--red);

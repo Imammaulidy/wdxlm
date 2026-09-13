@@ -89,16 +89,20 @@ def read_process_output(proc):
             next_clone = current_clone + 1
             bot_state = "RUNNING"
             
-        # Deteksi status akun selesai dan menunggu ENTER untuk akun berikutnya
-        if "Tekan ENTER untuk lanjut loop WD clone berikutnya" in line or "[STEP-BY-STEP] Menunggu konfirmasi..." in line:
+        # Deteksi status akun selesai dan menunggu konfirmasi akun berikutnya
+        if "lanjut loop WD clone berikutnya" in line or "[STEP-BY-STEP] Menunggu konfirmasi..." in line:
             m_next = re.search(r"ke-(\d+)", line, re.IGNORECASE)
             if m_next:
                 next_clone = int(m_next.group(1))
             bot_state = "WAITING_NEXT"
-            broadcast_log(f"[PROMPT] Bot siap melanjutkan ke Clone ke-{next_clone}. Tekan tombol 'Lanjut Clone Berikutnya' atau ENTER.")
+            broadcast_log(f"[PROMPT] Bot siap melanjutkan ke Clone ke-{next_clone}. Tekan tombol 'Lanjut (ENTER / CTRL+V)' atau gunakan shortcut keyboard.")
             
         elif "AKUN CLONE KE-" in line and "BERHASIL SELESAI DIPROSES" in line:
             bot_state = "WAITING_NEXT"
+
+        elif "PROGRAM DIPAUSE" in line:
+            bot_state = "WAITING_NEXT"
+            broadcast_log("[PROMPT] Bot sedang DIPAUSE. Tekan ENTER atau CTRL+V untuk melanjutkan, atau 'Q' untuk berhenti.")
 
     proc.stdout.close()
     proc.wait()
@@ -262,6 +266,23 @@ def api_bot_next():
             return jsonify({"status": "success", "message": "Perintah lanjut terkirim ke bot", "bot_state": bot_state})
         except Exception as e:
             return jsonify({"status": "error", "message": f"Gagal mengirim input ke bot: {e}"}), 500
+
+@app.route('/api/bot/pause', methods=['POST'])
+def api_bot_pause():
+    global bot_process, bot_state
+    
+    with process_lock:
+        if bot_process is None or bot_process.poll() is not None:
+            return jsonify({"status": "error", "message": "Bot sedang tidak berjalan!"}), 400
+            
+        try:
+            broadcast_log("[ACTION] Mengirim sinyal PAUSE ('p') ke bot via Web UI...")
+            bot_process.stdin.write("p\n")
+            bot_process.stdin.flush()
+            bot_state = "WAITING_NEXT"
+            return jsonify({"status": "success", "message": "Sinyal PAUSE berhasil dikirim ke bot", "bot_state": bot_state})
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Gagal mengirim sinyal pause: {e}"}), 500
 
 @app.route('/api/bot/stop', methods=['POST'])
 def api_bot_stop():

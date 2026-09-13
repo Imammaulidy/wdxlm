@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnStartBot = document.getElementById('btnStartBot');
     const btnNextClone = document.getElementById('btnNextClone');
     const btnNextText = document.getElementById('btnNextText');
+    const btnPauseBot = document.getElementById('btnPauseBot');
     const btnStopBot = document.getElementById('btnStopBot');
     const checkManualMode = document.getElementById('checkManualMode');
 
@@ -119,19 +120,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnStartBot.disabled = false;
                 btnNextClone.disabled = true;
                 btnNextClone.classList.remove('highlight-pulse');
-                btnNextText.textContent = 'Lanjut Clone Berikutnya (ENTER)';
+                btnNextText.textContent = 'Lanjut Clone Berikutnya (ENTER / CTRL+V)';
+                btnPauseBot.disabled = true;
                 btnStopBot.disabled = true;
             } else if (currentBotState === 'RUNNING') {
                 btnStartBot.disabled = true;
                 btnNextClone.disabled = true;
                 btnNextClone.classList.remove('highlight-pulse');
                 btnNextText.textContent = 'Sedang Memproses...';
+                btnPauseBot.disabled = false;
                 btnStopBot.disabled = false;
             } else if (currentBotState === 'WAITING_NEXT') {
                 btnStartBot.disabled = true;
                 btnNextClone.disabled = false;
                 btnNextClone.classList.add('highlight-pulse');
-                btnNextText.textContent = `Lanjut Clone ke-${nextCloneTarget} (ENTER)`;
+                btnNextText.textContent = `Lanjut Clone ke-${nextCloneTarget} (ENTER / CTRL+V)`;
+                btnPauseBot.disabled = true;
                 btnStopBot.disabled = false;
             }
 
@@ -260,6 +264,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    btnPauseBot.addEventListener('click', async () => {
+        try {
+            const res = await fetch('/api/bot/pause', { method: 'POST' });
+            const data = await res.json();
+            showToast(data.message || 'Sinyal PAUSE terkirim', 'warning');
+            updateStatus();
+        } catch (err) {
+            showToast('Gagal mengirim sinyal pause', 'error');
+        }
+    });
+
     btnStopBot.addEventListener('click', async () => {
         if (!confirm('Yakin ingin menghentikan bot sekarang?')) return;
         try {
@@ -272,14 +287,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Keyboard ENTER shortcut for Next Clone
+    // Global Keyboard Shortcuts
+    // - Lanjut: Enter ATAU Ctrl + V
+    // - Pause : Tombol 'P' ATAU Ctrl + C
+    // - Keluar: Tombol 'Q'
     window.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const active = document.activeElement;
-            const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-            if (!isInput && currentBotState === 'WAITING_NEXT') {
+        const active = document.activeElement;
+        const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+        if (isInput) return; // Jangan mengganggu saat user sedang mengetik di input form
+
+        const isCtrl = e.ctrlKey || e.metaKey;
+        const key = e.key.toLowerCase();
+
+        // 1. SHORTCUT LANJUT (ENTER atau CTRL+V)
+        if (e.key === 'Enter' || (isCtrl && key === 'v')) {
+            if (currentBotState === 'WAITING_NEXT') {
                 e.preventDefault();
                 btnNextClone.click();
+            }
+        }
+
+        // 2. SHORTCUT PAUSE (TOMBOL 'P' atau CTRL+C)
+        else if ((!isCtrl && key === 'p') || (isCtrl && key === 'c')) {
+            if (currentBotState === 'RUNNING') {
+                e.preventDefault();
+                btnPauseBot.click();
+            }
+        }
+
+        // 3. SHORTCUT KELUAR (TOMBOL 'Q')
+        else if (!isCtrl && key === 'q') {
+            if (currentBotState === 'RUNNING' || currentBotState === 'WAITING_NEXT') {
+                e.preventDefault();
+                btnStopBot.click();
             }
         }
     });
