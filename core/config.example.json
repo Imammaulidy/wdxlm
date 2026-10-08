@@ -1,60 +1,88 @@
 {
     "total_akun": 1,
-    "start_index": 0,
-    "alamat_wd": "0x0000000000000000000000000000000000000000",
+    "start_index": 1,
+    "alamat_wd": "GAEL2XQRRNPV2TCCFJFHHP277MN3MXUU2EZMRXRQBDVIUZLLODVH2SS5",
     "pin": "080808",
+    "master_referral_code": "JtzeyDtC",
+    "current_referral_code": "JtzeyDtC",
+    "referral_code": "JtzeyDtC",
+    "imap_default_server": "imap.gmail.com",
+    "imap_default_port": 993,
+    "imap_use_ssl": true,
     "last_wifi_ip": "",
-
-    "keypad_coords": {
-        "1": {
-            "x": 177,
-            "y": 1898
-        },
-        "2": {
-            "x": 546,
-            "y": 1898
-        },
-        "3": {
-            "x": 908,
-            "y": 1898
-        },
-        "4": {
-            "x": 177,
-            "y": 2014
-        },
-        "5": {
-            "x": 546,
-            "y": 2014
-        },
-        "6": {
-            "x": 908,
-            "y": 2014
-        },
-        "7": {
-            "x": 177,
-            "y": 2130
-        },
-        "8": {
-            "x": 546,
-            "y": 2130
-        },
-        "9": {
-            "x": 908,
-            "y": 2130
-        },
-        "0": {
-            "x": 546,
-            "y": 2258
+    "active_wallet_file": "wallet_phrases.txt",
+    "email_otp_accounts": [
+        {
+            "id": "slot_1",
+            "name": "Slot 1 (example@gmail.com)",
+            "email": "example@gmail.com",
+            "password": "your_app_password_here",
+            "imap_server": "imap.gmail.com",
+            "imap_port": 993,
+            "enabled": true
         }
+    ],
+    "clone_slot_coords": {
+        "1": { "x": 225, "y": 391, "rx": 0.208202, "ry": 0.16289 },
+        "2": { "x": 228, "y": 676, "rx": 0.211356, "ry": 0.28187 },
+        "3": { "x": 228, "y": 962, "rx": 0.211356, "ry": 0.40085 },
+        "4": { "x": 221, "y": 1268, "rx": 0.205047, "ry": 0.528329 },
+        "5": { "x": 221, "y": 1550, "rx": 0.205047, "ry": 0.645892 },
+        "6": { "x": 232, "y": 1832, "rx": 0.214511, "ry": 0.763456 },
+        "7": { "x": 225, "y": 2118, "rx": 0.208202, "ry": 0.882436 }
     },
-    "disabled_steps": [
-        11,
-        25,
-        28,
-        29,
-        30,
-        33,
-        41,
-        42
-    ]
+    "keypad_coords": {
+        "1": { "x": 177, "y": 1898 },
+        "2": { "x": 546, "y": 1898 },
+        "3": { "x": 908, "y": 1898 },
+        "4": { "x": 177, "y": 2014 },
+        "5": { "x": 546, "y": 2014 },
+        "6": { "x": 908, "y": 2014 },
+        "7": { "x": 177, "y": 2130 },
+        "8": { "x": 549, "y": 2023 },
+        "9": { "x": 908, "y": 2130 },
+        "0": { "x": 538, "y": 2189 }
+    },
+    "keypad_coords_morph": {
+        "1": { "x": 210, "y": 1735 },
+        "2": { "x": 540, "y": 1735 },
+        "3": { "x": 875, "y": 1735 },
+        "4": { "x": 210, "y": 1885 },
+        "5": { "x": 540, "y": 1885 },
+        "6": { "x": 875, "y": 1885 },
+        "7": { "x": 210, "y": 2030 },
+        "8": { "x": 540, "y": 2030 },
+        "9": { "x": 875, "y": 2030 },
+        "0": { "x": 540, "y": 2180 }
+    },
+    "disabled_steps": [1],
+    "disabled_steps_wd_baru": [1],
+    "disabled_steps_wd_old": [0, 1, 11, 28, 29, 30, 33, 40, 41, 42],
+    "disabled_steps_create_account": [],
+    "disabled_steps_qris_morph": [],
+    "clone_app": "multiple_app",
+    "airplane_seconds": 3,
+    "default_qris_nominal": 18535,
+    "gobiz": {
+        "mode": "api",
+        "raw_qris": "",
+        "merchant_id": "G000000000",
+        "outlet_id": "",
+        "pop_id": "",
+        "server_key": "Mid-server-xxxxxxxxxxxxxxxxx",
+        "client_key": "Mid-client-xxxxxxxxxxxxxxxxx",
+        "auth_token": "YOUR_GOBIZ_AUTH_TOKEN_HERE",
+        "merchant_name": "MERCHANT CONTOH",
+        "city": "JAKARTA",
+        "auto_random_merchant": true
+    },
+    "wallet_tebar": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "private_key": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "morph": {
+        "chain_id": 2818,
+        "rpc_url": "https://rpc.morphl2.io",
+        "usdc_contract": "0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B"
+    }
 }

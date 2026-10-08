@@ -1,0 +1,225 @@
+# ==============================================================================
+#           BITGET WALLET CREATE ACCOUNT — SCRIPT KOORDINAT ADB / MACRO
+# ==============================================================================
+# Dokumentasi & alur perintah macro untuk otomatisasi pembuatan dompet baru 
+# (Account Creation) + Referral Chaining + KYC Email IMAP OTP Bitget Wallet.
+#
+# PANDUAN FORMAT PERINTAH:
+#   [ID. Nama Langkah]              -> Judul Step / Bagian (Tambah OFF jika di-skip)
+#   input tap X Y                   -> Tap / klik koordinat piksel (kanvas 1080x2400)
+#   input tap_rel X_RATIO Y_RATIO   -> Tap koordinat relatif persentase (0.0 - 1.0)
+#   input slot_tap {ACCOUNT_NUM}    -> Tap otomatis slot clone ke-1 s/d ke-7 di layar
+#   input copy_own_referral         -> Salin kode referral tuyul aktif & update config
+#   input type_kyc_email            -> Ambil email dari core/emails.txt & ketik ke app
+#   input imap_fetch_and_type_otp   -> Ambil 6-digit OTP dari IMAP inbox & ketik ke app
+#   sleep DETIK                     -> Jeda waktu (contoh: sleep 7.0)
+#   input text TEKS                 -> Ketik teks ({REFERRAL_CODE}, {PIN}, {EMAIL})
+#   pin {PIN} JEDA_AKHIR            -> Ketik PIN dinamis sesuai keypad di config.json
+# ==============================================================================
+
+
+# ==============================================================================
+# ALUR UTAMA BOT BUAT AKUN, REFERRAL CHAINING & KYC IMAP (Step 1 s/d Step 22)
+# ==============================================================================
+
+[1. Buka Clone Bitget via Slot]
+# 1. Buka klon aplikasi via slot otomatis
+input slot_tap {ACCOUNT_NUM}
+sleep 10.5
+
+--------------------------------------------------------------------------------
+
+[2. Klik Buat Dompet Baru]
+# 2. Create wallet
+input tap 508 1967
+sleep 0.8
+
+--------------------------------------------------------------------------------
+
+[2.1. Pilih Create Seed Phrase Wallet]
+# 3. Create seed phrase wallet
+input tap 542 2131
+sleep 1.0
+
+--------------------------------------------------------------------------------
+
+[3. Input PIN Pertama]
+# 4 & 5. Passcode (080808)
+pin {PIN} 0.5
+
+--------------------------------------------------------------------------------
+
+[4. Konfirmasi PIN Kedua]
+# 4 & 5. Konfirmasi Passcode (080808)
+pin {PIN} 0.5
+
+--------------------------------------------------------------------------------
+
+[5. Lewati Biometric Fingerprint]
+# 6. Skip biometrik
+input tap 538 2186
+sleep 9.1
+
+--------------------------------------------------------------------------------
+
+[6. Referral Step 1 - Menu Pojok Kanan Atas]
+# 7. Menu pojok kanan atas
+input tap 995 129
+sleep 12.9
+input tap 995 129
+sleep 2
+--------------------------------------------------------------------------------
+
+[7. Referral Step 2 - Step 1 Next]
+# 8. Step 1 (Next)
+input tap 542 2220
+sleep 0.7
+
+--------------------------------------------------------------------------------
+
+[8. Referral Step 3 - Step 2 Next]
+# 9. Step 2 (Next)
+input tap 538 2213
+sleep 0.7
+
+--------------------------------------------------------------------------------
+
+[9. Referral Step 4 - Earn Rebates Now]
+# 10. Step 3 (Earn rebates now)
+input tap 555 2223
+sleep 1.8
+
+--------------------------------------------------------------------------------
+
+[10. Referral Step 5 - Tombol Bind]
+# 11. Bind
+input tap 896 1207
+sleep 1.1
+
+--------------------------------------------------------------------------------
+
+[11. Referral Step 6 - Tempel Kode Referral Relay]
+# 12. Paste kode referral relay ({REFERRAL_CODE})
+input tap 307 2165
+input text {REFERRAL_CODE}
+sleep 0.9
+
+--------------------------------------------------------------------------------
+
+[12. Referral Step 7 - Bind Konfirmasi]
+# 13. Bind konfirmasi
+input tap 746 2135
+sleep 1.7
+
+--------------------------------------------------------------------------------
+
+[13. Referral Step 8 - Tutup Pop-up]
+# 14. Tutup pop-up
+input tap 514 1044
+sleep 1.9
+
+--------------------------------------------------------------------------------
+
+[14. Referral Step 9 - Salin Kode Referral Tuyul Aktif]
+# 15. Salin kode referral tuyul aktif & simpan ke config
+input tap 913 819
+input copy_own_referral
+sleep 1.6
+
+--------------------------------------------------------------------------------
+
+[15. Referral Step 10 - Tombol Back]
+# 16. Tombol Back
+input keyevent 4
+sleep 1.7
+
+--------------------------------------------------------------------------------
+
+[16. Referral Step 11 - Ikon QR Scan]
+# 17. Ikon QR Scan
+input tap 865 126
+sleep 2.5
+
+--------------------------------------------------------------------------------
+
+[17. Referral Step 12 - Ikon Galeri]
+# 18. Ikon Galeri
+input tap 1019 129
+sleep 8.0
+
+--------------------------------------------------------------------------------
+
+[18. Referral Step 13 - Pilih QR Barcode Galeri]
+# 19. Pilih QR barcode
+input tap 187 1146
+sleep 2.1
+
+--------------------------------------------------------------------------------
+
+[19. Referral Step 14 - Tombol Done]
+# 20. Tombol Done
+input tap 951 2230
+sleep 2.9
+
+--------------------------------------------------------------------------------
+
+[20. Referral Step 15 - Get Started]
+# 21. Get started
+input tap 542 2060
+sleep 2.0
+
+--------------------------------------------------------------------------------
+
+[21. Referral Step 16 - Centang Persetujuan Term]
+# 22. Centang persetujuan
+input tap 64 1047
+sleep 2.7
+
+--------------------------------------------------------------------------------
+
+[22. Referral Step 17 - Continue with Email]
+# 23. Continue with Email
+input tap 553 900
+sleep 7.8
+
+--------------------------------------------------------------------------------
+
+[23. Referral Step 18 - Klik Kolom Email & Input Email KYC]
+# 24. Klik kolom email & ketik email KYC tuyul dari core/emails.txt
+input tap 514 571
+input type_kyc_email
+sleep 2.5
+
+--------------------------------------------------------------------------------
+
+[24. Referral Step 19 - Minta Kode OTP Email]
+# 25. Tekan tombol minta kode OTP (Get verification code)
+input tap 530 1085
+sleep 0.5
+input tap 530 1085
+sleep 0.5
+input tap 535 2190
+sleep 2
+
+--------------------------------------------------------------------------------
+
+[25. Referral Step 20 - Auto Fetch & Fill IMAP OTP]
+# 26. Ambil 6-digit OTP dari IMAP inbox & input otomatis via Keyevent/Paste
+input imap_fetch_and_type_otp
+input tap 955 755
+sleep 5.5
+
+[26. Kembali Ke Dual Space]
+# 27. Membuka kembali Multi App atau Dual Space
+monkey -p com.xunijun.app.gp -c android.intent.category.LAUNCHER 1
+sleep 1.5
+
+[27. Wipe Cache]
+# 28. Matikan Background
+input tap 1005 173
+sleep 1
+
+[28. Restart engine]
+# 29. Restart Clone
+input tap 890 600
+sleep 2.8

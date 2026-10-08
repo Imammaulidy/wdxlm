@@ -1,0 +1,203 @@
+# ==============================================================================
+#      BOT ADB BITGET WALLET — WD XLM MODE BARU (IMPORT VIA PROFIL TANPA AUTH)
+# ==============================================================================
+# File master koordinat layar HP (Standar: 1080x2400 @ 352 DPI).
+# Alur: Klik Profil/Avatar (81, 142) -> Beralih (752, 346) -> Tambah Dompet (568, 2264)
+#       -> Impor Dompet (578, 593) -> Tempel 12 Kata Frasa -> PIN Kode Sandi -> Tarik XLM.
+#
+# CATATAN: Pada mode import dompet aktif, input PIN hanya 1 KALI (Step 9) untuk
+# memvalidasi sandi dompet. TIDAK ADA konfirmasi PIN kedua.
+# Setelah PIN Step 9 dimasukkan, layar mendarat di Beranda lalu lanjut ke Dompet -> Hadiah -> XLM.
+# PIN transaksi akhir dijalankan di Step 18 untuk otorisasi penarikan.
+#
+# Untuk menonaktifkan step tertentu, tambahkan tulisan OFF di judul step.
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+# BAGIAN 1: BUKA & NAVIGASI GANTI DOMPET DI BITGET
+# ------------------------------------------------------------------------------
+
+[1. Buka Aplikasi Bitget Wallet] OFF
+# Membuka aplikasi Bitget Wallet jika belum terbuka
+input tap 164 423
+sleep 5.0
+
+--------------------------------------------------------------------------------
+
+[2. Klik Ikon Profil / Avatar (Kiri Atas)]
+# Mengetuk ikon profil avatar di pojok kiri atas beranda Bitget
+input tap 197 299
+sleep 0.9
+
+
+
+
+--------------------------------------------------------------------------------
+
+[3. Klik Tombol Beralih] OFF
+# Mengetuk tombol cyan 'Beralih' di sebelah nama dompet aktif
+input tap 752 346
+sleep 1.1
+
+--------------------------------------------------------------------------------
+
+[4. Klik Tambah Dompet]
+# Mengetuk tombol cyan 'Tambah dompet' di bagian bawah modal Ganti Dompet
+input tap 568 2264
+sleep 1.1
+
+
+
+
+--------------------------------------------------------------------------------
+
+[5. Klik Impor Dompet]
+# Mengetuk menu kedua 'Impor dompet' (seed phrase, kunci pribadi, dll)
+input tap 578 593
+sleep 1.0
+
+
+
+
+--------------------------------------------------------------------------------
+
+
+# ------------------------------------------------------------------------------
+# BAGIAN 2: IMPOR SEED PHRASE 12 KATA & PIN KODE SANDI (1 KALI)
+# ------------------------------------------------------------------------------
+
+[6. Pilih Frasa Pemulihan Mnemonic]
+# Memilih opsi impor via Frasa Pemulihan / Seed Phrase
+input tap 540 1850
+sleep 1.0
+
+
+
+
+--------------------------------------------------------------------------------
+
+[7. Salin & Tempel 12 Frasa Kata]
+# 1. Otomatis salin 12 kata frasa akun aktif ke clipboard PC
+input phrase_copy
+sleep 0.5
+# 2. Ketuk kolom teks (EditText) agar kursor aktif dan berfokus
+input tap 540 741
+sleep 0.8
+# 3. Masukkan 12 kata frasa langsung ke input HP via ADB
+input phrase_type
+sleep 0.8
+
+
+
+
+--------------------------------------------------------------------------------
+
+[8. Klik Konfirmasi Impor Frasa]
+# Mengetuk tombol Konfirmasi cyan impor frasa (bounds [44, 1338][1036, 1452])
+# Menampilkan popup bottom-sheet 'Masukkan kode sandi'
+input tap 540 1395
+sleep 1.7
+
+
+
+
+--------------------------------------------------------------------------------
+
+[9. Masukkan PIN Kode Sandi]
+# Mengetik 6 digit PIN sandi dompet (080808) via keypad popup (HANYA 1 KALI)
+# Pasca PIN valid, aplikasi mengimpor dan otomatis kembali ke Beranda
+pin {PIN} 2.5
+sleep 8.0
+
+
+
+--------------------------------------------------------------------------------
+
+
+# ------------------------------------------------------------------------------
+# BAGIAN 3: ALUR TARIK XLM (LANGSUNG DARI BERANDA KE AKUN HADIAH)
+# ------------------------------------------------------------------------------
+
+[10. Klik Tab Dompet (Bawah Kanan)]
+# Mengetuk tab Dompet di navigasi bawah (pointer X: 906, Y: 2250)
+input tap 906 2250
+sleep 3.1
+
+
+
+--------------------------------------------------------------------------------
+
+[11. Klik Menu Hadiah]
+# Masuk ke halaman Akun Hadiah via kotak Hadiah (pointer X: 207, Y: 839)
+input tap 207 839
+sleep 1.9
+
+
+--------------------------------------------------------------------------------
+
+[12. Klik Koin XLM]
+# Memilih koin XLM pada daftar Akun Hadiah (pointer X: 415, Y: 700)
+input tap 415 700
+sleep 1.5
+
+
+--------------------------------------------------------------------------------
+
+[13. Klik Penarikan WD]
+# Mengetuk tombol Penarikan cyan di bawah detail XLM (pointer X: 548, Y: 2185)
+input tap 548 2185
+sleep 2.0
+
+
+--------------------------------------------------------------------------------
+
+[14. Input Alamat WD XLM]
+# 1. Mengetuk kolom 'Masukkan alamat penerima' (pointer X: 514, Y: 724)
+input tap 514 724
+sleep 0.8
+# 2. Mengetikkan alamat WD Stellar dari config.json
+input text {ALAMAT_WD}
+sleep 1.3
+
+
+--------------------------------------------------------------------------------
+
+[15. Tutup Keyboard Virtual]
+# Menutup keyboard virtual agar tombol Selanjutnya terlihat (pointer X: 521, Y: 1291 atau back)
+input keyevent 4
+sleep 1.1
+
+
+--------------------------------------------------------------------------------
+
+[16. Klik Tombol Selanjutnya]
+# Mengetuk tombol cyan 'Selanjutnya' di bawah layar (pointer X: 538, Y: 2185)
+input tap 538 2185
+sleep 3.0
+
+
+--------------------------------------------------------------------------------
+
+[17. Konfirmasi Jumlah Penarikan]
+# Mengetuk tombol cyan konfirmasi bertanda '>>' di halaman Jumlah penarikan (X: 540, Y: 2185)
+input tap 540 2185
+sleep 2.0
+
+
+--------------------------------------------------------------------------------
+
+[18. Masukkan PIN Transaksi Final]
+# Mengetik 6 digit PIN transaksi (080808) untuk otorisasi penarikan via keypad
+pin {PIN} 3.0
+sleep 4.3
+
+
+--------------------------------------------------------------------------------
+
+[19. Kembali ke Tampilan Utama (Siklus Selesai)]
+# Menekan tombol kembali (Back) 2x untuk keluar dari detail XLM & akun hadiah kembali ke layar utama
+input keyevent 4
+sleep 1.0
+input keyevent 4
+sleep 2.6

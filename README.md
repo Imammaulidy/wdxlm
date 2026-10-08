@@ -1,6 +1,6 @@
-# 🚀 BOT AUTO WD XLM BITGET WALLET (ADB MULTI-DEVICE)
+# 🚀 BOT AUTO WD XLM & CREATOR BITGET WALLET (ADB MULTI-DEVICE)
 
-Bot otomatisasi cerdas untuk melakukan **Withdraw (WD) XLM secara massal** dari akun kloningan Bitget Wallet menggunakan ADB, dilengkapi **Web UI Dashboard** modern berbasis Glassmorphism serta CLI terminal interaktif.
+Bot otomatisasi cerdas untuk melakukan **Withdraw (WD) XLM secara massal** serta **Pembuatan Akun Dompet Baru (Create Account)** dari akun kloningan Bitget Wallet menggunakan ADB, dilengkapi **Web UI Dashboard** modern berbasis Glassmorphism serta CLI terminal interaktif.
 
 ---
 
@@ -27,24 +27,30 @@ bash run.sh
 
 ## ✨ Fitur Utama
 
+- 🆕 **Bot Auto Create Account Bitget Wallet:**
+  - Otomatisasi alur pendaftaran dompet baru di clone Bitget Wallet (`core/create_account.py`).
+  - Mendukung input PIN 6 digit dinamis via keypad mapping.
+  - Penanganan otomatis dialog Biometric Fingerprint & penundaan Mnemonic Backup.
+  - Pencatatan log riwayat pembuatan akun di `core/created_accounts.json`.
+  - Script koordinat terpisah yang dapat di-custom (`core/kordinat_create_account.txt`).
 - 🌐 **Web UI Controller Dashboard:**
   - Dashboard modern bertema Dark Glassmorphism.
   - Streaming log terminal real-time via Server-Sent Events (SSE).
-  - Kontrol one-click: Mulai Bot, Lanjut Loop Akun Berikutnya (ENTER), Stop Bot.
+  - Kontrol one-click: Mulai Bot (WD XLM / Create Account), Lanjut Loop Akun Berikutnya (ENTER), Stop Bot.
   - Shortcut keyboard: Cukup tekan tombol `ENTER` untuk melanjutkan ke clone berikutnya.
-  - Pengelola visual 43 langkah macro (`kordinat.txt`): toggle switch ON/OFF dan edit jeda waktu (`sleep`).
+  - Pengelola visual langkah macro (`kordinat.txt` & `kordinat_create_account.txt`): toggle switch ON/OFF dan edit jeda waktu (`sleep`).
   - Quick tools: Buka SCRCPY mirroring (120 FPS), set format bot, dan restore layar HP asli.
 - 📐 **Zero-Factory-Reset Screen Protection:**
   - Otomatis membaca & merekam resolusi & DPI aktif yang sedang dipakai HP saat awal bot dijalankan.
   - Menerapkan format bot (`1080x2400 @ 352 DPI`).
   - Saat bot selesai atau ditutup, layar otomatis dipulihkan ke ukuran terekam (tanpa perintah `wm size reset` / `wm density reset`).
-- 🔁 **Continuous Loop Account WD:**
+- 🔁 **Continuous Loop Account WD & Creation:**
   - Menyimpan nomor urutan clone terakhir (`start_index`) secara otomatis.
   - Selesai satu akun, bot berhenti sejenak dan menunggu konfirmasi ENTER sebelum mengeksekusi akun berikutnya.
 - 📱 **Smart SCRCPY & Wi-Fi Auto-Detect:**
   - Deteksi otomatis koneksi USB dan IP Wi-Fi lokal (`wlan0`/`wlan1`).
   - Kabel USB dapat dicabut setelah tersambung tanpa mematikan sesi mirroring.
-- 📝 **Script Koordinat Dinamis (`core/kordinat.txt`):**
+- 📝 **Script Koordinat Dinamis (`core/kordinat.txt` & `core/kordinat_create_account.txt`):**
   - Seluruh alur step, tap, swipe, sleep, dan PIN keypad 0–9 dapat dikustomisasi langsung.
 
 ---

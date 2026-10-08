@@ -11,7 +11,16 @@ import re
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 CORE_DIR = os.path.abspath(os.path.dirname(__file__))
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
-KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat.txt')
+
+USE_OLD_MODE = "--old" in sys.argv
+if USE_OLD_MODE:
+    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
+    CONFIG_DISABLED_KEY = "disabled_steps_wd_old"
+    MODE_NAME = "BOT WD XLM - MODE OLD (TEMPEL AUTH GOOGLE)"
+else:
+    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
+    CONFIG_DISABLED_KEY = "disabled_steps_wd_baru"
+    MODE_NAME = "BOT WD XLM - MODE BARU (IMPORT PROFIL TANPA AUTH)"
 
 if CORE_DIR not in sys.path:
     sys.path.insert(0, CORE_DIR)
@@ -20,6 +29,12 @@ from screen_manager import (
     record_and_apply_bot_screen,
     restore_recorded_screen,
     register_auto_restore
+)
+from wallet_phrase_helper import (
+    get_available_wallet_files,
+    load_wallet_phrases,
+    get_phrase_by_index,
+    copy_phrase_to_clipboard
 )
 
 
@@ -101,9 +116,9 @@ def handle_pause(pause_reason="TOMBOL 'P' / CTRL+C DITEKAN", remaining_time=0):
                 return True
 
 def prompt_manual_step(step_title):
-    """Di mode manual: Enter / Ctrl+V = lanjut, p / Ctrl+C = pause, q = keluar."""
+    """Di mode manual: Enter / Spasi / Ctrl+V = lanjut instan, p / Ctrl+C = pause, q = keluar."""
     print(f"\n[STEP-BY-STEP] Selesai: {step_title}")
-    sys.stdout.write("--> Tekan ENTER atau CTRL+V untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
+    sys.stdout.write("--> Tekan ENTER untuk lanjut (atau 'Q' berhenti): ")
     sys.stdout.flush()
 
     if platform.system() == "Windows" and sys.stdin.isatty():
@@ -112,18 +127,18 @@ def prompt_manual_step(step_title):
                 ch = msvcrt.getch()
             except KeyboardInterrupt:
                 handle_pause("CTRL+C DITEKAN")
-                sys.stdout.write("\n--> Tekan ENTER atau CTRL+V untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
+                sys.stdout.write("\n--> Tekan ENTER untuk lanjut (atau 'Q' berhenti): ")
                 sys.stdout.flush()
                 continue
 
-            if ch in (b'\r', b'\n', b'\x16'):
-                key_label = "Ctrl+V" if ch == b'\x16' else "ENTER"
+            if ch in (b'\r', b'\n', b' ', b'\x16'):
+                key_label = "ENTER" if ch in (b'\r', b'\n', b' ') else "Ctrl+V"
                 sys.stdout.write(f" [{key_label}]\n")
                 sys.stdout.flush()
                 return 'next'
             elif ch in (b'p', b'P'):
                 handle_pause("TOMBOL 'P' DITEKAN")
-                sys.stdout.write("\n--> Tekan ENTER atau CTRL+V untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
+                sys.stdout.write("\n--> Tekan ENTER untuk lanjut (atau 'Q' berhenti): ")
                 sys.stdout.flush()
             elif ch in (b'q', b'Q'):
                 sys.stdout.write("q\n")
@@ -233,6 +248,163 @@ def prompt_next_clone(next_account_num):
         else:
             return next_account_num
 
+def prompt_number_with_arrows(prompt_label: str, default_val: int = 1, min_val: int = 0, max_val: int = 99999) -> int:
+    """
+    Input angka interaktif di console:
+    - Panah Atas / Kanan : Tambah angka (+1)
+    - Panah Bawah / Kiri : Kurangi angka (-1)
+    - Ketik Angka (0-9)  : Masukkan angka manual
+    - Backspace          : Hapus digit terakhir
+    - Enter / Ctrl+V     : Konfirmasi angka
+    """
+    current_val = int(default_val)
+    user_has_typed = False
+    buffer_str = str(current_val)
+    base_prompt = prompt_label.rstrip() + " "
+
+    def redraw(val_str):
+        line = f"{base_prompt}{val_str}"
+        sys.stdout.write(f"\r{line}      \r{line}")
+        sys.stdout.flush()
+
+    redraw(buffer_str)
+
+    if platform.system() == "Windows" and sys.stdin.isatty():
+        import msvcrt
+        while True:
+            try:
+                ch = msvcrt.getch()
+            except KeyboardInterrupt:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                raise
+
+            # Tombol panah di Windows
+            if ch in (b'\x00', b'\xe0'):
+                sc = msvcrt.getch()
+                if sc in (b'H', b'M'):  # Panah Atas / Kanan -> Tambah (+1)
+                    current_val = min(current_val + 1, max_val)
+                    buffer_str = str(current_val)
+                    user_has_typed = False
+                    redraw(buffer_str)
+                elif sc in (b'P', b'K'):  # Panah Bawah / Kiri -> Kurang (-1)
+                    current_val = max(current_val - 1, min_val)
+                    buffer_str = str(current_val)
+                    user_has_typed = False
+                    redraw(buffer_str)
+                continue
+
+            # Enter (\r, \n) atau Ctrl+V (\x16)
+            if ch in (b'\r', b'\n', b'\x16'):
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return int(buffer_str) if (buffer_str.isdigit() and int(buffer_str) >= min_val) else current_val
+
+            # Backspace (\x08)
+            if ch == b'\x08':
+                if len(buffer_str) > 1:
+                    buffer_str = buffer_str[:-1]
+                else:
+                    buffer_str = "0"
+                current_val = int(buffer_str)
+                user_has_typed = True
+                redraw(buffer_str)
+                continue
+
+            try:
+                char = ch.decode('latin1')
+            except Exception:
+                continue
+
+            if char.isdigit():
+                if not user_has_typed:
+                    buffer_str = char
+                    user_has_typed = True
+                else:
+                    if buffer_str == "0":
+                        buffer_str = char
+                    else:
+                        buffer_str += char
+
+                if len(buffer_str) > 5:
+                    buffer_str = buffer_str[:5]
+
+                val = int(buffer_str)
+                if val > max_val:
+                    val = max_val
+                    buffer_str = str(val)
+                current_val = val
+                redraw(buffer_str)
+            elif ch == b'\x03':  # Ctrl+C
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                raise KeyboardInterrupt
+
+    elif sys.stdin.isatty():
+        # Fallback Linux / Termux ANSI input
+        import tty
+        import termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            while True:
+                ch = sys.stdin.read(1)
+                if ch == '\x03':  # Ctrl+C
+                    raise KeyboardInterrupt
+                if ch in ('\r', '\n', '\x16'):
+                    break
+                if ch == '\x1b':
+                    seq = sys.stdin.read(2)
+                    if seq in ('[A', '[C'):  # Up atau Right Arrow
+                        current_val = min(current_val + 1, max_val)
+                        buffer_str = str(current_val)
+                        user_has_typed = False
+                        redraw(buffer_str)
+                    elif seq in ('[B', '[D'):  # Down atau Left Arrow
+                        current_val = max(current_val - 1, min_val)
+                        buffer_str = str(current_val)
+                        user_has_typed = False
+                        redraw(buffer_str)
+                    continue
+                if ch in ('\x7f', '\x08'):  # Backspace
+                    if len(buffer_str) > 1:
+                        buffer_str = buffer_str[:-1]
+                    else:
+                        buffer_str = "0"
+                    current_val = int(buffer_str)
+                    user_has_typed = True
+                    redraw(buffer_str)
+                    continue
+                if ch.isdigit():
+                    if not user_has_typed:
+                        buffer_str = ch
+                        user_has_typed = True
+                    else:
+                        if buffer_str == "0":
+                            buffer_str = ch
+                        else:
+                            buffer_str += ch
+                    if len(buffer_str) > 5:
+                        buffer_str = buffer_str[:5]
+                    val = int(buffer_str)
+                    if val > max_val:
+                        val = max_val
+                        buffer_str = str(val)
+                    current_val = val
+                    redraw(buffer_str)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        return int(buffer_str) if (buffer_str.isdigit() and int(buffer_str) >= min_val) else current_val
+    else:
+        try:
+            inp = input().strip()
+            return int(inp) if inp.isdigit() else default_val
+        except Exception:
+            return default_val
+
 def stoppable_sleep(jeda):
     """
     Tunggu selama 'jeda' detik.
@@ -241,16 +413,10 @@ def stoppable_sleep(jeda):
     - Shortcut Keluar: Tombol 'q' / 'Q'
     """
     end_time = time.time() + jeda
-    has_manual_paused = False
 
     while time.time() < end_time:
         paused = False
         pause_reason = ""
-
-        if MANUAL_MODE and not has_manual_paused:
-            paused = True
-            has_manual_paused = True
-            pause_reason = "MODE STEP-BY-STEP"
 
         if platform.system() == "Windows" and sys.stdin.isatty():
             try:
@@ -307,52 +473,60 @@ def adb_command(command):
 
 def tap(x, y, jeda=1.0):
     """Simulasi klik (tap) pada layar di koordinat (x, y)."""
-    print(f"Tapping at ({x}, {y}) - Waiting {jeda}s")
+    print(f"Tapping at ({x}, {y})")
     adb_command(f"shell input tap {x} {y}")
-    stoppable_sleep(jeda)
+    if not (MANUAL_MODE or REKAM_MODE):
+        stoppable_sleep(jeda)
 
 def swipe(x1, y1, x2, y2, duration=500, jeda=1.0):
     """Simulasi geser (swipe) pada layar."""
-    print(f"Swiping from ({x1}, {y1}) to ({x2}, {y2}) - Waiting {jeda}s")
+    print(f"Swiping from ({x1}, {y1}) to ({x2}, {y2})")
     adb_command(f"shell input swipe {x1} {y1} {x2} {y2} {duration}")
-    stoppable_sleep(jeda)
+    if not (MANUAL_MODE or REKAM_MODE):
+        stoppable_sleep(jeda)
 
 def input_text(text, jeda=1.0):
     """Input teks ke dalam kolom yang sedang aktif."""
     print(f"Typing text: {text}")
     text = str(text).replace(' ', '%s')
     adb_command(f"shell input text '{text}'")
-    stoppable_sleep(jeda)
+    if not (MANUAL_MODE or REKAM_MODE):
+        stoppable_sleep(jeda)
 
 def paste_clipboard(jeda=1.0):
     """Mensimulasikan aksi Paste (Tempel) dari clipboard bawaan Android."""
-    print(f"Pasting from clipboard - Waiting {jeda}s")
-    # KEYCODE_PASTE = 279
+    print(f"Pasting from clipboard")
     adb_command("shell input keyevent 279")
-    stoppable_sleep(jeda)
+    if not (MANUAL_MODE or REKAM_MODE):
+        stoppable_sleep(jeda)
 
 def press_back(jeda=1.0):
     """Mensimulasikan tombol Back sistem."""
-    print(f"Pressing BACK - Waiting {jeda}s")
+    print(f"Pressing BACK")
     adb_command("shell input keyevent 4")
-    stoppable_sleep(jeda)
+    if not (MANUAL_MODE or REKAM_MODE):
+        stoppable_sleep(jeda)
     
 def open_recent_apps(jeda=2.0):
     """Membuka layar Recent Apps."""
-    print(f"Opening Recent Apps - Waiting {jeda}s")
-    # KEYCODE_APP_SWITCH = 187
+    print(f"Opening Recent Apps")
     adb_command("shell input keyevent 187")
-    stoppable_sleep(jeda)
+    if not (MANUAL_MODE or REKAM_MODE):
+        stoppable_sleep(jeda)
 
 def tap_dynamic_pin(pin_str, keypad_coords, final_jeda=5.0):
     """Melakukan ketikan PIN secara dinamis menggunakan mapping koordinat."""
     print(f"Memasukkan PIN dinamis via kordinat sentuh...")
+    is_fast = MANUAL_MODE or REKAM_MODE
+    digit_jeda = 0.08 if is_fast else 0.35
     for i, digit in enumerate(pin_str):
         if digit in keypad_coords:
             coord = keypad_coords[digit]
-            # Jika ini digit terakhir, gunakan final_jeda
-            jeda_to_use = final_jeda if i == len(pin_str) - 1 else 0.35
-            tap(coord["x"], coord["y"], jeda=jeda_to_use)
+            is_last = (i == len(pin_str) - 1)
+            jeda_to_use = (0.2 if is_fast else final_jeda) if is_last else digit_jeda
+            print(f"  Digit [{digit}] -> ({coord['x']}, {coord['y']})")
+            adb_command(f"shell input tap {coord['x']} {coord['y']}")
+            stoppable_sleep(jeda_to_use)
         else:
             print(f"Peringatan: Koordinat untuk angka {digit} tidak ditemukan!")
 
@@ -460,12 +634,14 @@ def parse_kordinat_file(filepath=KORDINAT_FILE):
 
     return steps
 
-def update_sleep_in_kordinat(step_id, new_sleep_value, filepath=KORDINAT_FILE):
+def update_sleep_in_kordinat(step_id, new_sleep_value, filepath=None):
     """
-    Menulis ulang nilai sleep terakhir sebuah step di kordinat.txt
+    Menulis ulang nilai sleep terakhir sebuah step di file koordinat aktif
     dengan nilai delay hasil rekaman user (dibulatkan 1 desimal).
     Jika step tidak punya 'sleep' sama sekali, tambahkan di akhir block step.
     """
+    if filepath is None:
+        filepath = KORDINAT_FILE
     with open(filepath, 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
@@ -534,15 +710,46 @@ def execute_step_command(raw_cmd, context):
     cmd = cmd.replace("{ALAMAT_WD}", str(context.get("ALAMAT_WD", "")))
     cmd = cmd.replace("{ACCOUNT_NUM}", str(context.get("ACCOUNT_NUM", "")))
     cmd = cmd.replace("{PIN}", str(context.get("PIN", "")))
+    cmd = cmd.replace("{PHRASE}", str(context.get("PHRASE", "")))
 
     parts = cmd.split()
     if not parts:
         return
 
     cmd_lower = parts[0].lower()
+    full_lower = cmd.lower().strip()
+
+    # Perintah phrase clipboard & input
+    if full_lower in ("input phrase_copy", "phrase_copy"):
+        p_val = context.get("PHRASE", "")
+        if p_val:
+            copy_phrase_to_clipboard(p_val)
+            print(f"[*] [CLIPBOARD PC] 12 Kata Frasa Akun #{context.get('ACCOUNT_NUM', '')} disalin ke clipboard:")
+            print(f"    -> {p_val}")
+        else:
+            print("[!] Peringatan: Frasa akun kosong / tidak ditemukan.")
+        return
+
+    if full_lower in ("input phrase_paste", "phrase_paste"):
+        print("[*] Mencoba Tempel Frasa (Paste) via Keyevent 279...")
+        adb_command("shell input keyevent 279")
+        return
+
+    if full_lower in ("input phrase_type", "phrase_type"):
+        p_val = context.get("PHRASE", "")
+        if p_val:
+            print(f"[*] Memasukkan 12 kata frasa langsung ke HP via ADB:")
+            print(f"    -> {p_val}")
+            escaped = p_val.replace(" ", "%s")
+            adb_command(f"shell input text '{escaped}'")
+        else:
+            print("[!] Peringatan: Frasa akun kosong / tidak ditemukan.")
+        return
 
     # Perintah jeda waktu: "sleep 1.5"
     if cmd_lower == "sleep":
+        if MANUAL_MODE or REKAM_MODE:
+            return  # Bypass sleep di mode manual & rekam delay agar instan & bisa spam Enter!
         dur = float(parts[1]) if len(parts) > 1 else 1.0
         stoppable_sleep(dur)
         return
@@ -600,13 +807,14 @@ def run_rekam_delay(config):
     ALAMAT_WD = config.get("alamat_wd", "")
     PIN       = config.get("pin", "080808")
     KEYPAD    = config.get("keypad_coords", {})
-    DISABLED_STEPS = config.get("disabled_steps", [])
+    DISABLED_STEPS = config.get(CONFIG_DISABLED_KEY, config.get("disabled_steps", []))
 
     steps = parse_kordinat_file(KORDINAT_FILE)
     active_steps = [s for s in steps if is_step_enabled(s)]
 
-    print(f"\n[*] Berhasil memuat {len(steps)} langkah ({len(active_steps)} aktif) dari core/kordinat.txt")
-    print("""
+    print(f"\n[*] {MODE_NAME}")
+    print(f"[*] Berhasil memuat {len(steps)} langkah ({len(active_steps)} aktif) dari {os.path.basename(KORDINAT_FILE)}")
+    print(f"""
 =========================================================
                MODE REKAM DELAY AKTIF
 =========================================================
@@ -615,22 +823,52 @@ def run_rekam_delay(config):
   2. Stopwatch dimulai segera setelah action selesai.
   3. Tekan ENTER saat layar HP sudah siap ke langkah
      berikutnya. Waktu akan otomatis disimpan ke
-     core/kordinat.txt sebagai delay baru.
+     {os.path.basename(KORDINAT_FILE)} sebagai delay baru.
   4. Ketik 'S' + ENTER untuk SKIP step (delay tidak
      diubah untuk step tersebut).
   5. Ketik 'Q' + ENTER untuk BERHENTI merekam.
 
-  Rekaman menggunakan 1 akun saja (clone ke-0).
+  Rekaman menggunakan 1 akun frasa yang Anda tentukan.
   Setelah rekam, jalankan WD Otomatis (Menu 1).
 =========================================================
 """)
-    input("--> Siapkan HP Anda, lalu tekan ENTER untuk mulai rekam...")
+    active_file = config.get("active_wallet_file")
+    all_wallet_files = get_available_wallet_files()
+    if not active_file and all_wallet_files:
+        active_file = all_wallet_files[0]
+        config["active_wallet_file"] = active_file
+        save_config(config)
+
+    default_idx = config.get("start_index", 1)
+    print(f"[*] File Wallet Digunakan  : {active_file}")
+    target_idx = prompt_number_with_arrows(
+        "[?] Gunakan frasa wallet nomor urut berapa untuk rekam? [Panah Atas/Bawah | Ketik]:",
+        default_val=default_idx,
+        min_val=1
+    )
+
+    p_data = get_phrase_by_index(target_idx, active_file)
+    phrase_val = p_data["phrase"] if p_data else ""
+    if phrase_val:
+        copy_phrase_to_clipboard(phrase_val)
+
+    raw_no_info = f" (No File: #{p_data.get('raw_num')})" if (p_data and p_data.get('raw_num')) else ""
+    ref_info = f" | Ref: {p_data.get('ref_code')}" if (p_data and p_data.get("ref_code")) else ""
+
+    print(f"\n[*] Akun Dipilih Untuk Rekam : Akun #{target_idx}{raw_no_info}{ref_info}")
+    print(f"[*] 12 Kata Frasa (Lengkap):")
+    print(f"    -> {phrase_val if phrase_val else '(TIDAK DITEMUKAN / KOSONG)'}")
+    print(f"[*] Frasa otomatis disalin ke clipboard PC.")
+
+    input("\n--> Siapkan HP Anda, lalu tekan ENTER untuk mulai rekam...")
 
     context = {
         "ALAMAT_WD": ALAMAT_WD,
-        "ACCOUNT_NUM": 0,
+        "ACCOUNT_NUM": target_idx,
         "PIN": PIN,
-        "KEYPAD": KEYPAD
+        "KEYPAD": KEYPAD,
+        "PHRASE": phrase_val,
+        "WALLET_FILE": active_file
     }
 
     recorded = {}
@@ -642,18 +880,50 @@ def run_rekam_delay(config):
         # Jalankan semua action (SKIP sleep agar tidak ada jeda otomatis)
         for cmd in step["commands"]:
             if not is_action_cmd(cmd):
-                continue  # lewati sleep
+                continue
             execute_step_command(cmd, context)
 
-        # Mulai stopwatch
+        # Mulai stopwatch timer tepat setelah perintah sentuh dikirim ke HP
         t_start = time.time()
-        prompt_msg = (
-            f"\n  [REKAM] Selesai: \"{step['full_title']}\"\n"
-            f"  Stopwatch berjalan... Tekan ENTER saat layar HP siap.\n"
-            f"  (S=Skip rekam delay step ini | Q=Berhenti): "
-        )
-        user_key = input(prompt_msg).strip().lower()
-        elapsed  = round(time.time() - t_start, 1)
+
+        prompt_msg = f"  --> [REKAM DELAY] Tekan ENTER saat layar HP siap (S=Skip | Q=Berhenti): "
+        sys.stdout.write(prompt_msg)
+        sys.stdout.flush()
+
+        user_key = 'enter'
+        if platform.system() == "Windows" and sys.stdin.isatty():
+            while True:
+                try:
+                    ch = msvcrt.getch()
+                except KeyboardInterrupt:
+                    user_key = 'q'
+                    break
+                if ch in (b'\r', b'\n', b' '):
+                    sys.stdout.write(" [ENTER]\n")
+                    sys.stdout.flush()
+                    user_key = 'enter'
+                    break
+                elif ch in (b's', b'S'):
+                    sys.stdout.write(" [SKIP]\n")
+                    sys.stdout.flush()
+                    user_key = 's'
+                    break
+                elif ch in (b'q', b'Q'):
+                    sys.stdout.write(" [STOP]\n")
+                    sys.stdout.flush()
+                    user_key = 'q'
+                    break
+        else:
+            try:
+                line = sys.stdin.readline().strip().lower()
+                if line in ('s', 'skip'):
+                    user_key = 's'
+                elif line in ('q', 'quit', 'exit'):
+                    user_key = 'q'
+            except KeyboardInterrupt:
+                user_key = 'q'
+
+        elapsed = round(time.time() - t_start, 1)
 
         if user_key == 'q':
             print("\n[X] Rekaman dihentikan oleh pengguna.")
@@ -666,7 +936,7 @@ def run_rekam_delay(config):
         elapsed = max(elapsed, 0.3)
         update_sleep_in_kordinat(step_id, elapsed)
         recorded[step_id] = elapsed
-        print(f"  [V]  Delay step {step_id} direkam: {elapsed}s  -> disimpan ke kordinat.txt")
+        print(f"  [V]  Delay step {step_id} direkam: {elapsed}s  -> disimpan ke {os.path.basename(KORDINAT_FILE)}")
 
     print(f"\n=========================================================")
     print(f"  REKAMAN SELESAI — {len(recorded)} step delay diperbarui.")
@@ -685,33 +955,35 @@ def run_bot(config):
     ALAMAT_WD  = config.get("alamat_wd", "")
     PIN        = config.get("pin", "080808")
     KEYPAD     = config.get("keypad_coords", {})
-    DISABLED_STEPS = config.get("disabled_steps", [])
+    DISABLED_STEPS = config.get(CONFIG_DISABLED_KEY, config.get("disabled_steps", []))
 
     # Nomor Urut Terakhir / Awal untuk Penamaan di Google Authenticator (Default: 0)
     START_INDEX = config.get("start_index", 0)
 
-    print(f"\n[?] Bot berjalan dalam mode loop akun.")
+    print(f"\n[*] {MODE_NAME}")
+    print(f"[*] File Koordinat: {os.path.basename(KORDINAT_FILE)}")
+    print(f"[?] Bot berjalan dalam mode loop akun.")
     print(f"[?] Shortcut Lanjut: ENTER atau Ctrl+V | Pause: 'P' atau Ctrl+C | Keluar: 'Q'")
-    inp_start = input(f"[?] Mulai dari clone nomor berapa? (Tekan Enter / Ctrl+V untuk {START_INDEX}): ").strip()
-    if "\x16" in inp_start:
-        inp_start = ""
-    if inp_start.isdigit():
-        START_INDEX = int(inp_start)
+    START_INDEX = prompt_number_with_arrows(
+        "[?] Mulai dari clone nomor berapa? [Panah Atas/Bawah | Ketik]:",
+        default_val=START_INDEX,
+        min_val=0
+    )
 
     # Simpan nomor awal yang dipilih jika berbeda
     if config.get("start_index") != START_INDEX:
         config["start_index"] = START_INDEX
         save_config(config)
 
-    # Baca file koordinat kordinat.txt
+    # Baca file koordinat
     steps = parse_kordinat_file(KORDINAT_FILE)
-    print(f"[*] Berhasil memuat {len(steps)} langkah automasi dari core/kordinat.txt")
+    print(f"[*] Berhasil memuat {len(steps)} langkah automasi dari {os.path.basename(KORDINAT_FILE)}")
 
-    # Sinkronisasi status OFF dari kordinat.txt ke config.json jika ada perbedaan
+    # Sinkronisasi status OFF dari kordinat file ke config.json jika ada perbedaan
     file_disabled = [s['id'] for s in steps if s['is_off']]
     if sorted([str(x) for x in DISABLED_STEPS]) != sorted([str(x) for x in file_disabled]):
         DISABLED_STEPS = file_disabled
-        config["disabled_steps"] = DISABLED_STEPS
+        config[CONFIG_DISABLED_KEY] = DISABLED_STEPS
         save_config(config)
 
     if DISABLED_STEPS:
@@ -719,17 +991,37 @@ def run_bot(config):
 
     current_account_num = START_INDEX
 
+    active_file = config.get("active_wallet_file")
+    all_wallet_files = get_available_wallet_files()
+    if not active_file and all_wallet_files:
+        active_file = all_wallet_files[0]
+        config["active_wallet_file"] = active_file
+        save_config(config)
+
     try:
         while True:
+            p_data = get_phrase_by_index(current_account_num, active_file)
+            phrase_val = p_data["phrase"] if p_data else ""
+            if phrase_val:
+                copy_phrase_to_clipboard(phrase_val)
+
+            raw_no_info = f" (No File: #{p_data.get('raw_num')})" if (p_data and p_data.get('raw_num')) else ""
+            ref_info = f" | Ref: {p_data.get('ref_code')}" if (p_data and p_data.get("ref_code")) else ""
+
             print(f"\n=========================================================")
-            print(f"           MEMPROSES AKUN CLONE KE-{current_account_num}          ")
+            print(f"           MEMPROSES AKUN CLONE KE-{current_account_num}{raw_no_info}          ")
+            print(f"[*] File Wallet        : {active_file}")
+            print(f"[*] 12 Kata Frasa (Lengkap):")
+            print(f"    -> {phrase_val if phrase_val else '(TIDAK DITEMUKAN / HABIS)'}{ref_info}")
             print(f"=========================================================\n")
 
             context = {
                 "ALAMAT_WD": ALAMAT_WD,
                 "ACCOUNT_NUM": current_account_num,
                 "PIN": PIN,
-                "KEYPAD": KEYPAD
+                "KEYPAD": KEYPAD,
+                "PHRASE": phrase_val,
+                "WALLET_FILE": active_file
             }
 
             user_aborted = False

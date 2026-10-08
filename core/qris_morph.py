@@ -1,0 +1,1593 @@
+"""
+BOT ADB TERMINAL STANDALONE - BITGET WALLET QRIS MORPH
+========================================================
+Modul otomasi Bitget Wallet QRIS Morph L2:
+- Mode interaktif INSTAN 1-touch (langsung jalan tanpa harus tekan ENTER)
+- Full Auto: Reset Clone -> Gen QRIS -> Tebar USDC Morph L2 -> Bayar PIN -> Claim Cashback Reward
+- Mode Manual Step-by-Step
+- Mode Rekam Delay HP
+- Auto Reset Cache, Google Advertising ID (ID Iklan), Mode Pesawat 3 detik
+- Dukungan scrcpy mirror screen (-S -w)
+- Generator GoBiz QRIS Dinamis & Auto-Push ke HP
+- Pengelolaan ON/OFF step koordinat macro (kordinat_qris_morph.txt)
+"""
+
+import os
+import sys
+import json
+import time
+import shutil
+import subprocess
+import re
+from typing import Optional, Dict, Any, List
+
+CORE_DIR = os.path.abspath(os.path.dirname(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CORE_DIR, '..'))
+if CORE_DIR not in sys.path:
+    sys.path.insert(0, CORE_DIR)
+
+from screen_manager import (
+    record_and_apply_bot_screen,
+    restore_recorded_screen,
+    register_auto_restore,
+    read_current_screen,
+    get_cached_screen
+)
+from adb_controller import ADBController, CLONE_APPS
+from gobiz_qris import GoBizQRISGenerator, fetch_gobiz_merchant_info, extract_token_from_input
+from morph_wallet import MorphWallet
+
+CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
+CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
+KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
+DISABLED_CONFIG_KEY = "disabled_steps_qris_morph"
+LAST_TUYUL_FILE = os.path.join(CORE_DIR, '.last_tuyul.txt')
+TEMP_QR_PATH = os.path.join(CORE_DIR, 'qris_pay.png')
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def load_config() -> Dict[str, Any]:
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    elif os.path.exists(CONFIG_EXAMPLE):
+        with open(CONFIG_EXAMPLE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def save_config(cfg: Dict[str, Any]):
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, indent=4)
+
+def get_last_tuyul_address() -> str:
+    if os.path.exists(LAST_TUYUL_FILE):
+        try:
+            with open(LAST_TUYUL_FILE, 'r', encoding='utf-8') as f:
+                addr = f.read().strip()
+                if addr.startswith("0x") and len(addr) == 42:
+                    return addr
+        except Exception:
+            pass
+    return ""
+
+def save_last_tuyul_address(address: str):
+    try:
+        with open(LAST_TUYUL_FILE, 'w', encoding='utf-8') as f:
+            f.write(address.strip())
+    except Exception:
+        pass
+
+def get_key_press(prompt: str = "") -> str:
+    """Membaca 1 tombol keyboard secara instan tanpa harus tekan ENTER."""
+    if prompt:
+        print(prompt, end="", flush=True)
+
+    if os.name == 'nt':
+        import msvcrt
+        while True:
+            try:
+                ch = msvcrt.getch()
+                if ch in (b'\x00', b'\xe0'):
+                    msvcrt.getch()
+                    continue
+                if ch == b'\x03':
+                    raise KeyboardInterrupt
+                ch_str = ch.decode('latin1', errors='ignore')
+                if ch_str in ('\r', '\n'):
+                    print()
+                    return 'enter'
+                elif ch_str == ' ':
+                    print()
+                    return 'space'
+                else:
+                    print(ch_str)
+                    return ch_str
+            except Exception:
+                pass
+    else:
+        import tty, termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == '\x03':
+                raise KeyboardInterrupt
+            print(ch)
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+def wait_any_key(prompt: str = "\n Tekan sembarang tombol untuk kembali..."):
+    """Menunggu sembarang tombol ditekan secara instan."""
+    print(prompt, end="", flush=True)
+    if os.name == 'nt':
+        import msvcrt
+        ch = msvcrt.getch()
+        if ch == b'\x03':
+            raise KeyboardInterrupt
+        print()
+    else:
+        input()
+
+def parse_step_header(line: str):
+    """Mem-parsing baris judul step dari kordinat_qris_morph.txt."""
+    m = re.match(r'^\[\s*([^\]]+?)\s*\](?:\s*(.*?))?$', line.strip())
+    if not m:
+        return None
+    inner = m.group(1).strip()
+    suffix = (m.group(2) or "").strip()
+
+    is_off = False
+    if suffix.upper() == "OFF" or suffix.upper().endswith("OFF"):
+        is_off = True
+    elif inner.upper().endswith(" OFF"):
+        is_off = True
+        inner = re.sub(r'\s+OFF$', '', inner, flags=re.IGNORECASE).strip()
+
+    id_m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', inner)
+    if id_m:
+        raw_id = id_m.group(1)
+        step_id = raw_id
+        step_name = id_m.group(2).strip() or inner
+    else:
+        step_id = inner
+        step_name = inner
+
+    if suffix and suffix.upper() != "OFF":
+        step_name = f"{step_name} ({suffix})"
+
+    return {
+        "id": str(step_id),
+        "name": step_name,
+        "full_title": inner,
+        "is_off": is_off,
+        "suffix": suffix
+    }
+
+def get_kordinat_steps_from_file(filepath: str = KORDINAT_FILE) -> List[Dict[str, Any]]:
+    """Membaca daftar header langkah dari file kordinat_qris_morph.txt."""
+    if not os.path.exists(filepath):
+        return []
+    steps = []
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            stripped = line.strip()
+            header = parse_step_header(stripped)
+            if header:
+                steps.append(header)
+    return steps
+
+def sync_kordinat_and_config(filepath: str = KORDINAT_FILE):
+    """Menyelaraskan status OFF antara kordinat_qris_morph.txt dan config.json['disabled_steps_qris_morph']."""
+    if not os.path.exists(CONFIG_FILE):
+        return
+    config = load_config()
+    changed = False
+
+    if os.path.exists(filepath):
+        steps = get_kordinat_steps_from_file(filepath)
+        file_disabled = [str(s['id']) for s in steps if s['is_off']]
+        current_disabled = [str(x) for x in config.get(DISABLED_CONFIG_KEY, [])]
+        if sorted(current_disabled) != sorted(file_disabled):
+            config[DISABLED_CONFIG_KEY] = file_disabled
+            changed = True
+
+    if changed:
+        save_config(config)
+
+def update_kordinat_txt_step_file(filepath: str, target_step_id: str, set_off: bool):
+    """Memperbarui status OFF untuk step tertentu di file koordinat."""
+    if not os.path.exists(filepath):
+        return
+    with open(filepath, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    new_lines = []
+    for line in lines:
+        m = re.match(r'^(\[\s*([^\]]+?)\s*\])(.*)$', line)
+        if not m:
+            new_lines.append(line)
+            continue
+        inner = m.group(2).strip()
+        after = m.group(3)
+        id_m = re.match(r'^([0-9]+(?:\.[0-9]+)?)[.:\s]*(.*)$', inner)
+        raw_id = id_m.group(1) if id_m else inner
+        if str(raw_id) != str(target_step_id):
+            new_lines.append(line)
+            continue
+
+        clean_after = re.sub(r'\bOFF\b', '', after, flags=re.IGNORECASE).strip()
+        clean_inner = re.sub(r'\s+OFF\b', '', inner, flags=re.IGNORECASE).strip()
+        new_bracket = f"[{clean_inner}]"
+        if set_off:
+            new_line = f"{new_bracket} {clean_after} OFF\n" if clean_after else f"{new_bracket} OFF\n"
+        else:
+            new_line = f"{new_bracket} {clean_after}\n" if clean_after else f"{new_bracket}\n"
+        new_lines.append(new_line)
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.writelines(new_lines)
+
+def update_all_kordinat_txt_steps_file(filepath: str, set_off: bool):
+    """Mengaktifkan atau menonaktifkan semua step di file koordinat."""
+    if not os.path.exists(filepath):
+        return
+    with open(filepath, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    new_lines = []
+    for line in lines:
+        m = re.match(r'^(\[\s*([^\]]+?)\s*\])(.*)$', line)
+        if not m:
+            new_lines.append(line)
+            continue
+        inner = m.group(2).strip()
+        after = m.group(3)
+        clean_after = re.sub(r'\bOFF\b', '', after, flags=re.IGNORECASE).strip()
+        clean_inner = re.sub(r'\s+OFF\b', '', inner, flags=re.IGNORECASE).strip()
+        new_bracket = f"[{clean_inner}]"
+        if set_off:
+            new_line = f"{new_bracket} {clean_after} OFF\n" if clean_after else f"{new_bracket} OFF\n"
+        else:
+            new_line = f"{new_bracket} {clean_after}\n" if clean_after else f"{new_bracket}\n"
+        new_lines.append(new_line)
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.writelines(new_lines)
+
+def execute_toggle_steps_logic(target_file: str = KORDINAT_FILE, config_key: str = DISABLED_CONFIG_KEY):
+    """Menu antarmuka interaktif ON/OFF step koordinat."""
+    while True:
+        sync_kordinat_and_config(target_file)
+        config = load_config()
+        disabled = config.get(config_key, [])
+        disabled_str = [str(x) for x in disabled]
+        steps = get_kordinat_steps_from_file(target_file)
+        clear_screen()
+        file_name = os.path.basename(target_file)
+        print("="*65)
+        print(f"     PENGATURAN ON/OFF STEP KOORDINAT ({file_name})     ")
+        print("="*65)
+        print(f"  {'NO':>4}  {'STEP':<5}  {'STATUS':<6}  DESKRIPSI")
+        print("-" * 65)
+        for idx, step in enumerate(steps, start=1):
+            s_id = str(step['id'])
+            is_off = step['is_off'] or s_id in disabled_str
+            status = "[ ON ]" if not is_off else "[OFF ]"
+            print(f"  {idx:>4}. Step {s_id:<4} {status}  {step['name']}")
+        print("-" * 65)
+        print("  A  = AKTIFKAN SEMUA STEP (Hapus penanda OFF di file)")
+        print("  D  = DISABLE SEMUA STEP (Pasang penanda OFF di file)")
+        print("  0  = Kembali ke Menu Sebelumnya")
+        print("="*65)
+        pil = input(" Masukkan nomor step untuk toggle (atau A/D/0): ").strip().upper()
+
+        if pil == '0':
+            break
+        elif pil == 'A':
+            config[config_key] = []
+            save_config(config)
+            update_all_kordinat_txt_steps_file(target_file, set_off=False)
+            print(f"\n[V] Semua step DIAKTIFKAN di {file_name}!")
+            time.sleep(1)
+        elif pil == 'D':
+            config[config_key] = [str(s['id']) for s in steps]
+            save_config(config)
+            update_all_kordinat_txt_steps_file(target_file, set_off=True)
+            print(f"\n[!] Semua step DINONAKTIFKAN di {file_name}!")
+            time.sleep(1)
+        elif pil.isdigit():
+            target_step = None
+            idx_pil = int(pil) - 1
+            if 0 <= idx_pil < len(steps):
+                target_step = steps[idx_pil]
+            else:
+                for s in steps:
+                    if str(s['id']) == pil:
+                        target_step = s
+                        break
+
+            if target_step:
+                s_id = str(target_step['id'])
+                is_currently_off = target_step['is_off'] or s_id in disabled_str
+                new_off_state = not is_currently_off
+
+                if new_off_state:
+                    if s_id not in disabled_str:
+                        disabled_str.append(s_id)
+                    update_kordinat_txt_step_file(target_file, s_id, set_off=True)
+                    print(f"\n[!] Step {s_id} [{target_step['name']}] -> OFF")
+                else:
+                    disabled_str = [x for x in disabled_str if x != s_id]
+                    update_kordinat_txt_step_file(target_file, s_id, set_off=False)
+                    print(f"\n[V] Step {s_id} [{target_step['name']}] -> ON")
+
+                config[config_key] = disabled_str
+                save_config(config)
+                time.sleep(0.6)
+            else:
+                print("\n[!] Nomor step tidak ditemukan!")
+                time.sleep(1)
+        else:
+            print("\n[!] Pilihan tidak dikenali!")
+            time.sleep(1)
+
+def update_sleep_in_kordinat(step_id: str, new_sleep_value: float, filepath: str = KORDINAT_FILE):
+    """Menulis ulang nilai sleep terakhir sebuah step di kordinat_qris_morph.txt."""
+    if not os.path.exists(filepath):
+        return
+
+    with open(filepath, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    new_val = f"{round(float(new_sleep_value), 1)}"
+
+    block_start = None
+    block_end = None
+    in_target = False
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        header = parse_step_header(stripped)
+        if header is not None:
+            if in_target:
+                block_end = i
+                break
+            if str(header['id']) == str(step_id):
+                block_start = i
+                in_target = True
+        elif in_target and (stripped.startswith('---') or stripped == ''):
+            block_end = i
+            break
+
+    if block_start is None:
+        return
+
+    if block_end is None:
+        block_end = len(lines)
+
+    last_sleep_idx = None
+    for i in range(block_start, block_end):
+        parts = lines[i].strip().split()
+        if parts and parts[0].lower() == 'sleep':
+            last_sleep_idx = i
+
+    if last_sleep_idx is not None:
+        indent = lines[last_sleep_idx][:len(lines[last_sleep_idx]) - len(lines[last_sleep_idx].lstrip())]
+        lines[last_sleep_idx] = f"{indent}sleep {new_val}\n"
+    else:
+        lines.insert(block_end, f"sleep {new_val}\n")
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.writelines(lines)
+
+def prompt_manual_step(step_title: str) -> str:
+    """Di mode manual: Enter / Spasi = lanjut, Q = keluar."""
+    print(f"\n[STEP-BY-STEP] Selesai: {step_title}")
+    sys.stdout.write("--> Tekan ENTER untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
+    sys.stdout.flush()
+    if os.name == 'nt':
+        import msvcrt
+        while True:
+            try:
+                ch = msvcrt.getch()
+            except KeyboardInterrupt:
+                return 'q'
+            if ch in (b'\r', b'\n', b'\x16', b' '):
+                print(" [ENTER]")
+                return 'next'
+            elif ch in (b'q', b'Q'):
+                print(" Q")
+                return 'q'
+    else:
+        try:
+            line = sys.stdin.readline().strip().lower()
+            if line in ('q', 'quit', 'exit'):
+                return 'q'
+            return 'next'
+        except KeyboardInterrupt:
+            return 'q'
+
+def parse_macro_steps(filepath: str = KORDINAT_FILE) -> List[Dict[str, Any]]:
+    """Membaca langkah-langkah macro dari kordinat_qris_morph.txt."""
+    if not os.path.exists(filepath):
+        return []
+
+    cfg = load_config()
+    disabled_str = [str(x) for x in cfg.get(DISABLED_CONFIG_KEY, [])]
+
+    steps = []
+    current_step = None
+
+    with open(filepath, 'r', encoding='utf-8') as f:
+        for line in f:
+            raw_line = line.strip()
+            if not raw_line or raw_line.startswith("#") or raw_line.startswith("---"):
+                continue
+
+            header = parse_step_header(raw_line)
+            if header:
+                if current_step:
+                    steps.append(current_step)
+                sid = str(header["id"])
+                is_off = header["is_off"] or sid in disabled_str
+                current_step = {
+                    "id": sid,
+                    "name": header["name"],
+                    "is_off": is_off,
+                    "commands": []
+                }
+                continue
+
+            if current_step:
+                current_step["commands"].append(raw_line)
+
+    if current_step:
+        steps.append(current_step)
+
+    return steps
+
+class BotRunner:
+    """Eksekutor Alur Bot Bitget Terminal Standalone QRIS Morph."""
+
+    def __init__(self):
+        self.config = load_config()
+        self.adb = ADBController()
+        self.qris_gen = GoBizQRISGenerator(self.config)
+        self.wallet = MorphWallet(
+            private_key=self.config.get("wallet_tebar", {}).get("private_key"),
+            custom_rpc=self.config.get("morph", {}).get("rpc_url")
+        )
+        self.stopped = False
+
+    def check_keyboard_interrupt(self) -> str:
+        """Non-blocking keyboard checker (stop / pause / continue)."""
+        if os.name == 'nt':
+            import msvcrt
+            while msvcrt.kbhit():
+                try:
+                    ch = msvcrt.getch()
+                    if ch in (b'\x03', b'q', b'Q', b'\x1b'):
+                        return "stop"
+                    elif ch in (b'p', b'P', b' '):
+                        return "pause"
+                except Exception:
+                    pass
+        return "continue"
+
+    def handle_pause(self) -> bool:
+        """Menangani jeda (PAUSE) pada bot dan menunggu shortcut Lanjut / Keluar."""
+        print("\n\n" + "="*70)
+        print(" [!!!] ALUR BOT DIPAUSE (JEDA SEMENTARA) [!!!]")
+        print("======================================================================")
+        print(" Silakan cek atau perbaiki layar HP Anda.")
+        print(" --> Tekan ENTER atau SPASI untuk MELANJUTKAN")
+        print(" --> Tekan 'Q' atau ESC untuk STOP & KEMBALI KE MENU")
+        print("======================================================================")
+
+        if os.name == 'nt':
+            import msvcrt
+            while True:
+                try:
+                    ch = msvcrt.getch()
+                except KeyboardInterrupt:
+                    print("\n[!] Dihentikan oleh user (Ctrl+C).")
+                    self.stopped = True
+                    return False
+
+                if ch in (b'\r', b'\n', b'\x16', b' '):
+                    print("\n[>] Melanjutkan alur bot dalam 1 detik...")
+                    time.sleep(1.0)
+                    return True
+                elif ch in (b'q', b'Q', b'\x1b'):
+                    print("\n[!] Alur dibatalkan oleh user ('Q'). Kembali ke menu...")
+                    self.stopped = True
+                    return False
+        else:
+            try:
+                line = input("\nTekan ENTER untuk lanjut (Q untuk stop): ").strip().lower()
+                if line in ('q', 'quit', 'exit'):
+                    self.stopped = True
+                    return False
+                return True
+            except KeyboardInterrupt:
+                self.stopped = True
+                return False
+
+    def smart_sleep(self, seconds: float) -> bool:
+        """Sleep yang reaktif terhadap keyboard interrupt (Stop / Pause)."""
+        if self.stopped:
+            return False
+
+        if seconds <= 0:
+            return True
+
+        end_time = time.time() + seconds
+        while time.time() < end_time:
+            if self.stopped:
+                return False
+            action = self.check_keyboard_interrupt()
+            if action == "stop":
+                print("\n[!] Alur dihentikan oleh pengguna (STOP). Kembali ke menu utama...", flush=True)
+                self.stopped = True
+                return False
+            elif action == "pause":
+                if not self.handle_pause():
+                    return False
+            time.sleep(0.05)
+
+        return not self.stopped
+
+    def is_stopped(self) -> bool:
+        """Callback checker untuk ADB controller dan alur."""
+        if self.stopped:
+            return True
+        act = self.check_keyboard_interrupt()
+        if act == "stop":
+            print("\n[!] Alur dihentikan oleh pengguna (STOP).", flush=True)
+            self.stopped = True
+            return True
+        elif act == "pause":
+            if not self.handle_pause():
+                return True
+        return False
+
+    def execute_macro_step(self, step_id: str, skip_sleep: bool = False, force: bool = False) -> bool:
+        """Menjalankan single macro step berdasarkan ID."""
+        if self.stopped:
+            return False
+
+        act = self.check_keyboard_interrupt()
+        if act == "stop":
+            print("\n[!] Alur dihentikan oleh pengguna (STOP). Kembali ke menu utama...", flush=True)
+            self.stopped = True
+            return False
+        elif act == "pause":
+            if not self.handle_pause():
+                return False
+
+        steps = parse_macro_steps()
+        target = None
+        for s in steps:
+            if str(s["id"]) == str(step_id):
+                target = s
+                break
+
+        if not target:
+            print(f"[!] Step {step_id} tidak ditemukan di {os.path.basename(KORDINAT_FILE)}.")
+            return False
+
+        if target["is_off"] and not force:
+            print(f"[*] Step [{target['id']}. {target['name']}] diatur OFF (dilewati).")
+            return True
+
+        print(f"\n[>] Menjalankan Step [{target['id']}. {target['name']}]...")
+        for cmd in target["commands"]:
+            if self.stopped:
+                return False
+            ok = self._run_single_command(cmd, skip_sleep=skip_sleep)
+            if not ok or self.stopped:
+                return False
+        return True
+
+    def is_step_enabled(self, step_id: str) -> bool:
+        """Mengecek apakah step tertentu berstatus aktif (ON)."""
+        cfg = load_config()
+        disabled_str = [str(x) for x in cfg.get(DISABLED_CONFIG_KEY, [])]
+        if str(step_id) in disabled_str:
+            return False
+        steps = parse_macro_steps()
+        for s in steps:
+            if str(s["id"]) == str(step_id):
+                return not s.get("is_off", False)
+        return True
+
+    def run_step_flow(self, step_id: str, label: str, is_manual: bool = False) -> bool:
+        """Menjalankan step dalam alur bot, dengan otomatis skip jika OFF dan prompt jika mode manual."""
+        if not self.is_step_enabled(step_id):
+            print(f"[*] Step {step_id} ({label}) diatur OFF (dilewati).")
+            return True
+        if not self.execute_macro_step(step_id):
+            return False
+        if is_manual and prompt_manual_step(f"Step {step_id} ({label})") == 'q':
+            self.stopped = True
+            return False
+        return True
+
+    def _run_single_command(self, cmd_line: str, skip_sleep: bool = False) -> bool:
+        if self.stopped:
+            return False
+
+        act = self.check_keyboard_interrupt()
+        if act == "stop":
+            print("\n[!] Alur dihentikan oleh pengguna (STOP).", flush=True)
+            self.stopped = True
+            return False
+        elif act == "pause":
+            if not self.handle_pause():
+                return False
+
+        parts = cmd_line.split()
+        if not parts:
+            return True
+
+        action = parts[0].lower()
+
+        if action == "sleep" and len(parts) >= 2:
+            if skip_sleep:
+                return True
+            try:
+                sec = float(parts[1])
+                return self.smart_sleep(sec)
+            except ValueError:
+                return True
+
+        elif action == "input" and len(parts) >= 2:
+            sub = parts[1].lower()
+            if sub == "tap" and len(parts) >= 4:
+                x = int(parts[2])
+                y = int(parts[3])
+                self.adb.tap(x, y, delay_after=0.2)
+            elif sub == "swipe" and len(parts) >= 6:
+                x1 = int(parts[2])
+                y1 = int(parts[3])
+                x2 = int(parts[4])
+                y2 = int(parts[5])
+                dur = int(parts[6]) if len(parts) >= 7 else 300
+                self.adb.swipe(x1, y1, x2, y2, duration_ms=dur, delay_after=0.2)
+            elif sub == "keyevent" and len(parts) >= 3:
+                key_code = parts[2]
+                self.adb.send_keyevent(key_code, delay_after=0.2)
+            elif sub == "text" and len(parts) >= 3:
+                txt = " ".join(parts[2:])
+                self.adb.type_text(txt, delay_after=0.2)
+
+        elif action == "pin":
+            pin_code = parts[1] if len(parts) >= 2 else self.config.get("pin", "080808")
+            if pin_code == "{PIN}":
+                pin_code = self.config.get("pin", "080808")
+            coords = self.config.get("keypad_coords_morph") or self.config.get("keypad_coords")
+            self.adb.type_pin(pin_code, keypad_coords=coords, delay_step=0.3)
+
+        return not self.stopped
+
+    def run_full_auto(self) -> bool:
+        """Menjalankan alur penuh secara Full Auto."""
+        return self._execute_flow(is_manual=False)
+
+    def run_manual_mode(self) -> bool:
+        """Menjalankan alur secara Step-by-Step Manual."""
+        return self._execute_flow(is_manual=True)
+
+    def _execute_flow(self, is_manual: bool = False) -> bool:
+        self.stopped = False
+        self.config = load_config()
+
+        mode_label = "MODE STEP-BY-STEP MANUAL" if is_manual else "MODE FULL AUTO"
+        clone_key = self.config.get("clone_app", "dual_space")
+        clone_info = CLONE_APPS.get(clone_key, CLONE_APPS["dual_space"])
+        current_nominal = int(self.config.get("default_qris_nominal", 18501))
+
+        clear_screen()
+        print("="*70)
+        print(f"      MEMULAI {mode_label}")
+        print(f"      Mode Clone Aktif : {clone_info['name']} ({clone_info['package']})")
+        print(f"      Nominal QRIS     : Rp {current_nominal:,}".replace(",", "."))
+        print("-"*70)
+        print("  [KONTROL KEYBOARD AKTIF]")
+        print("  * Tekan 'P' / SPASI : PAUSE (Jeda Alur)")
+        print("  * Tekan 'Q' / ESC   : STOP (Hentikan Bot & Kembali ke Menu)")
+        print("="*70)
+
+        # 1. Pastikan Device Terhubung
+        if not self.adb.check_connection():
+            print("[X] ERROR: Tidak ada perangkat HP Android terdeteksi via ADB!")
+            return False
+
+        if self.stopped:
+            return False
+
+        # 2. Rekam & Terapkan Resolusi Standar Bot (1080x2400 @ 352 DPI)
+        register_auto_restore()
+        ok_scr, scr_msg = record_and_apply_bot_screen()
+        if not ok_scr:
+            print(f"[!] Peringatan Layar: {scr_msg}")
+
+        if self.stopped:
+            return False
+
+        # 3. Reset Cache & paksa berhenti, mode pesawat 3 detik, reset GAID, buka clone
+        airplane_sec = self.config.get("airplane_seconds", 3)
+        if not self.adb.reset_and_launch(clone_key, airplane_seconds=airplane_sec, stop_checker=self.is_stopped):
+            return False
+
+        if is_manual:
+            if prompt_manual_step("Reset Cache & Buka Aplikasi Clone") == 'q':
+                self.stopped = True
+                return False
+
+        # 4. Tunggu User Masuk ke Bitget Wallet di dalam Clone
+        print("\n" + "-"*70)
+        print(" [ACTION] SILAKAN KLIK & BUKA BITGET WALLET DI DALAM CLONE HP")
+        print(" Buka slot dompet Bitget yang sedang digarap sampai di halaman beranda.")
+        print(" [KONTROL] Tekan sembarang tombol jika sudah di beranda Bitget")
+        print("           (Atau tekan 'Q' untuk STOP & Kembali ke Menu)")
+        print("-"*70)
+
+        if os.name == 'nt':
+            import msvcrt
+            print("\n>>> Siap di beranda Bitget? Tekan sembarang tombol (Q untuk STOP): ", end="", flush=True)
+            ch = msvcrt.getch()
+            if ch in (b'\x03', b'q', b'Q', b'\x1b'):
+                print(" Q")
+                print("\n[!] Alur dibatalkan oleh pengguna (STOP). Kembali ke menu utama...")
+                self.stopped = True
+                return False
+            print(" [OK]")
+        else:
+            ans = input("\n>>> Siap di beranda Bitget? Tekan ENTER (Q untuk STOP): ").strip().lower()
+            if ans == 'q':
+                self.stopped = True
+                return False
+
+        if is_manual:
+            if prompt_manual_step("Persiapan Beranda Bitget Wallet") == 'q':
+                self.stopped = True
+                return False
+
+        # 5. Buat QRIS GoBiz Dinamis & Auto-Increment (+1)
+        target_amount = int(self.config.get("default_qris_nominal", 18501))
+        ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+        if not ok_qr:
+            print(f"[X] Gagal membuat QRIS: {qr_det.get('error')}")
+            return False
+
+        print(f"[V] QRIS Berhasil Dibuat: Rp {target_amount:,} | Merchant: {qr_det['merchant_name']}".replace(",", "."))
+
+        # Auto-Increment: Naikkan +1 angka dan simpan ke config
+        next_amount = target_amount + 1
+        self.config["default_qris_nominal"] = next_amount
+        save_config(self.config)
+        print(f"[*] Nominal auto-increment (+1): Rp {next_amount:,} (Tersimpan untuk transaksi berikutnya)".replace(",", "."))
+
+        if self.stopped:
+            return False
+
+        # 6. Push QR ke Device & Refresh Galeri
+        ok_push, remote_qr = self.adb.push_qr_image(TEMP_QR_PATH)
+        if not ok_push:
+            print("[X] Gagal mengirim file QR ke HP.")
+            return False
+
+        if is_manual:
+            if prompt_manual_step("Generate QRIS & Push Foto ke HP") == 'q':
+                self.stopped = True
+                return False
+
+        # 7. Eksekusi Macro: Scan QR -> Galeri -> Pilih Foto -> Selesai
+        print("\n[*] Menjalankan Macro Scan QRIS dari Galeri HP...")
+        if not self.run_step_flow("1", "Scan QR Bitget", is_manual): return False
+        if not self.run_step_flow("2", "Buka Galeri", is_manual): return False
+        if not self.run_step_flow("3", "Pilih Foto QR", is_manual): return False
+        if not self.run_step_flow("4", "Klik Selesai / Done", is_manual): return False
+
+        # 8. Otomasi Pengambilan Alamat Tuyul via Deposit Sheet
+        print("\n[*] Membuka Alur Deposit untuk Menyalin Alamat Tuyul...")
+        if not self.run_step_flow("5", "Klik Deposit", is_manual): return False
+        if not self.run_step_flow("6", "Pilih Terima Aset Kripto", is_manual): return False
+
+        if not self.smart_sleep(0.5): return False
+        screen_addr = self.adb.extract_evm_address_from_screen() if self.is_step_enabled("7") else ""
+        if not self.run_step_flow("7", "Salin Address EVM Tuyul", is_manual): return False
+
+        if not self.smart_sleep(0.5): return False
+        clip_addr = self.adb.get_clipboard_text() if self.is_step_enabled("7") else ""
+
+        tuyul_addr = screen_addr or clip_addr or get_last_tuyul_address()
+        if tuyul_addr:
+            save_last_tuyul_address(tuyul_addr)
+        print(f"[*] Address Tuyul terdeteksi: {tuyul_addr or '(Kosong)'}")
+
+        # Kembali ke Layar Tinjau Order (Back)
+        if not self.run_step_flow("8", "Kembali ke Tinjau Order", is_manual): return False
+        if not self.smart_sleep(1.0): return False
+
+        if not (tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
+            tuyul_addr = input("\n>>> Masukkan Address EVM Tuyul secara manual: ").strip()
+
+        if not (tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
+            print(f"[X] Address EVM tuyul tidak valid: '{tuyul_addr}'!")
+            return False
+
+        # 9. Baca Otomatis Nominal USDC dari Layar Tinjau Order
+        print("\n[*] Mendeteksi nominal tagihan USDC dari layar HP...")
+        detected_usdc = self.adb.read_required_usdc_from_screen()
+        if detected_usdc:
+            usdc_needed = round(detected_usdc + 0.005, 4)
+            print(f"[V] Kebutuhan Layar : {detected_usdc} USDC")
+            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC (Termasuk buffer aman +0.005)")
+        else:
+            est_usdc = round(target_amount / 17550.0, 4)
+            print(f"[*] Teks layar tidak terdeteksi, menggunakan estimasi kurs: {est_usdc} USDC")
+            usdc_needed = est_usdc
+
+        # 10. Kirim Saldo USDC Morph dari Wallet Tebar
+        pk_tebar = self.config.get("wallet_tebar", {}).get("private_key")
+        if not pk_tebar:
+            print("\n[!] PERINGATAN: Private Key wallet_tebar belum diatur di config.json!")
+            pk_in = input(">>> Masukkan Private Key Wallet Tebar (atau ENTER untuk skip): ").strip()
+            if pk_in:
+                self.wallet.set_private_key(pk_in)
+                self.config["wallet_tebar"]["private_key"] = pk_in
+                save_config(self.config)
+
+        if self.wallet.private_key:
+            print(f"\n[*] Mengirim {usdc_needed} USDC (Morph L2) ke {tuyul_addr}...")
+            try:
+                tx_res = self.wallet.send_usdc(tuyul_addr, usdc_needed)
+            except Exception as e:
+                tx_res = {"success": False, "error": f"Exception: {e}"}
+
+            if tx_res.get("success"):
+                print(f"[V] Berhasil transfer {usdc_needed} USDC Morph ke tuyul!")
+                print(f"    Tx Hash : {tx_res.get('tx_hash')}")
+                print(f"    Explorer: {tx_res.get('explorer')}")
+                print("[*] Menunggu 4 detik agar saldo masuk...")
+                if not self.smart_sleep(4.0): return False
+            else:
+                print(f"[X] Transfer USDC Morph gagal: {tx_res.get('error')}")
+                if is_manual:
+                    c_ans = get_key_press(" Lanjutkan pembayaran di HP? [Y/n]: ").strip().lower()
+                    if c_ans == 'n':
+                        return False
+
+        if is_manual:
+            if prompt_manual_step("Auto-Tebar Saldo USDC Morph") == 'q':
+                return False
+
+        # 11. Refresh Token, Konfirmasi Pembayaran & Input PIN
+        print("\n[*] Menjalankan Refresh Token & Konfirmasi Pembayaran (Step 9)...")
+        if not self.run_step_flow("9", "Refresh Token & Konfirmasi Pembayaran", is_manual): return False
+
+        print("\n[*] Memasukkan PIN Transaksi (Step 10)...")
+        if not self.run_step_flow("10", "Input PIN 080808", is_manual): return False
+
+        # 12. Masuk Event Cashback & Claim Reward
+        print("\n[*] Menunggu transaksi selesai & klaim cashback reward...")
+        if not self.smart_sleep(3.5): return False
+        if not self.run_step_flow("11", "Masuk Event Cashback", is_manual): return False
+
+        if not self.run_step_flow("12", "Claim Reward", is_manual): return False
+
+        print("\n" + "="*70)
+        print(f" [SELESAI] Eksekusi {mode_label} Berhasil Sukses!")
+        print("="*70 + "\n")
+        return True
+
+    def run_rekam_delay(self):
+        """Mode Rekam Delay HP secara stopwatch langsung."""
+        steps = parse_macro_steps()
+        active_steps = [s for s in steps if not s.get("is_off")]
+
+        print("\n" + "="*70)
+        print("         MODE REKAM DELAY MASTER (kordinat_qris_morph.txt)")
+        print("="*70)
+        print("  Cara kerja:")
+        print("  1. Bot menjalankan setiap aksi/klik pada step tanpa jeda sleep.")
+        print("  2. Stopwatch timer langsung dimulai setelah aksi selesai.")
+        print("  3. Tekan ENTER saat layar HP sudah siap ke langkah berikutnya.")
+        print("     Durasi akan otomatis disimpan ke kordinat_qris_morph.txt!")
+        print("  4. Ketik 'S' + ENTER untuk SKIP (mempertahankan delay lama).")
+        print("  5. Ketik 'Q' + ENTER untuk BERHENTI merekam.")
+        print("="*70)
+        input("\n--> Siapkan layar HP Anda pada posisi awal, lalu tekan ENTER untuk mulai...")
+
+        recorded = {}
+        for step in active_steps:
+            sid = step["id"]
+            sname = step["name"]
+            print(f"\n[>] Menjalankan Aksi Step {sid}: {sname}...")
+            t_start = time.time()
+
+            for cmd in step["commands"]:
+                self._run_single_command(cmd, skip_sleep=True)
+
+            prompt_msg = (
+                f"  --> [REKAM DELAY] HP sedang loading... Tekan ENTER saat layar HP siap.\n"
+                f"      (S=Skip rekam step ini | Q=Berhenti): "
+            )
+            user_key = input(prompt_msg).strip().lower()
+            elapsed = round(time.time() - t_start, 1)
+
+            if user_key == 'q':
+                print("\n[X] Rekaman dihentikan oleh pengguna.")
+                break
+            elif user_key == 's':
+                print(f"  [--] Step {sid} di-SKIP, delay lama dipertahankan.")
+                continue
+
+            elapsed = max(elapsed, 0.3)
+            update_sleep_in_kordinat(sid, elapsed)
+            recorded[sid] = elapsed
+            print(f"  [V] Delay Step {sid} direkam: {elapsed}s -> disimpan ke file!")
+
+        print("\n" + "="*70)
+        print(f"  REKAMAN SELESAI — {len(recorded)} delay langkah berhasil diperbarui!")
+        if recorded:
+            for sid, val in recorded.items():
+                print(f"    - Step {sid}: {val}s")
+        print("="*70)
+
+def get_scrcpy_exe():
+    candidates = [
+        os.path.join(CORE_DIR, "scrcpy-win64-v3.3.4", "scrcpy.exe"),
+        r"C:\Users\KAGE\Desktop\scrcpy-win64-v3.3.4\scrcpy.exe",
+        os.path.join(os.path.expanduser("~"), "Desktop", "scrcpy-win64-v3.3.4", "scrcpy.exe"),
+        r"C:\Users\KAGE\Desktop\PROJECT BOT IMAM\COINS_PAYMENT_GATEWAY\core\scrcpy-win64-v3.3.4\scrcpy.exe",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return shutil.which("scrcpy.exe") or shutil.which("scrcpy")
+
+def launch_mirror_screen(extra_args=""):
+    scrcpy_exe = get_scrcpy_exe()
+    if scrcpy_exe:
+        print("[*] Menjalankan scrcpy mirror (Layar fisik HP mati: -S -w)...")
+        flags = extra_args.strip()
+        if "-S" not in flags:
+            flags = f"{flags} -S -w".strip()
+        cmd = f'start "" "{scrcpy_exe}" {flags}'.strip() if os.name == 'nt' else f'"{scrcpy_exe}" {flags} &'
+        os.system(cmd)
+    else:
+        print("[!] File scrcpy.exe tidak ditemukan!")
+
+def get_windows_clipboard_text() -> str:
+    try:
+        res = subprocess.check_output(['powershell', '-NoProfile', '-Command', 'Get-Clipboard'], text=True, stderr=subprocess.DEVNULL)
+        if res.strip():
+            return res.strip()
+    except Exception:
+        pass
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        if user32.OpenClipboard(None):
+            h_glb = user32.GetClipboardData(13)
+            if h_glb:
+                kernel32.GlobalLock.restype = ctypes.c_wchar_p
+                ptr = kernel32.GlobalLock(h_glb)
+                txt = str(ptr) if ptr else ""
+                kernel32.GlobalUnlock(h_glb)
+                user32.CloseClipboard()
+                return txt
+            user32.CloseClipboard()
+    except Exception:
+        pass
+    return ""
+
+def menu_select_clone_app():
+    cfg = load_config()
+    current = cfg.get("clone_app", "dual_space")
+
+    clear_screen()
+    print("="*65)
+    print("          PILIH APLIKASI CLONE TARGET (INSTAN)")
+    print("="*65)
+    print(f" Aplikasi saat ini: {CLONE_APPS.get(current, {}).get('name', current)}\n")
+
+    print(" [1] Dual Space   (com.xunijun.app.gp)")
+    print(" [2] Multiple App (com.multipleapp.clonespace)")
+    print(" [3] Multi App    (com.waxmoon.ma.gp)")
+    print(" [0] Kembali")
+    print("="*65)
+
+    pilihan = get_key_press(" Pilih target clone [0-3]: ").strip()
+    mapping = {
+        "1": "dual_space",
+        "2": "multiple_app",
+        "3": "multi_app"
+    }
+    if pilihan in mapping:
+        cfg["clone_app"] = mapping[pilihan]
+        save_config(cfg)
+        selected_name = CLONE_APPS[mapping[pilihan]]["name"]
+        print(f"\n[V] Berhasil diatur ke: {selected_name}!")
+        time.sleep(1.0)
+
+def menu_screen_settings():
+    clear_screen()
+    print("="*65)
+    print("        PENGELOLAAN RESOLUSI & DPI LAYAR HP (INSTAN)")
+    print("="*65)
+
+    info = read_current_screen()
+    cached_s, cached_d = get_cached_screen()
+
+    print(f" Resolusi Aktif Layar HP : {info.get('active_size')} @ {info.get('active_density')} DPI")
+    print(f" Ukuran Fisik Hardware  : {info.get('physical_size')} @ {info.get('physical_density')} DPI")
+    print(f" Ukuran Asli Terekam    : {cached_s or '(Belum direkam)'} @ {cached_d or '-'} DPI\n")
+
+    print(" [1] Pasang Resolusi Standar Bot (1080x2400 @ 352 DPI)")
+    print(" [2] Kembalikan ke Ukuran Asli HP yang Terekam")
+    print(" [3] Rekam Ulang Ukuran Asli Layar HP Saat Ini")
+    print(" [0] Kembali")
+    print("="*65)
+
+    pilihan = get_key_press(" Pilih opsi [0-3]: ").strip()
+    if pilihan == "1":
+        ok, msg = record_and_apply_bot_screen()
+        print(f"\n[V] {msg}")
+        wait_any_key()
+    elif pilihan == "2":
+        restore_recorded_screen()
+        wait_any_key()
+    elif pilihan == "3":
+        if os.path.exists(os.path.join(CORE_DIR, '.screen_cache.json')):
+            os.remove(os.path.join(CORE_DIR, '.screen_cache.json'))
+        ok, msg = record_and_apply_bot_screen()
+        print(f"\n[V] Berhasil direkam ulang: {msg}")
+        wait_any_key()
+
+def menu_wallet_and_token():
+    cfg = load_config()
+    wt_cfg = cfg.get("wallet_tebar", {})
+    wallet = MorphWallet(
+        private_key=wt_cfg.get("private_key"),
+        custom_rpc=cfg.get("morph", {}).get("rpc_url")
+    )
+
+    clear_screen()
+    print("="*65)
+    print("         DOMPET TEBAR - SALDO & TRANSFER MORPH L2")
+    print("="*65)
+    print(f" Address Wallet Tebar : {wallet.address or wt_cfg.get('address') or '(Belum diisi)'}")
+    print(f" Status Private Key   : {'Sudah Diatur' if wallet.private_key else 'KOSONG / Belum Diisi'}\n")
+
+    addr_target = wallet.address or wt_cfg.get("address")
+    if addr_target:
+        print("[*] Mengambil saldo dari node Morph L2...")
+        bals = wallet.get_balances(addr_target)
+        if bals.get("success"):
+            print(f" - Saldo Gas (ETH) : {bals['eth_balance']:.6f} ETH")
+            print(f" - Saldo USDC Morph: {bals['usdc_balance']:.4f} USDC")
+        else:
+            print(f"[!] Gagal cek saldo: {bals.get('error')}")
+    print("="*65)
+    print(" [1] Atur / Ganti Private Key Wallet Tebar")
+    print(" [2] Test Transfer USDC Morph ke Address Tertentu")
+    print(" [3] Cek Saldo Address Lain")
+    print(" [0] Kembali")
+    print("="*65)
+
+    pilihan = get_key_press(" Pilih opsi [0-3]: ").strip()
+    if pilihan == "1":
+        pk_in = input("\n Masukkan Private Key (0x...): ").strip()
+        if pk_in:
+            ok, res_addr = wallet.set_private_key(pk_in)
+            if ok:
+                cfg.setdefault("wallet_tebar", {})["private_key"] = pk_in
+                cfg["wallet_tebar"]["address"] = res_addr
+                save_config(cfg)
+                print(f"[V] Private key berhasil disimpan! Address: {res_addr}")
+            else:
+                print(f"[X] Gagal: {res_addr}")
+            wait_any_key()
+    elif pilihan == "2":
+        if not wallet.private_key:
+            print("\n[!] Private key belum diisi! Silakan isi private key terlebih dahulu.")
+            wait_any_key()
+            return
+        to_addr = input("\n Masukkan address tujuan: ").strip()
+        amt_str = input(" Masukkan nominal USDC: ").strip()
+        try:
+            amt = float(amt_str)
+            res = wallet.send_usdc(to_addr, amt)
+            if res.get("success"):
+                print(f"\n[V] Transfer Sukses! Tx: {res.get('tx_hash')}")
+            else:
+                print(f"\n[X] Transfer Gagal: {res.get('error')}")
+        except ValueError:
+            print("[X] Nominal tidak valid.")
+        wait_any_key()
+    elif pilihan == "3":
+        addr_in = input("\n Masukkan address target: ").strip()
+        bals = wallet.get_balances(addr_in)
+        if bals.get("success"):
+            print(f" - ETH  : {bals['eth_balance']:.6f} ETH")
+            print(f" - USDC : {bals['usdc_balance']:.4f} USDC")
+        else:
+            print(f"[X] Error: {bals.get('error')}")
+        wait_any_key()
+
+def _do_generate_and_push(cfg, amount):
+    generator = GoBizQRISGenerator(cfg)
+    adb = ADBController()
+    out_file = TEMP_QR_PATH
+
+    print(f"\n[*] Menghasilkan QRIS GoBiz dinamis Rp {amount:,}...")
+    ok, qr_str, det = generator.create_and_save_qris(amount, out_file)
+    if ok:
+        print(f"[V] QRIS Berhasil Dibuat!")
+        print(f" - Mode Engine : {det.get('mode', 'STANDALONE')}")
+        print(f" - Merchant    : {det.get('merchant_name')}")
+        print(f" - Kota        : {det.get('city')}")
+        print(f" - NMID        : {det.get('nmid', '-')}")
+        if det.get("order_id"):
+            print(f" - Order ID    : {det.get('order_id')}")
+        print(f" - File PNG    : {out_file}")
+
+        next_amount = amount + 1
+        cfg["default_qris_nominal"] = next_amount
+        save_config(cfg)
+        print(f"[*] Nominal berikutnya otomatis dinaikkan (+1): Rp {next_amount:,} (Tersimpan di config)".replace(",", "."))
+
+        print("\n [Y] Push gambar QR langsung ke HP sekarang")
+        print(" [N] Jangan push, simpan file saja")
+        ans = get_key_press(" Pilihan [Y/n]: ").strip().lower()
+        if ans != 'n':
+            ok_push, remote_p = adb.push_qr_image(out_file)
+            if ok_push:
+                print(f"[V] Gambar QR sudah tersedia di Galeri HP: {remote_p}")
+    else:
+        print(f"[X] Gagal membuat QRIS: {det.get('error')}")
+    wait_any_key()
+
+def menu_gobiz_credentials():
+    cfg = load_config()
+    gobiz_cfg = cfg.setdefault("gobiz", {})
+    clear_screen()
+    print("="*65)
+    print("           PENGATURAN KREDENSIAL GOBIZ / MIDTRANS")
+    print("="*65)
+    tok = gobiz_cfg.get("auth_token", "")
+    print(f" Token JWT GoBiz     : {(tok[:15] + '...') if tok else '(Kosong - Belum Diisi)'}")
+    sk = gobiz_cfg.get("server_key", "")
+    print(f" Server Key Midtrans : {(sk[:12] + '...') if sk else '(Otomatis Diambil dari Token)'}")
+    print(f" Outlet / Pop ID     : {gobiz_cfg.get('pop_id', '(Otomatis Diambil dari Token)')}")
+    print(f" Nama Merchant Asli  : {gobiz_cfg.get('merchant_name', 'TOKO GOBIZ MERCHANT')}")
+    print(f" Acak Nama (Stealth) : {'Aktif' if gobiz_cfg.get('auto_random_merchant', True) else 'Non-Aktif (Nama Asli Toko)'}")
+    print("="*65)
+    print(" [1] Sync Ulang Kredensial Toko dari Token yang Ada")
+    print(" [2] Tempel Otomatis dari Clipboard Windows (Copy cURL -> Tekan 2 Langsung Beres!)")
+    print(" [3] Ketik / Paste Token atau cURL Manual via Keyboard")
+    print(" [4] Toggle Acak Nama Toko (Stealth vs Nama Asli)")
+    print(" [0] Kembali")
+    print("="*65)
+    p = get_key_press(" Pilih opsi [0-4]: ").strip()
+    if p == "1":
+        curr_tok = gobiz_cfg.get("auth_token", "")
+        if not curr_tok:
+            print("\n[!] Belum ada token JWT yang tersimpan. Silakan pilih opsi [2] untuk tempel dari clipboard.")
+            time.sleep(1.5)
+        else:
+            print("\n[*] Menghubungi GoBiz untuk auto-sync data toko...")
+            res = fetch_gobiz_merchant_info(curr_tok)
+            if res.get("success"):
+                cfg["gobiz"]["server_key"] = res["server_key"]
+                cfg["gobiz"]["pop_id"] = res["pop_id"]
+                cfg["gobiz"]["outlet_id"] = res["outlet_id"]
+                cfg["gobiz"]["merchant_name"] = res["merchant_name"]
+                cfg["gobiz"]["city"] = res["city"]
+                if res.get("raw_qris"):
+                    cfg["gobiz"]["raw_qris"] = res["raw_qris"]
+                save_config(cfg)
+                print(f"[V] Sinkronisasi Sukses! Toko: {res['merchant_name']} ({res['city']})")
+            else:
+                print(f"[X] Gagal sinkronisasi: {res.get('error')}")
+            time.sleep(2.0)
+    elif p == "2":
+        print("\n[*] Membaca data cURL / Token dari Clipboard Windows...")
+        clip_data = get_windows_clipboard_text()
+        if not clip_data:
+            print("[!] Clipboard Windows kosong atau tidak dapat diakses.")
+            time.sleep(1.5)
+        else:
+            clean_tok = extract_token_from_input(clip_data)
+            if not clean_tok:
+                print("[!] Tidak ditemukan token atau cURL yang valid di clipboard Windows.")
+                time.sleep(2.0)
+            else:
+                cfg["gobiz"]["auth_token"] = clean_tok
+                print(f"[*] Token terdeteksi dari Clipboard: {(clean_tok[:18] + '...')}")
+                print("[*] Menghubungi server GoBiz untuk verifikasi toko...")
+                res = fetch_gobiz_merchant_info(clean_tok)
+                if res.get("success"):
+                    cfg["gobiz"]["server_key"] = res["server_key"]
+                    cfg["gobiz"]["pop_id"] = res["pop_id"]
+                    cfg["gobiz"]["outlet_id"] = res["outlet_id"]
+                    cfg["gobiz"]["merchant_name"] = res["merchant_name"]
+                    cfg["gobiz"]["city"] = res["city"]
+                    if res.get("raw_qris"):
+                        cfg["gobiz"]["raw_qris"] = res["raw_qris"]
+                    print(f"\n[V] AUTO-DISCOVERY BERHASIL! Toko: {res['merchant_name']} ({res['city']})")
+                else:
+                    print(f"[!] Token tersimpan, tetapi auto-discovery gagal: {res.get('error')}")
+                save_config(cfg)
+                wait_any_key("\n Tekan sembarang tombol untuk melanjutkan...")
+    elif p == "3":
+        new_input = input("\n Paste Token JWT atau cURL Perintah GoBiz: ").strip()
+        if new_input:
+            clean_tok = extract_token_from_input(new_input)
+            cfg["gobiz"]["auth_token"] = clean_tok
+            print(f"[*] Token diekstrak: {(clean_tok[:15] + '...') if clean_tok else '(Kosong)'}")
+            res = fetch_gobiz_merchant_info(clean_tok)
+            if res.get("success"):
+                cfg["gobiz"]["server_key"] = res["server_key"]
+                cfg["gobiz"]["pop_id"] = res["pop_id"]
+                cfg["gobiz"]["outlet_id"] = res["outlet_id"]
+                cfg["gobiz"]["merchant_name"] = res["merchant_name"]
+                cfg["gobiz"]["city"] = res["city"]
+                if res.get("raw_qris"):
+                    cfg["gobiz"]["raw_qris"] = res["raw_qris"]
+                print(f"[V] Token Valid! Toko: {res['merchant_name']}")
+            else:
+                print(f"[!] Token disimpan, tetapi auto-discovery gagal: {res.get('error')}")
+            save_config(cfg)
+            time.sleep(2.0)
+    elif p == "4":
+        curr = cfg["gobiz"].get("auto_random_merchant", True)
+        cfg["gobiz"]["auto_random_merchant"] = not curr
+        save_config(cfg)
+        status_txt = "Aktif (Stealth)" if not curr else "Non-Aktif (Nama Asli Toko)"
+        print(f"\n[V] Acak nama merchant sekarang: {status_txt}")
+        time.sleep(1.0)
+
+def menu_generate_qris():
+    while True:
+        cfg = load_config()
+        gobiz_cfg = cfg.get("gobiz", {})
+        current_mode = (gobiz_cfg.get("mode") or "api").upper()
+        server_key_set = bool(gobiz_cfg.get("server_key"))
+        default_nom = int(cfg.get("default_qris_nominal", 18501))
+
+        clear_screen()
+        print("="*65)
+        print("        GENERATOR GOBIZ QRIS & PUSH KE GALERI HP")
+        print("="*65)
+        engine_label = "[API MIDTRANS RESMI]" if (current_mode == "API" and server_key_set) else "[STANDALONE OFFLINE]"
+        print(f" Mode Engine    : {engine_label}")
+        print(f" Merchant Resmi : {gobiz_cfg.get('merchant_name', 'TOKO GOBIZ MERCHANT')}")
+        print(f" Nominal Default: Rp {default_nom:,}".replace(",", "."))
+        print("="*65)
+        print(f" [1] Generate QRIS Nominal Standar (Rp {default_nom:,})".replace(",", "."))
+        print(f" [2] Set Nominal Default Baru (Sekarang: Rp {default_nom:,})".replace(",", "."))
+        print(f" [3] Ganti Mode Engine (Sekarang: {current_mode})")
+        print(" [4] Atur Kredensial GoBiz (Server Key / Token JWT / Stealth)")
+        print(" [0] Kembali ke Menu Sebelumnya")
+        print("="*65)
+
+        sub_pil = get_key_press(" Pilih opsi [0-4]: ").strip()
+        if sub_pil == "0":
+            break
+        elif sub_pil == "1":
+            _do_generate_and_push(cfg, default_nom)
+        elif sub_pil == "2":
+            print(f"\n[*] Nominal default saat ini: Rp {default_nom:,}".replace(",", "."))
+            nom_str = input(" Masukkan nominal default baru dalam Rupiah (contoh: 18501): ").strip()
+            if nom_str.isdigit() and int(nom_str) > 0:
+                new_nom = int(nom_str)
+                cfg["default_qris_nominal"] = new_nom
+                save_config(cfg)
+                print(f"\n[V] Nominal default berhasil diperbarui menjadi: Rp {new_nom:,}".replace(",", "."))
+                print(" [Y] Langsung Generate & Push QRIS ke HP Sekarang")
+                print(" [N] Simpan Saja & Kembali")
+                ask = get_key_press(" Pilihan [Y/n]: ").strip().lower()
+                if ask != 'n':
+                    _do_generate_and_push(cfg, new_nom)
+                else:
+                    time.sleep(0.8)
+            else:
+                print("[!] Input tidak valid. Nominal harus berupa angka positif.")
+                time.sleep(1.0)
+        elif sub_pil == "3":
+            new_mode = "standalone" if current_mode == "API" else "api"
+            cfg.setdefault("gobiz", {})["mode"] = new_mode
+            save_config(cfg)
+            print(f"\n[V] Mode GoBiz diubah ke: {new_mode.upper()}!")
+            time.sleep(1.0)
+        elif sub_pil == "4":
+            menu_gobiz_credentials()
+
+def menu_toggle_steps():
+    """Pengaturan ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)."""
+    execute_toggle_steps_logic(KORDINAT_FILE, DISABLED_CONFIG_KEY)
+
+def menu_manage_steps():
+    """Menu untuk melihat dan menguji langkah koordinat kordinat_qris_morph.txt."""
+    runner = BotRunner()
+    key_mapping = {
+        "1": "1",
+        "2": "2",
+        "3": "3",
+        "4": "4",
+        "5": "5",
+        "6": "6",
+        "7": "7",
+        "8": "8",
+        "9": "9",
+        "a": "10",
+        "b": "11",
+        "c": "12",
+    }
+
+    last_tested_msg = ""
+
+    while True:
+        clear_screen()
+        print("="*70)
+        print("      TEST KOORDINAT MACRO INSTAN (TETAP DI MENU TEST)")
+        print("   Tekan angka / huruf langsung dieksekusi seketika tanpa ENTER!")
+        print("="*70)
+        steps = parse_macro_steps()
+        step_map = {str(s["id"]): s for s in steps}
+
+        def _st(sid):
+            return "[OFF ]" if step_map.get(sid, {}).get("is_off") else "[ ON ]"
+
+        print(f" [1] Step 1  {_st('1')} : {step_map.get('1', {}).get('name', 'Scan QR Bitget')}")
+        print(f" [2] Step 2  {_st('2')} : {step_map.get('2', {}).get('name', 'Galeri Scanner')}")
+        print(f" [3] Step 3  {_st('3')} : {step_map.get('3', {}).get('name', 'Pilih Gambar QR')}")
+        print(f" [4] Step 4  {_st('4')} : {step_map.get('4', {}).get('name', 'Selesai / Done')}")
+        print(f" [5] Step 5  {_st('5')} : {step_map.get('5', {}).get('name', 'Tombol Deposit')}")
+        print(f" [6] Step 6  {_st('6')} : {step_map.get('6', {}).get('name', 'Terima Aset Kripto')}")
+        print(f" [7] Step 7  {_st('7')} : {step_map.get('7', {}).get('name', 'Salin Address EVM Tuyul')}")
+        print(f" [8] Step 8  {_st('8')} : {step_map.get('8', {}).get('name', 'Kembali ke Tinjau Order (Back 2x)')}")
+        print(" [D] Auto-Tebar : Kirim Saldo USDC Morph (Baca Layar & Transfer On-Chain)")
+        print(f" [9] Step 9  {_st('9')} : {step_map.get('9', {}).get('name', 'Pilih Token & Konfirmasi Pembayaran')}")
+        print(f" [A] Step 10 {_st('10')} : {step_map.get('10', {}).get('name', 'Input PIN Transaksi')}")
+        print(f" [B] Step 11 {_st('11')} : {step_map.get('11', {}).get('name', 'Masuk Event Cashback')}")
+        print(f" [C] Step 12 {_st('12')} : {step_map.get('12', {}).get('name', 'Claim Reward')}")
+        print("-"*70)
+        print(" [E] Sub-Tap : Klik Kolom Jumlah Pembayaran Saja (916 1594)")
+        print(" [F] Sub-Tap : Pilih Token USDC Morph Paling Atas Saja (517 1536)")
+        print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
+        print(" [P] Sub-Tap : Ketik Sandi PIN 080808 Saja")
+        print(" [I] Sub-Tap : Reset Google Advertising ID (ID Iklan)")
+        print(" [T] Atur ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")
+        print(" [N] Buka / Edit File kordinat_qris_morph.txt di Notepad")
+        print(" [0] Kembali ke Menu Sebelumnya")
+        print("="*70)
+
+        if last_tested_msg:
+            print(f" Status: {last_tested_msg}\n")
+            last_tested_msg = ""
+
+        key = get_key_press(" Tekan Tombol [1-9 / A-G / P / I / T / N / 0]: ").strip().lower()
+
+        if key == "0":
+            break
+        elif key == "t":
+            menu_toggle_steps()
+        elif key == "n":
+            if os.name == 'nt':
+                os.system(f'notepad "{KORDINAT_FILE}"')
+            last_tested_msg = "Membuka file koordinat di Notepad..."
+        elif key == "i":
+            print("\n[>] Membuka & Mereset Google Advertising ID (ID Iklan)...")
+            runner.adb.reset_advertising_id()
+            last_tested_msg = "[V] Google Advertising ID (ID Iklan) berhasil di-reset!"
+        elif key == "e":
+            print("\n[>] Mengetuk kolom Jumlah pembayaran (916, 1594)...")
+            runner.adb.tap(916, 1594, delay_after=1.0)
+            last_tested_msg = "[V] Kolom Jumlah pembayaran diketuk."
+        elif key == "f":
+            print("\n[>] Mengetuk item USDC Morph paling atas (517, 1536)...")
+            runner.adb.tap(517, 1536, delay_after=1.0)
+            last_tested_msg = "[V] Item USDC Morph diketuk."
+        elif key == "g":
+            print("\n[>] Mengetuk tombol Konfirmasi Pembayaran (540, 2193)...")
+            runner.adb.tap(540, 2193, delay_after=1.0)
+            last_tested_msg = "[V] Tombol Konfirmasi Pembayaran diketuk."
+        elif key == "p":
+            pin_to_type = runner.config.get("pin", "080808")
+            print(f"\n[>] Mengetik PIN transaksi {pin_to_type}...")
+            coords = runner.config.get("keypad_coords_morph") or runner.config.get("keypad_coords")
+            runner.adb.type_pin(pin_to_type, keypad_coords=coords, delay_step=0.3)
+            last_tested_msg = f"[V] PIN {pin_to_type} selesai diketik."
+        elif key == "d":
+            try:
+                tuyul_addr = get_last_tuyul_address() or runner.adb.get_clipboard_text()
+                if not (tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
+                    tuyul_addr = input("\n Masukkan Address EVM Tuyul: ").strip()
+
+                print("\n[*] Mendeteksi nominal tagihan USDC dari layar HP...")
+                detected = runner.adb.read_required_usdc_from_screen()
+                if detected:
+                    send_amt = round(detected + 0.005, 4)
+                    print(f" - Kebutuhan Layar : {detected} USDC")
+                    print(f" - Siap Ditransfer  : {send_amt} USDC (Termasuk buffer aman +0.005)")
+                else:
+                    send_amt = 1.06
+                    print(f" [!] Nominal layar tidak terdeteksi, default: {send_amt} USDC")
+
+                print(f" - Target Tuyul    : {tuyul_addr}")
+                print("\n [Y] Eksekusi Transfer Sekarang")
+                print(" [N] Batal")
+                cf = get_key_press(" Konfirmasi [Y/n]: ").strip().lower()
+                if cf != 'n':
+                    print(f"\n[*] Mengirim {send_amt} USDC Morph dari Wallet Tebar...")
+                    res = runner.wallet.send_usdc(tuyul_addr, send_amt)
+                    if res.get("success"):
+                        tx = res.get('tx_hash')
+                        print(f"\n[V] Sukses Transfer! Tx: {tx}")
+                        print(f"    Explorer: {res.get('explorer')}")
+                        print("[*] Menunggu 4 detik agar saldo masuk...")
+                        time.sleep(4.0)
+                        last_tested_msg = f"[V] Saldo {send_amt} USDC Morph terkirim ke Tuyul! Siap tekan Step 9 (Bayar)."
+                    else:
+                        last_tested_msg = f"[X] Gagal kirim USDC: {res.get('error')}"
+                else:
+                    last_tested_msg = "Pengiriman dibatalkan."
+            except Exception as e:
+                last_tested_msg = f"[X] Terjadi kendala saat tebar saldo: {e}"
+        elif key in key_mapping:
+            target_sid = key_mapping[key]
+            target_name = step_map.get(target_sid, {}).get('name', f'Step {target_sid}')
+            is_off = step_map.get(target_sid, {}).get('is_off', False)
+            if is_off:
+                print(f"\n[!] Catatan: Step {target_sid} saat ini berstatus OFF.")
+                print(f"[>] Tetap menjalankan Step {target_sid} ({target_name}) untuk pengujian manual...")
+                runner.execute_macro_step(target_sid, force=True)
+            else:
+                print(f"\n[>] Menjalankan Step {target_sid} ({target_name})...")
+                runner.execute_macro_step(target_sid)
+            last_tested_msg = f"[V] Step {target_sid} ({target_name}) selesai dieksekusi!"
+            time.sleep(0.5)
+        else:
+            last_tested_msg = f"[!] Tombol '{key}' tidak terdaftar."
+
+def restart_terminal():
+    print("\n" + "="*70)
+    print("      [*] ME-RESTART APLIKASI BOT TERMINAL...")
+    print("="*70)
+    time.sleep(0.5)
+    try:
+        import atexit
+        atexit.unregister(restore_recorded_screen)
+    except Exception:
+        pass
+
+    script_path = os.path.abspath(__file__)
+    cmd = [sys.executable, script_path] + sys.argv[1:]
+    subprocess.call(cmd)
+    sys.exit(0)
+
+def main():
+    register_auto_restore()
+    sync_kordinat_and_config()
+    adb = ADBController()
+
+    # Cek argument CLI
+    if "--auto" in sys.argv:
+        runner = BotRunner()
+        runner.run_full_auto()
+        sys.exit(0)
+    elif "--manual" in sys.argv:
+        runner = BotRunner()
+        runner.run_manual_mode()
+        sys.exit(0)
+    elif "--rekam" in sys.argv:
+        runner = BotRunner()
+        runner.run_rekam_delay()
+        sys.exit(0)
+
+    while True:
+        cfg = load_config()
+        current_clone = cfg.get("clone_app", "dual_space")
+        clone_info = CLONE_APPS.get(current_clone, CLONE_APPS["dual_space"])
+        devs = adb.get_devices()
+        dev_status = f"{devs[0]} (Terhubung)" if devs else "TIDAK ADA PERANGKAT"
+
+        clear_screen()
+        print("="*70)
+        print("    BOT ADB TERMINAL STANDALONE - BITGET WALLET QRIS MORPH")
+        print("="*70)
+        print(f" Device Terdeteksi : {dev_status}")
+        print(f" Mode Clone Aktif  : {clone_info['name']} ({clone_info['package']})")
+        cur_nom = int(cfg.get('default_qris_nominal', 18501))
+        nom_display = f"{cur_nom:,}".replace(",", ".")
+        print(f" PIN Transaksi     : {cfg.get('pin', '080808')}")
+        print(f" Wallet Tebar      : {cfg.get('wallet_tebar', {}).get('address', 'Belum Diatur')}")
+        print(f" Nominal Default   : Rp {nom_display}")
+        print("="*70)
+        print(f" [1] MODE FULL AUTO (Reset -> QRIS {nom_display} -> Tebar -> Bayar PIN -> Claim)")
+        print(" [2] MODE MANUAL STEP-BY-STEP (Jalan Per Langkah via ENTER)")
+        print(" [3] MODE REKAM DELAY HP (Tekan ENTER Saat Siap, Auto-Simpan ke File)")
+        print(" [4] Reset & Buka Clone Saja (Clear Cache + Reset ID Iklan + Mode Pesawat 3s + Launch)")
+        print(" [5] Pilih / Ganti Aplikasi Clone (Dual Space / Multiple App / Multi App)")
+        print(" [6] Generator GoBiz QRIS & Push ke HP (Uji Coba Gambar QR)")
+        print(" [7] Cek Saldo & Test Transfer USDC Morph (Wallet Tebar)")
+        print(" [8] Pengelolaan Layar & Resolusi HP (Auto 1080x2400 @ 352 DPI)")
+        print(" [9] Kelola / Test Langkah Koordinat Macro (kordinat_qris_morph.txt)")
+        print(" [T] Pengaturan ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")
+        print(" [M] Buka Mirror Layar HP via Scrcpy (Layar Fisik HP Mati)")
+        print(" [R] Restart Aplikasi Bot Terminal")
+        print(" [0] Kembali / Keluar (Kembalikan Layar Asli HP)")
+        print("="*70)
+
+        pilihan = get_key_press(" Masukkan pilihan Anda [0-9 / T / M / R] (Tekan Tombol Langsung): ").strip().lower()
+
+        if pilihan == "1":
+            runner = BotRunner()
+            ok = runner.run_full_auto()
+            if ok or not runner.stopped:
+                wait_any_key("\n Tekan sembarang tombol untuk kembali...")
+            else:
+                time.sleep(0.5)
+        elif pilihan == "2":
+            runner = BotRunner()
+            ok = runner.run_manual_mode()
+            if ok or not runner.stopped:
+                wait_any_key("\n Tekan sembarang tombol untuk kembali...")
+            else:
+                time.sleep(0.5)
+        elif pilihan == "3":
+            runner = BotRunner()
+            runner.run_rekam_delay()
+            wait_any_key("\n Tekan sembarang tombol untuk kembali...")
+        elif pilihan == "4":
+            clear_screen()
+            adb.reset_and_launch(current_clone, airplane_seconds=cfg.get("airplane_seconds", 3))
+            wait_any_key("\n Tekan sembarang tombol untuk kembali...")
+        elif pilihan == "5":
+            menu_select_clone_app()
+        elif pilihan == "6":
+            menu_generate_qris()
+        elif pilihan == "7":
+            menu_wallet_and_token()
+        elif pilihan == "8":
+            menu_screen_settings()
+        elif pilihan == "9":
+            menu_manage_steps()
+        elif pilihan == "t":
+            menu_toggle_steps()
+        elif pilihan == "m":
+            launch_mirror_screen()
+            time.sleep(1.0)
+        elif pilihan == "r":
+            restart_terminal()
+        elif pilihan == "0":
+            print("\n[*] Menutup menu bot QRIS Morph...")
+            restore_recorded_screen()
+            break
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n[!] Dibatalkan oleh pengguna (Ctrl+C).")
+        restore_recorded_screen()
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n\n[X] TERJADI KENDALA TAK TERDUGA: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            restore_recorded_screen()
+        except Exception:
+            pass
+        input("\nTekan ENTER untuk keluar...")
+        sys.exit(1)

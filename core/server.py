@@ -196,6 +196,7 @@ def api_bot_start():
         data = request.get_json(silent=True) or {}
         start_index = data.get("start_index")
         manual_mode = data.get("manual", False)
+        bot_mode = data.get("mode", "wd_xlm")
         
         config = load_config_data()
         if start_index is not None:
@@ -211,7 +212,8 @@ def api_bot_start():
         # Atur resolusi layar bot sebelum start
         record_and_apply_bot_screen(silent=True)
         
-        cmd = [sys.executable, "-u", os.path.join(CORE_DIR, "wd_xlm.py")]
+        script_file = "create_account.py" if bot_mode == "create_account" else "wd_xlm.py"
+        cmd = [sys.executable, "-u", os.path.join(CORE_DIR, script_file)]
         if manual_mode:
             cmd.append("--manual")
             

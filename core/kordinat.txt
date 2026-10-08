@@ -1,372 +1,173 @@
-﻿# ==============================================================================
-#                  BITGET WALLET XLM — SCRIPT KOORDINAT ADB / MACRO
 # ==============================================================================
-# Dokumentasi lengkap seluruh perintah macro dan koordinat input tap / swipe / wm
-# untuk automasi bot WD XLM Bitget.
-# File ini disimpan di folder core/kordinat.txt agar root direktori tetap rapi.
+#      BOT ADB BITGET WALLET — WD XLM MODE BARU (IMPORT VIA PROFIL TANPA AUTH)
+# ==============================================================================
+# File master koordinat layar HP (Standar: 1080x2400 @ 352 DPI).
+# Alur: Klik Profil/Avatar (81, 142) -> Beralih (752, 346) -> Tambah Dompet (568, 2264)
+#       -> Impor Dompet (578, 593) -> Tempel 12 Kata Frasa -> PIN Kode Sandi -> Tarik XLM.
 #
-# PANDUAN FORMAT PERINTAH:
-#   [ID. Nama Langkah]              -> Judul Step / Bagian (Tambah OFF jika di-skip)
-#   input tap X Y                   -> Tap / klik koordinat layar
-#   sleep DETIK                     -> Jeda waktu (contoh: sleep 1.5)
-#   input swipe X1 Y1 X2 Y2 DURASI  -> Geser layar (durasi dalam milidetik)
-#   input text TEKS                 -> Ketik teks ({ALAMAT_WD}, {ACCOUNT_NUM}, {PIN})
-#   input keyevent KODE             -> Tombol sistem (4=Back, 187=Recent Apps, 279=Paste)
-#   pin {PIN} JEDA_AKHIR            -> Ketik PIN dinamis sesuai keypad di config.json
-#   monkey -p NAMA_PAKET ...        -> Buka aplikasi via package manager
+# CATATAN: Pada mode import dompet aktif, input PIN hanya 1 KALI (Step 9) untuk
+# memvalidasi sandi dompet. TIDAK ADA konfirmasi PIN kedua.
+# Setelah PIN Step 9 dimasukkan, layar mendarat di Beranda lalu lanjut ke Dompet -> Hadiah -> XLM.
+# PIN transaksi akhir dijalankan di Step 18 untuk otorisasi penarikan.
+#
+# Untuk menonaktifkan step tertentu, tambahkan tulisan OFF di judul step.
 # ==============================================================================
 
 
-# ==============================================================================
-# ALUR UTAMA BOT WD XLM (Step 0 s/d Step 42)
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# BAGIAN 1: BUKA & NAVIGASI GANTI DOMPET DI BITGET
+# ------------------------------------------------------------------------------
 
-[0. Scroll Multi App] OFF
-# Menggeser layar Multi App Ultra agar clone akun berikutnya muncul ke atas
-input swipe 546 820 546 500 1200
+[1. Buka Aplikasi Bitget Wallet] OFF
+# Membuka aplikasi Bitget Wallet jika belum terbuka
+input tap 164 423
+sleep 5.0
+
+--------------------------------------------------------------------------------
+
+[2. Klik Ikon Profil / Avatar (Kiri Atas)]
+# Mengetuk ikon profil avatar di pojok kiri atas beranda Bitget
+input tap 81 142
+sleep 0.9
+
+--------------------------------------------------------------------------------
+
+[3. Klik Tombol Beralih]
+# Mengetuk tombol cyan 'Beralih' di sebelah nama dompet aktif
+input tap 752 346
+sleep 1.1
+
+--------------------------------------------------------------------------------
+
+[4. Klik Tambah Dompet]
+# Mengetuk tombol cyan 'Tambah dompet' di bagian bawah modal Ganti Dompet
+input tap 568 2264
 sleep 1.0
 
 --------------------------------------------------------------------------------
 
-[1. Buka Bitget] OFF
-# KLIK BITGET (Membuka clone aplikasi dari Multi App Ultra)
-input tap 164 423
-sleep 6.6
+[5. Klik Impor Dompet]
+# Mengetuk menu kedua 'Impor dompet' (seed phrase, kunci pribadi, dll)
+input tap 578 593
+sleep 0.8
 
 --------------------------------------------------------------------------------
 
-[2. Klik Dompet]
-# Klik tab Dompet (Klik 2 kali untuk refresh tampilan)
-input tap 908 2258
-sleep 1.8
-input tap 908 2258
+
+# ------------------------------------------------------------------------------
+# BAGIAN 2: IMPOR SEED PHRASE 12 KATA & PIN KODE SANDI (1 KALI)
+# ------------------------------------------------------------------------------
+
+[6. Pilih Frasa Pemulihan Mnemonic]
+# Memilih opsi impor via Frasa Pemulihan / Seed Phrase
+input tap 540 1850
+sleep 0.8
+
+--------------------------------------------------------------------------------
+
+[7. Salin & Tempel 12 Frasa Kata]
+# 1. Otomatis salin 12 kata frasa akun aktif ke clipboard PC
+input phrase_copy
+sleep 0.5
+# 2. Ketuk kolom teks (EditText) agar kursor aktif dan berfokus
+input tap 540 741
+sleep 0.8
+# 3. Masukkan 12 kata frasa langsung ke input HP via ADB
+input phrase_type
 sleep 0.7
 
+--------------------------------------------------------------------------------
 
+[8. Klik Konfirmasi Impor Frasa]
+# Mengetuk tombol Konfirmasi cyan impor frasa (bounds [44, 1338][1036, 1452])
+# Menampilkan popup bottom-sheet 'Masukkan kode sandi'
+input tap 540 1395
+sleep 1.3
 
 --------------------------------------------------------------------------------
 
-[2.1. Tutup Popup Promo]
-# Swipe ke bawah untuk menutup popup/banner jika muncul
-input swipe 560 1630 580 2377 300
-sleep 1.6
-
-
-
---------------------------------------------------------------------------------
-
-[3. Klik Hadiah]
-# Masuk ke menu Reward / Hadiah XLM
-input tap 212 816
-sleep 1.9
-
-
+[9. Masukkan PIN Kode Sandi]
+# Mengetik 6 digit PIN sandi dompet (080808) via keypad popup (HANYA 1 KALI)
+# Pasca PIN valid, aplikasi mengimpor dan otomatis kembali ke Beranda
+pin {PIN} 2.5
+sleep 3.0
 
 --------------------------------------------------------------------------------
 
-[4. Klik XLM]
-# Memilih aset XLM pada daftar hadiah
-input tap 523 1317
-sleep 1.2
 
+# ------------------------------------------------------------------------------
+# BAGIAN 3: ALUR TARIK XLM (LANGSUNG DARI BERANDA KE AKUN HADIAH)
+# ------------------------------------------------------------------------------
 
-
---------------------------------------------------------------------------------
-
-[5. Klik Penarikan]
-# Menekan tombol Penarikan / Withdraw
-input tap 533 2302
-sleep 1.1
-
-
-
---------------------------------------------------------------------------------
-
-[6. Input Alamat WD]
-# Memilih kolom alamat dan mengisi address EVM
-input tap 998 625
-sleep 0.8
-input tap 998 625
-sleep 0.8
-input text {ALAMAT_WD}
-sleep 1.1
-
-
-
---------------------------------------------------------------------------------
-
-[7. Klik Semua Max]
-# Menarik seluruh saldo XLM yang tersedia (Max Amount)
-input tap 995 894
-sleep 1.0
-
-
-
---------------------------------------------------------------------------------
-
-[8. Tutup Keyboard]
-# Klik area kosong untuk menghilangkan keyboard virtual Android
-input tap 518 1452
-sleep 0.9
-
-
-
---------------------------------------------------------------------------------
-
-[9. Konfirmasi]
-# Membuka dialog konfirmasi transfer
-input tap 541 2307
-sleep 1.2
-
-
---------------------------------------------------------------------------------
-
-[10. Konfirmasi Modal Pengingat]
-# Menyetujui modal peringatan transfer koin
-input tap 800 2156
-sleep 1.2
-
-
---------------------------------------------------------------------------------
-
-[11. Lanjut Ikat Google Auth] OFF
-# Masuk ke halaman integrasi 2FA Google Authenticator
-input tap 530 2307
-sleep 2.4
-
---------------------------------------------------------------------------------
-
-[12. Salin Key 2FA]
-# Menyalin (copy) Key 2FA rahasia ke clipboard
-input tap 957 1155
-sleep 0.9
-
-
---------------------------------------------------------------------------------
-
-[13. Lanjut Verifikasi OTP]
-# Melanjutkan ke halaman verifikasi kode OTP
-input tap 545 2195
-sleep 1.4
-
-
---------------------------------------------------------------------------------
-
-[14. Buka Google Authenticator]
-# Membuka aplikasi Google Authenticator via Intent Launcher
-monkey -p com.google.android.apps.authenticator2 -c android.intent.category.LAUNCHER 1
-sleep 2.7
-
-
---------------------------------------------------------------------------------
-
-[15. Klik Tambah Kode Auth]
-# Menekan tombol plus bulat di kanan bawah Google Authenticator
-input tap 985 2287
-sleep 0.8
-
-
---------------------------------------------------------------------------------
-
-[16. Masukkan Kunci Penyiapan]
-# Memilih opsi 'Enter a setup key'
-input tap 985 2066
-sleep 0.9
-
-
---------------------------------------------------------------------------------
-
-[17. Masukkan Nama Akun Urut]
-# Memberi label akun sesuai nomor urut clone otomatis
-input tap 535 330
-sleep 1.0
-input text {ACCOUNT_NUM}
-sleep 0.9
-
-
---------------------------------------------------------------------------------
-
-[18. Tempel Kunci 2FA]
-# Menempelkan kunci 2FA yang telah disalin dari Bitget
-input tap 552 486
-sleep 1.0
-input keyevent 279
-sleep 1.0
-
-
---------------------------------------------------------------------------------
-
-[19. Tutup Keyboard Auth]
-# Menekan tombol Back sistem Android untuk menutup keyboard
-input keyevent 4
-sleep 0.6
-
-
---------------------------------------------------------------------------------
-
-[20. Klik Tambahkan Akun]
-# Menyimpan akun baru di Google Authenticator
-input tap 550 2275
-sleep 0.9
-
-
---------------------------------------------------------------------------------
-
-[21. Tutup Dialog Pengingat]
-# Melewati dialog pengingat Google Auth (berdasarkan koordinat layar secure)
-input tap 990 2265
-sleep 0.8
-
-
---------------------------------------------------------------------------------
-
-[22. Scroll Bawah List OTP]
-# Menggeser daftar OTP ke entri paling bawah (diulang 2x)
-input swipe 525 2140 556 220 1000
-sleep 1.0
-
-
---------------------------------------------------------------------------------
-
-[23. Salin Kode OTP]
-# Klik kode OTP di posisi paling bawah untuk menyalin ke clipboard
-input tap 545 2265
-sleep 0.8
-
-
---------------------------------------------------------------------------------
-
-[24. Buka Recent Apps]
-# Membuka layar Recent Apps (App Switcher)
-input keyevent 187
+[10. Klik Tab Dompet (Bawah Kanan)]
+# Mengetuk tab Dompet di navigasi bawah (pointer X: 906, Y: 2250)
+input tap 906 2250
 sleep 1.5
 
+--------------------------------------------------------------------------------
+
+[11. Klik Menu Hadiah]
+# Masuk ke halaman Akun Hadiah via kotak Hadiah (pointer X: 207, Y: 839)
+input tap 207 839
+sleep 2.5
 
 --------------------------------------------------------------------------------
 
-[25. Balik ke Bitget Wallet]
-# Klik kartu Bitget Wallet di sebelah kanan
-input tap 851 1329
-sleep 1.1
+[12. Klik Koin XLM]
+# Memilih koin XLM pada daftar Akun Hadiah (pointer X: 415, Y: 700)
+input tap 415 700
+sleep 1.8
 
 --------------------------------------------------------------------------------
 
-[26. Tempel OTP di Bitget]
-# Klik tombol Tempel (Paste) di dalam aplikasi Bitget
-input tap 940 693
-sleep 1.1
-
-
---------------------------------------------------------------------------------
-
-[27. Klik Ikat OTP]
-# Mengikat kode 2FA ke akun Bitget
-input tap 555 2200
-sleep 1.6
-
-
---------------------------------------------------------------------------------
-
-[28. Ganti Metode ke PIN] OFF
-# Klik area kosong agar popup ganti metode fingerprint ke PIN
-input tap 528 1270
-sleep 1.1
-
---------------------------------------------------------------------------------
-
-[29. Beralih ke Sandi PIN] OFF
-# Menekan tombol 'Beralih ke sandi/PIN'
-input tap 546 2302
-sleep 0.9
-
---------------------------------------------------------------------------------
-
-[30. Masukkan PIN Dinamis] OFF
-# Mengetik PIN via koordinat sentuh keypad dinamis
-pin {PIN} 2.5
-
---------------------------------------------------------------------------------
-
-[31. Konfirmasi WD Final]
-# Klik tombol Konfirmasi setelah kembali ke halaman penarikan
-input tap 540 2305
-sleep 1.1
-
-
---------------------------------------------------------------------------------
-
-[32. Tempel OTP Konfirmasi]
-# Tempel kode OTP di modal otentikasi Google
-input tap 946 1588
-sleep 0.9
-
-
---------------------------------------------------------------------------------
-
-[33. Klik Otentikasi] OFF
-# Konfirmasi otentikasi penarikan
-input tap 797 2233
-sleep 1.2
-
---------------------------------------------------------------------------------
-
-[34. Ganti Metode ke PIN 2]
-# Klik area kosong agar dialog berpindah ke opsi PIN
-input tap 595 1193
-sleep 1.0
-
-
---------------------------------------------------------------------------------
-
-[35. Beralih ke Sandi PIN 2]
-# Menekan tombol 'Beralih ke sandi/PIN' kedua kali
-input tap 535 2305
-sleep 0.8
-
-
---------------------------------------------------------------------------------
-
-[36. Masukkan PIN Dinamis 2]
-# Mengetik PIN transaksi kedua kali via koordinat sentuh
-pin {PIN} 4.0
+[13. Klik Penarikan WD]
+# Mengetuk tombol Penarikan cyan di bawah detail XLM (pointer X: 548, Y: 2185)
+input tap 548 2185
 sleep 2.0
 
+--------------------------------------------------------------------------------
+
+[14. Input Alamat WD XLM]
+# 1. Mengetuk kolom 'Masukkan alamat penerima' (pointer X: 514, Y: 724)
+input tap 514 724
+sleep 0.8
+# 2. Mengetikkan alamat WD Stellar dari config.json
+input text {ALAMAT_WD}
+sleep 1.0
 
 --------------------------------------------------------------------------------
 
-[37. Klik Oke Selesai WD]
-# Klik tombol Oke (Hasil penarikan berhasil dikirim)
-input tap 545 2310
-sleep 1.9
-
+[15. Tutup Keyboard Virtual]
+# Menutup keyboard virtual agar tombol Selanjutnya terlihat (pointer X: 521, Y: 1291 atau back)
+input keyevent 4
+sleep 0.8
 
 --------------------------------------------------------------------------------
 
-[38. Buka Multi App Ultra]
-# Membuka kembali Multi App Ultra via Package Name
-monkey -p com.waxmoon.ma.gp -c android.intent.category.LAUNCHER 1
+[16. Klik Tombol Selanjutnya]
+# Mengetuk tombol cyan 'Selanjutnya' di bawah layar (pointer X: 538, Y: 2185)
+input tap 538 2185
+sleep 2.0
+
+--------------------------------------------------------------------------------
+
+[17. Konfirmasi Jumlah Penarikan]
+# Mengetuk tombol cyan konfirmasi bertanda '>>' di halaman Jumlah penarikan (X: 540, Y: 2185)
+input tap 540 2185
+sleep 2.5
+
+--------------------------------------------------------------------------------
+
+[18. Masukkan PIN Transaksi Final]
+# Mengetik 6 digit PIN transaksi (080808) untuk otorisasi penarikan via keypad
+pin {PIN} 3.0
+sleep 2.0
+
+--------------------------------------------------------------------------------
+
+[19. Kembali ke Tampilan Utama (Siklus Selesai)]
+# Menekan tombol kembali (Back) 2x untuk keluar dari detail XLM & akun hadiah kembali ke layar utama
+input keyevent 4
+sleep 1.0
+input keyevent 4
 sleep 1.5
-
-
---------------------------------------------------------------------------------
-
-[40. Menu Titik Tiga Multi App]
-# Menekan tombol titik tiga (menu) Multi App Ultra
-input tap 880 135
-sleep 0.5
-input tap 880 135
-sleep 0.9
-
---------------------------------------------------------------------------------
-
-[41. Klik Kill All Apps] OFF
-# Memilih menu Kill All Apps
-input tap 773 273
-sleep 0.9
-
---------------------------------------------------------------------------------
-
-[42. Konfirmasi Kill All Apps] OFF
-# Menyetujui konfirmasi pembersihan RAM / penutupan aplikasi clone
-input tap 846 1284
-sleep 5.5

@@ -1,0 +1,37 @@
+# ==========================================
+# GITIGNORE - SCRIPT ADB WD XLM BITGET
+# Mencegah Kebocoran Data Sensitif & File Sampah
+# ==========================================
+
+# 1. Kredensial & Data Sensitif Pribadi
+core/config.json
+core/emails.txt
+core/created_accounts.json
+DATA WALLET BITGET/
+*.db
+*.sqlite
+*.sqlite3
+
+# 2. File Cache & Temporary Runtime
+core/.screen_cache.json
+core/.last_tuyul.txt
+core/temp_*.png
+temp_*.png
+*.tmp
+__pycache__/
+core/__pycache__/
+*.py[cod]
+*$py.class
+
+# 3. File Backup Lokal Sementara
+core/kordinat.backup_*.txt
+core/kordinat_backup_*.txt
+core/kordinat_create_account.backup.txt
+
+# 4. OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
