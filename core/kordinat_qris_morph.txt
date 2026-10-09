@@ -69,13 +69,6 @@ sleep 1.2
 
 --------------------------------------------------------------------------------
 
-[0.8. Tutup Pengaturan Iklan & Kembali]
-# Menekan tombol Back (keyevent 4) untuk menutup halaman setelan iklan
-input keyevent 4
-sleep 1.0
-
---------------------------------------------------------------------------------
-
 
 [1. Klik Beranda 3x dan Klik Ikon Scan QR Bitget]
 # Mengetuk ikon scanner QRIS di kanan atas beranda Bitget Wallet
@@ -86,28 +79,28 @@ sleep 1
 input tap 125 2233
 sleep 0.5
 input tap 865 126
-sleep 3.6
+sleep 1.6
 
 --------------------------------------------------------------------------------
 
 [2. Klik Ikon Galeri Scanner]
 # Mengetuk ikon galeri/album di pojok kanan bawah scanner kamera
 input tap 950 2110
-sleep 4.1
+sleep 2.2
 
 --------------------------------------------------------------------------------
 
 [3. Pilih Gambar QR Baru di Galeri]
 # Mengetuk foto/gambar QRIS paling pertama di galeri hasil push
 input tap 180 1200
-sleep 1.5
+sleep 0.8
 
 --------------------------------------------------------------------------------
 
 [4. Klik Selesai / Done]
 # Mengetuk tombol konfirmasi/centang/Done setelah memilih gambar QR
 input tap 925 2225
-sleep 6.2
+sleep 4.9
 
 --------------------------------------------------------------------------------
 
@@ -121,21 +114,21 @@ sleep 2.3
 [6. Pilih Terima Aset Kripto]
 # Mengetuk menu ke-4 'Terima aset kripto' pada bottom sheet Deposit USDC
 input tap 540 2290
-sleep 1.5
+sleep 1.8
 
 --------------------------------------------------------------------------------
 
 [7. Klik Salin Address EVM Tuyul]
 # Mengetuk tombol/ikon salin (📋) di samping alamat penerima Morph USDC
 input tap 940 1795
-sleep 2.2
+sleep 2.5
 
 --------------------------------------------------------------------------------
 
 [8. Kembali ke Layar Tinjau Order]
 # Menekan tombol Back 1 kali untuk kembali ke halaman Tinjau Order
 input keyevent 4
-sleep 2.2
+sleep 2.9
 
 --------------------------------------------------------------------------------
 
@@ -148,24 +141,25 @@ input tap 517 1536
 sleep 2
 # 3. Mengetuk tombol Konfirmasi Pembayaran (Cyan) di bawah
 input tap 540 2193
-sleep 8
+sleep 2.3
 
 --------------------------------------------------------------------------------
 
 [10. Input PIN Transaksi]
 # Mengetik 6 digit PIN transaksi Bitget Wallet (080808) via keypad presisi
 pin {PIN} 0.3
-sleep 10
+sleep 11.3
 
 --------------------------------------------------------------------------------
 
 [11. Klik Masuk Event Cashback]
 # Mengetuk pop-up / tombol Menuju Halaman Event Cashback setelah bayar sukses
 input tap 258 788
-sleep 6
+sleep 6.8
 
 --------------------------------------------------------------------------------
 
 [12. Klik Claim Reward]
 # Mengetuk tombol Klaim Hadiah / Claim Reward pada halaman event
 input tap 540 1670
+sleep 3.3

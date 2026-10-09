@@ -19,6 +19,9 @@ import time
 import shutil
 import subprocess
 import re
+import threading
+import io
+import contextlib
 from typing import Optional, Dict, Any, List
 
 CORE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -456,6 +459,98 @@ def parse_macro_steps(filepath: str = KORDINAT_FILE) -> List[Dict[str, Any]]:
 
     return steps
 
+class BackgroundPrepWorker:
+    """
+    Worker Latar Belakang (Background Thread) untuk mengeksekusi persiapan di belakang alur utama:
+    1. Memaksa Berhenti (Force Stop) & Membersihkan Cache Dual Space
+    2. Reset Mode Pesawat 3 detik (Reset IP Jaringan)
+    3. Generate QRIS GoBiz Dinamis & Push Gambar QR ke HP (/sdcard/Download/qris_pay.png)
+
+    Bekerja secara paralel saat Main Thread mengeksekusi Reset GAID (0.1 s/d 0.7) di layar HP,
+    sehingga waktu tunggu antrian di terminal terpangkas menjadi 0 detik.
+    """
+    def __init__(self, adb: ADBController, qris_gen: GoBizQRISGenerator, config: Dict[str, Any], clone_key: str, stop_checker=None):
+        self.adb = adb
+        self.qris_gen = qris_gen
+        self.config = config
+        self.clone_key = clone_key
+        self.stop_checker = stop_checker
+        self.thread: Optional[threading.Thread] = None
+        self.success: bool = False
+        self.error_msg: str = ""
+        self.output_buffer = io.StringIO()
+
+    def _run(self):
+        with contextlib.redirect_stdout(self.output_buffer):
+            try:
+                if self.stop_checker and self.stop_checker():
+                    self.error_msg = "Dibatalkan oleh user."
+                    return
+
+                # 1. Force Stop & Clear Cache Dual Space
+                if not self.adb.force_stop_and_clear_cache(self.clone_key, stop_checker=self.stop_checker):
+                    self.error_msg = f"Gagal membersihkan cache clone {self.clone_key}"
+                    return
+
+                if self.stop_checker and self.stop_checker():
+                    self.error_msg = "Dibatalkan oleh user."
+                    return
+
+                # 2. Mode Pesawat (Reset IP Jaringan)
+                airplane_sec = self.config.get("airplane_seconds", 3)
+                if not self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.stop_checker):
+                    self.error_msg = "Gagal toggle mode pesawat"
+                    return
+
+                if self.stop_checker and self.stop_checker():
+                    self.error_msg = "Dibatalkan oleh user."
+                    return
+
+                # 3. Generate QRIS GoBiz Dinamis & Push ke HP
+                active_acc = get_active_gobiz_account(self.config)
+                accs = get_gobiz_accounts(self.config)
+                acc_idx = int(self.config.get("gobiz_active_index", 0)) % len(accs) if accs else 0
+                rot_status = " (Shift Rotasi Otomatis)" if self.config.get("gobiz_shift_rotation", True) and len(accs) > 1 else ""
+                print(f"[*] [SHIFT GOBIZ #{acc_idx + 1}/{len(accs)}] Menggunakan Akun: {active_acc.get('merchant_name', 'TOKO')}{rot_status}")
+
+                target_amount = int(self.config.get("default_qris_nominal", 18501))
+                ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+                if not ok_qr:
+                    self.error_msg = f"Gagal membuat QRIS GoBiz: {qr_det.get('error')}"
+                    return
+
+                merchant_name = qr_det.get("merchant_name", "MODIFIED_RANDOM")
+                print(f"[V] QRIS Berhasil Dibuat: Rp {target_amount:,} | Merchant: {merchant_name}".replace(",", "."))
+                next_amount = target_amount + 1
+                self.config["default_qris_nominal"] = next_amount
+                save_config(self.config)
+                print(f"[*] Nominal auto-increment (+1): Rp {next_amount:,} (Tersimpan untuk transaksi berikutnya)".replace(",", "."))
+
+                # Push ke HP
+                ok_push, remote_path = self.adb.push_qr_image(TEMP_QR_PATH)
+                if not ok_push:
+                    self.error_msg = "Gagal mengirim gambar QR ke HP"
+                    return
+                print(f"[V] Gambar QR berhasil dikirim ke {remote_path}!")
+
+                self.success = True
+            except Exception as e:
+                self.error_msg = f"Kesalahan worker: {e}"
+
+    def start(self):
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def wait_completion(self, timeout: float = 35.0) -> bool:
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=timeout)
+        out = self.output_buffer.getvalue().strip()
+        if out:
+            print(out)
+        if self.error_msg:
+            print(f"[X] Kendala Worker Latar Belakang: {self.error_msg}")
+        return self.success
+
 class BotRunner:
     """Eksekutor Alur Bot Bitget Terminal Standalone QRIS Morph."""
 
@@ -731,14 +826,14 @@ class BotRunner:
         if self.stopped:
             return False
 
-        # 3. Reset Atomik Clone: Paksa Berhenti & Bersihkan Cache
+        # 3. Jalankan Background Worker (Force Stop Dual Space, Mode Pesawat, Generate & Push QRIS)
         print("\n" + "="*60)
         print(f" MEMULAI RESET ATOMIK CLONE: {clone_info['name']}")
         print("="*60)
-        if not self.adb.force_stop_and_clear_cache(clone_key, stop_checker=self.is_stopped):
-            return False
+        worker = BackgroundPrepWorker(self.adb, self.qris_gen, self.config, clone_key, stop_checker=self.is_stopped)
+        worker.start()
 
-        # Reset Google Advertising ID via Step Macro (0.1 s/d 0.8)
+        # Eksekusi Reset Google Advertising ID di Layar HP (Step 0.1 s/d 0.7)
         print("\n[*] Menjalankan Reset Google Advertising ID (Delete -> Get New -> Reset)...")
         gaid_steps = [
             ("0.1", "Buka Pengaturan Iklan Google"),
@@ -747,16 +842,14 @@ class BotRunner:
             ("0.4", "Ketuk Get New Advertising ID"),
             ("0.5", "Ketuk Confirm Dialog Get New ID"),
             ("0.6", "Ketuk Reset Advertising ID"),
-            ("0.7", "Ketuk Confirm Dialog Reset ID"),
-            ("0.8", "Tutup Pengaturan Iklan & Kembali")
+            ("0.7", "Ketuk Confirm Dialog Reset ID")
         ]
         for sid, slbl in gaid_steps:
             if not self.run_step_flow(sid, slbl, is_manual):
                 return False
 
-        # Mode Pesawat (Reset IP Jaringan)
-        airplane_sec = self.config.get("airplane_seconds", 3)
-        if not self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped):
+        # Sinkronisasi Worker Latar Belakang (Tunggu selesai dan cetak log lengkap)
+        if not worker.wait_completion():
             return False
 
         # Buka kembali aplikasi Clone
@@ -788,42 +881,10 @@ class BotRunner:
                 self.stopped = True
                 return False
 
-        # 5. Buat QRIS GoBiz Dinamis & Auto-Increment (+1)
-        active_acc = get_active_gobiz_account(self.config)
-        accs = get_gobiz_accounts(self.config)
-        acc_idx = int(self.config.get("gobiz_active_index", 0)) % len(accs) if accs else 0
-        rot_status = " (Shift Rotasi Otomatis)" if self.config.get("gobiz_shift_rotation", True) and len(accs) > 1 else ""
-        print(f"\n[*] [SHIFT GOBIZ #{acc_idx + 1}/{len(accs)}] Menggunakan Akun: {active_acc.get('merchant_name', 'TOKO')}{rot_status}")
-
-        target_amount = int(self.config.get("default_qris_nominal", 18501))
-        ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
-        if not ok_qr:
-            print(f"[X] Gagal membuat QRIS: {qr_det.get('error')}")
-            return False
-
-        print(f"[V] QRIS Berhasil Dibuat: Rp {target_amount:,} | Merchant: {qr_det['merchant_name']}".replace(",", "."))
-
-        # Auto-Increment: Naikkan +1 angka dan simpan ke config
-        next_amount = target_amount + 1
-        self.config["default_qris_nominal"] = next_amount
-        save_config(self.config)
-        print(f"[*] Nominal auto-increment (+1): Rp {next_amount:,} (Tersimpan untuk transaksi berikutnya)".replace(",", "."))
-
         if self.stopped:
             return False
 
-        # 6. Push QR ke Device & Refresh Galeri
-        ok_push, remote_qr = self.adb.push_qr_image(TEMP_QR_PATH)
-        if not ok_push:
-            print("[X] Gagal mengirim file QR ke HP.")
-            return False
-
-        if is_manual:
-            if prompt_manual_step("Generate QRIS & Push Foto ke HP") == 'q':
-                self.stopped = True
-                return False
-
-        # 7. Eksekusi Macro: Scan QR -> Galeri -> Pilih Foto -> Selesai
+        # 5. Eksekusi Macro: Scan QR -> Galeri -> Pilih Foto -> Selesai (LANGSUNG INSTAN TANPA ANTRI!)
         print("\n[*] Menjalankan Macro Scan QRIS dari Galeri HP...")
         if not self.run_step_flow("1", "Scan QR Bitget", is_manual): return False
         if not self.run_step_flow("2", "Buka Galeri", is_manual): return False
@@ -1069,8 +1130,7 @@ class BotRunner:
                 ("0.4", "Ketuk Get New Advertising ID"),
                 ("0.5", "Ketuk Confirm Dialog Get New ID"),
                 ("0.6", "Ketuk Reset Advertising ID"),
-                ("0.7", "Ketuk Confirm Dialog Reset ID"),
-                ("0.8", "Tutup Pengaturan Iklan & Kembali")
+                ("0.7", "Ketuk Confirm Dialog Reset ID")
             ]
             for sid, slbl in gaid_steps:
                 res = record_single_step(sid, slbl)
@@ -1730,7 +1790,6 @@ def menu_manage_steps():
         "o": "0.5",
         "u": "0.6",
         "v": "0.7",
-        "w": "0.8",
         "1": "1",
         "2": "2",
         "3": "3",
@@ -1766,7 +1825,6 @@ def menu_manage_steps():
         print(f" [O] Step 0.5 {_st('0.5')} : {step_map.get('0.5', {}).get('name', 'Ketuk Confirm Dialog Get New ID')}")
         print(f" [U] Step 0.6 {_st('0.6')} : {step_map.get('0.6', {}).get('name', 'Ketuk Reset Advertising ID')}")
         print(f" [V] Step 0.7 {_st('0.7')} : {step_map.get('0.7', {}).get('name', 'Ketuk Confirm Dialog Reset ID')}")
-        print(f" [W] Step 0.8 {_st('0.8')} : {step_map.get('0.8', {}).get('name', 'Tutup Pengaturan Iklan & Kembali')}")
         print("-"*70)
         print(f" [1] Step 1   {_st('1')} : {step_map.get('1', {}).get('name', 'Scan QR Bitget')}")
         print(f" [2] Step 2   {_st('2')} : {step_map.get('2', {}).get('name', 'Galeri Scanner')}")
@@ -1786,7 +1844,7 @@ def menu_manage_steps():
         print(" [F] Sub-Tap : Pilih Token USDC Morph Paling Atas Saja (517 1536)")
         print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
         print(" [P] Sub-Tap : Ketik Sandi PIN 080808 Saja")
-        print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.8)")
+        print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)")
         print(" [T] Atur ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")
         print(" [N] Buka / Edit File kordinat_qris_morph.txt di Notepad")
         print(" [0] Kembali ke Menu Sebelumnya")
@@ -1796,7 +1854,7 @@ def menu_manage_steps():
             print(f" Status: {last_tested_msg}\n")
             last_tested_msg = ""
 
-        key = get_key_press(" Tekan Tombol [1-9 / A-G / J-M / O / U-W / P / I / T / N / 0]: ").strip().lower()
+        key = get_key_press(" Tekan Tombol [1-9 / A-G / J-M / O / U-V / P / I / T / N / 0]: ").strip().lower()
 
         if key == "0":
             break
@@ -1807,10 +1865,10 @@ def menu_manage_steps():
                 os.system(f'notepad "{KORDINAT_FILE}"')
             last_tested_msg = "Membuka file koordinat di Notepad..."
         elif key == "i":
-            print("\n[>] Menjalankan Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.8)...")
-            for sid in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8"]:
+            print("\n[>] Menjalankan Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)...")
+            for sid in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7"]:
                 runner.execute_macro_step(sid, force=True)
-            last_tested_msg = "[V] Alur Step 0.1 s/d 0.8 (Reset GAID Lengkap) selesai dieksekusi!"
+            last_tested_msg = "[V] Alur Step 0.1 s/d 0.7 (Reset GAID Lengkap) selesai dieksekusi!"
         elif key == "e":
             print("\n[>] Mengetuk kolom Jumlah pembayaran (916, 1594)...")
             runner.adb.tap(916, 1594, delay_after=1.0)
