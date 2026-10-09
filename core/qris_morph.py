@@ -823,14 +823,24 @@ class BotRunner:
         # 9. Baca Otomatis Nominal USDC dari Layar Tinjau Order
         print("\n[*] Mendeteksi nominal tagihan USDC dari layar HP...")
         detected_usdc = self.adb.read_required_usdc_from_screen()
+        buffer_usdc = float(self.config.get("usdc_buffer", 0.006))
+
         if detected_usdc:
-            usdc_needed = round(detected_usdc + 0.005, 4)
+            usdc_needed = round(detected_usdc + buffer_usdc, 4)
             print(f"[V] Kebutuhan Layar : {detected_usdc} USDC")
-            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC (Termasuk buffer aman +0.005)")
+            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC (Termasuk buffer aman +{buffer_usdc})")
         else:
-            est_usdc = round(target_amount / 17550.0, 4)
-            print(f"[*] Teks layar tidak terdeteksi, menggunakan estimasi kurs: {est_usdc} USDC")
-            usdc_needed = est_usdc
+            live_rate = self.adb.read_swap_rate_from_screen()
+            if live_rate and live_rate > 1000:
+                base_est = round(target_amount / live_rate, 4)
+                print(f"[*] Kurs swap terdeteksi di layar: 1 USDC ≈ Rp {live_rate:,.2f}")
+            else:
+                safe_rate = float(self.config.get("fallback_rate", 17400.0))
+                base_est = round(target_amount / safe_rate, 4)
+                print(f"[*] Teks layar tidak terdeteksi, menggunakan kurs acuan aman: Rp {safe_rate:,.0f} / USDC ({base_est} USDC)")
+
+            usdc_needed = round(base_est + buffer_usdc, 4)
+            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC (Termasuk buffer aman +{buffer_usdc})")
 
         # 10. Kirim Saldo USDC Morph dari Wallet Tebar
         pk_tebar = self.config.get("wallet_tebar", {}).get("private_key")
@@ -1415,13 +1425,17 @@ def menu_manage_steps():
 
                 print("\n[*] Mendeteksi nominal tagihan USDC dari layar HP...")
                 detected = runner.adb.read_required_usdc_from_screen()
+                buffer_usdc = float(runner.config.get("usdc_buffer", 0.006))
                 if detected:
-                    send_amt = round(detected + 0.005, 4)
+                    send_amt = round(detected + buffer_usdc, 4)
                     print(f" - Kebutuhan Layar : {detected} USDC")
-                    print(f" - Siap Ditransfer  : {send_amt} USDC (Termasuk buffer aman +0.005)")
+                    print(f" - Siap Ditransfer  : {send_amt} USDC (Termasuk buffer aman +{buffer_usdc})")
                 else:
-                    send_amt = 1.06
-                    print(f" [!] Nominal layar tidak terdeteksi, default: {send_amt} USDC")
+                    safe_rate = float(runner.config.get("fallback_rate", 17400.0))
+                    cur_nom = int(runner.config.get("default_qris_nominal", 18501))
+                    base_est = round(cur_nom / safe_rate, 4)
+                    send_amt = round(base_est + buffer_usdc, 4)
+                    print(f" [!] Nominal layar tidak terdeteksi, estimasi kurs aman: {send_amt} USDC (Buffer +{buffer_usdc})")
 
                 print(f" - Target Tuyul    : {tuyul_addr}")
                 print("\n [Y] Eksekusi Transfer Sekarang")

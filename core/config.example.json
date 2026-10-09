@@ -63,6 +63,8 @@
     "clone_app": "multiple_app",
     "airplane_seconds": 3,
     "default_qris_nominal": 18535,
+    "usdc_buffer": 0.006,
+    "fallback_rate": 17400,
     "gobiz": {
         "mode": "api",
         "raw_qris": "",

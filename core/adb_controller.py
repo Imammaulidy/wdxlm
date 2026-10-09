@@ -213,7 +213,7 @@ class ADBController:
             print(f"    -> [Siklus {siklus}/2] Mengetuk Reset advertising ID (476, 1465)...")
             self.tap(476, 1465, delay_after=0.5)
 
-            # Jeda 3 detik sebelum konfirmasi
+            # Jeda 1 detik sebelum konfirmasi
             for _ in range(3):
                 if stop_checker and stop_checker():
                     self.keyevent(4, delay_after=0.3)
@@ -221,7 +221,7 @@ class ADBController:
                 time.sleep(1.0)
 
             print(f"    -> [Siklus {siklus}/2] Mengetuk Confirm (892, 1329)...")
-            self.tap(892, 1329, delay_after=1.5)
+            self.tap(892, 1329, delay_after=1)
 
         # Tutup kembali halaman Setelan Iklan
         self.keyevent(4, delay_after=0.5)
@@ -376,34 +376,115 @@ class ADBController:
 
     def read_required_usdc_from_screen(self) -> Optional[float]:
         """
-        Membaca nominal USDC yang dibutuhkan dari layar 'Tinjau order' Bitget Wallet.
-        Contoh teks pada node UI: 'Jumlah pembayaran\n1.0544 USDC'.
+        Membaca nominal USDC yang dibutuhkan dari layar 'Tinjau order' / 'Review order' Bitget Wallet.
+        Mendukung bilingual (Indonesia: 'Jumlah pembayaran', Inggris: 'Payment amount').
+        Mengabaikan nominal 'Balance', 'Swap rate', dan 'Network fee'.
         """
         try:
             dump_remote = "/sdcard/temp_review_dump.xml"
             dump_local = os.path.join(CORE_DIR, ".temp_review_dump.xml")
-            self.run(f"shell uiautomator dump {dump_remote}")
+
+            # Coba dump uiautomator dengan opsi --compressed
+            res = self.run(f"shell uiautomator dump --compressed {dump_remote}")
+            if "error" in res.lower() or "could not" in res.lower() or "fail" in res.lower():
+                time.sleep(0.3)
+                self.run(f"shell uiautomator dump {dump_remote}")
+
             self.run(f'pull {dump_remote} "{dump_local}"')
             self.run(f"shell rm -f {dump_remote}")
 
             if not os.path.exists(dump_local):
                 return None
 
-            import xml.etree.ElementTree as ET
-            tree = ET.parse(dump_local)
+            with open(dump_local, "r", encoding="utf-8", errors="ignore") as f:
+                raw_xml = f.read()
+
             if os.path.exists(dump_local):
                 os.remove(dump_local)
 
-            for node in tree.getroot().iter("node"):
+            if not raw_xml:
+                return None
+
+            # 1. Pencarian Pola Regex Terdekat dari "Payment amount" / "Jumlah pembayaran"
+            pola_khusus = [
+                r"(?:Payment amount|Jumlah pembayaran)[\s\S]{0,350}?([0-9]+(?:\.[0-9]+)?)\s*USDC",
+                r"([0-9]+(?:\.[0-9]+)?)\s*USDC[\s\S]{0,350}?(?:Payment amount|Jumlah pembayaran)"
+            ]
+            for p in pola_khusus:
+                m = re.search(p, raw_xml, re.IGNORECASE)
+                if m:
+                    val = float(m.group(1))
+                    if 0.05 <= val <= 1000.0:
+                        return val
+
+            # 2. Parsing ElementTree per node sebagai fallback
+            import xml.etree.ElementTree as ET
+            tree = ET.fromstring(raw_xml)
+            for node in tree.iter("node"):
                 desc = node.attrib.get("content-desc", "")
                 text = node.attrib.get("text", "")
                 combined = f"{text}\n{desc}".strip()
-                if "Jumlah pembayaran" in combined:
-                    m = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*USDC", combined)
+                if not combined:
+                    continue
+                lowered = combined.lower()
+                if "jumlah pembayaran" in lowered or "payment amount" in lowered:
+                    m = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*USDC", combined, re.IGNORECASE)
                     if m:
                         return float(m.group(1))
+
+            # 3. Kumpulkan semua node teks USDC yang bukan Saldo/Fee/Kurs
+            candidates = []
+            for node in tree.iter("node"):
+                desc = node.attrib.get("content-desc", "")
+                text = node.attrib.get("text", "")
+                combined = f"{text} {desc}".strip()
+                if not combined:
+                    continue
+
+                lowered = combined.lower()
+                if any(x in lowered for x in ["balance", "saldo", "swap rate", "network fee", "biaya jaringan", "insufficient", "fee"]):
+                    continue
+
+                m = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*USDC", combined, re.IGNORECASE)
+                if m:
+                    val = float(m.group(1))
+                    if 0.05 <= val <= 1000.0:
+                        candidates.append(val)
+
+            if candidates:
+                return candidates[0]
+
         except Exception as e:
             print(f"[!] Gagal membaca nominal USDC dari layar: {e}")
+        return None
+
+    def read_swap_rate_from_screen(self) -> Optional[float]:
+        """
+        Membaca kurs swap realtime dari layar 'Review order' / 'Tinjau order'.
+        Contoh: '1 USDC ≈ 17,544.68 IDR' -> 17544.68
+        """
+        try:
+            dump_remote = "/sdcard/temp_rate_dump.xml"
+            dump_local = os.path.join(CORE_DIR, ".temp_rate_dump.xml")
+            self.run(f"shell uiautomator dump --compressed {dump_remote}")
+            self.run(f'pull {dump_remote} "{dump_local}"')
+            self.run(f"shell rm -f {dump_remote}")
+
+            if not os.path.exists(dump_local):
+                return None
+
+            with open(dump_local, "r", encoding="utf-8", errors="ignore") as f:
+                raw_xml = f.read()
+
+            if os.path.exists(dump_local):
+                os.remove(dump_local)
+
+            m = re.search(r"1\s*USDC\s*≈\s*([0-9,.]+)\s*IDR", raw_xml, re.IGNORECASE)
+            if m:
+                rate_str = m.group(1).replace(",", "")
+                return float(rate_str)
+        except Exception:
+            pass
         return None
 
     def extract_evm_address_from_screen(self) -> Optional[str]:
