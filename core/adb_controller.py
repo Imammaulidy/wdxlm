@@ -191,87 +191,41 @@ class ADBController:
         """
         Mereset Google Advertising ID (GAID / ID Iklan) secara otomatis:
         1. Membuka halaman Ads Identity Settings secara langsung via Intent.
-        2. Mencari dan mengetuk tombol 'Reset ID iklan'.
-        3. Mencari dan mengonfirmasi tombol pop-up dialog ('Konfirmasi' / 'OK' / 'button1').
-        4. Menutup kembali halaman pengaturan (Back).
+        2. Mengetuk tombol 'Reset advertising ID' di koordinat (476, 1465).
+        3. Memberikan jeda 3 detik sebelum konfirmasi.
+        4. Mengetuk tombol 'Confirm' di koordinat (892, 1329).
+        5. Mengulang siklus Reset + Confirm sebanyak 2 kali (double reset).
+        6. Menutup kembali halaman pengaturan (Back / keyevent 4).
         """
         if stop_checker and stop_checker():
             return False
 
         print("[*] [2/4] Mereset Google Advertising ID (ID Iklan)...")
         self.run("shell am start -a com.google.android.gms.adsidentity.ACTION_ADS_IDENTITY_SETTINGS")
-        time.sleep(1.0)
+        time.sleep(2.0)
 
-        if stop_checker and stop_checker():
-            self.keyevent(4, delay_after=0.3)
-            return False
+        # Jalankan 2 siklus reset dan konfirmasi sesuai instruksi
+        for siklus in range(1, 3):
+            if stop_checker and stop_checker():
+                self.keyevent(4, delay_after=0.3)
+                return False
 
-        dump_remote = "/sdcard/temp_ad_dump.xml"
-        dump_local = os.path.join(CORE_DIR, ".temp_ad_dump.xml")
+            print(f"    -> [Siklus {siklus}/2] Mengetuk Reset advertising ID (476, 1465)...")
+            self.tap(476, 1465, delay_after=0.5)
 
-        tap_reset_x, tap_reset_y = 171, 678
-        try:
-            self.run(f"shell uiautomator dump {dump_remote}")
-            self.run(f'pull {dump_remote} "{dump_local}"')
-            self.run(f"shell rm -f {dump_remote}")
+            # Jeda 3 detik sebelum konfirmasi
+            for _ in range(3):
+                if stop_checker and stop_checker():
+                    self.keyevent(4, delay_after=0.3)
+                    return False
+                time.sleep(1.0)
 
-            if os.path.exists(dump_local):
-                import xml.etree.ElementTree as ET
-                tree = ET.parse(dump_local)
-                if os.path.exists(dump_local):
-                    os.remove(dump_local)
-                for node in tree.getroot().iter("node"):
-                    txt = node.attrib.get("text", "")
-                    if "Reset ID iklan" in txt:
-                        bounds = node.attrib.get("bounds", "")
-                        m = re.findall(r"\[(\d+),(\d+)\]", bounds)
-                        if len(m) == 2:
-                            tap_reset_x = (int(m[0][0]) + int(m[1][0])) // 2
-                            tap_reset_y = (int(m[0][1]) + int(m[1][1])) // 2
-                            break
-        except Exception:
-            pass
-
-        # Tap 'Reset ID iklan'
-        self.tap(tap_reset_x, tap_reset_y, delay_after=0.8)
-
-        if stop_checker and stop_checker():
-            self.keyevent(4, delay_after=0.3)
-            return False
-
-        confirmed = False
-        try:
-            self.run(f"shell uiautomator dump {dump_remote}")
-            self.run(f'pull {dump_remote} "{dump_local}"')
-            self.run(f"shell rm -f {dump_remote}")
-
-            if os.path.exists(dump_local):
-                import xml.etree.ElementTree as ET
-                tree = ET.parse(dump_local)
-                if os.path.exists(dump_local):
-                    os.remove(dump_local)
-                for node in tree.getroot().iter("node"):
-                    rid = node.attrib.get("resource-id", "")
-                    txt = node.attrib.get("text", "").lower()
-                    if rid == "android:id/button1" or txt in ("konfirmasi", "ok", "reset"):
-                        bounds = node.attrib.get("bounds", "")
-                        m = re.findall(r"\[(\d+),(\d+)\]", bounds)
-                        if len(m) == 2:
-                            bx = (int(m[0][0]) + int(m[1][0])) // 2
-                            by = (int(m[0][1]) + int(m[1][1])) // 2
-                            self.tap(bx, by, delay_after=0.6)
-                            confirmed = True
-                            break
-        except Exception:
-            pass
-
-        if not confirmed:
-            # Fallback koordinat tombol konfirmasi pop-up standar Android (kanan bawah dialog)
-            self.tap(880, 1380, delay_after=0.6)
+            print(f"    -> [Siklus {siklus}/2] Mengetuk Confirm (892, 1329)...")
+            self.tap(892, 1329, delay_after=1.5)
 
         # Tutup kembali halaman Setelan Iklan
         self.keyevent(4, delay_after=0.5)
-        print("[V] Google Advertising ID (ID Iklan) berhasil di-reset ke identitas acak baru.")
+        print("[V] Google Advertising ID (ID Iklan) berhasil di-reset ke identitas acak baru (2x).")
         return True
 
     def launch_clone_app(self, clone_key: str, stop_checker=None) -> bool:
