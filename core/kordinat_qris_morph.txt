@@ -27,21 +27,49 @@ sleep 2.5
 
 --------------------------------------------------------------------------------
 
-[0.2. Ketuk Reset Advertising ID]
-# Mengetuk menu 'Reset advertising ID' untuk memunculkan popup konfirmasi
-input tap 476 1465
-sleep 1.5
+[0.2. Ketuk Delete Advertising ID]
+# Mengetuk menu 'Delete advertising ID' untuk masuk ke konfirmasi penghapusan
+input tap 512 1562
+sleep 1.2
 
 --------------------------------------------------------------------------------
 
-[0.3. Ketuk Confirm Dialog Reset ID]
+[0.3. Ketuk Tombol Hijau Delete Advertising ID]
+# Mengetuk tombol hijau besar 'Delete advertising ID'
+input tap 543 820
+sleep 1.2
+
+--------------------------------------------------------------------------------
+
+[0.4. Ketuk Get New Advertising ID]
+# Mengetuk menu 'Get new advertising ID' yang muncul pasca delete
+input tap 492 1475
+sleep 1.2
+
+--------------------------------------------------------------------------------
+
+[0.5. Ketuk Confirm Dialog Get New ID]
+# Mengetuk tombol 'Confirm' pada popup konfirmasi Get new advertising ID
+input tap 842 1342
+sleep 1.2
+
+--------------------------------------------------------------------------------
+
+[0.6. Ketuk Reset Advertising ID]
+# Mengetuk menu 'Reset advertising ID' untuk mereset ID acak baru
+input tap 471 1492
+sleep 1.2
+
+--------------------------------------------------------------------------------
+
+[0.7. Ketuk Confirm Dialog Reset ID]
 # Mengetuk tombol 'Confirm' pada popup konfirmasi reset advertising ID
-input tap 892 1329
-sleep 1.5
+input tap 842 1342
+sleep 1.2
 
 --------------------------------------------------------------------------------
 
-[0.4. Tutup Pengaturan Iklan & Kembali]
+[0.8. Tutup Pengaturan Iklan & Kembali]
 # Menekan tombol Back (keyevent 4) untuk menutup halaman setelan iklan
 input keyevent 4
 sleep 1.0

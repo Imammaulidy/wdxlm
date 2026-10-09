@@ -74,10 +74,42 @@
         "server_key": "Mid-server-xxxxxxxxxxxxxxxxx",
         "client_key": "Mid-client-xxxxxxxxxxxxxxxxx",
         "auth_token": "YOUR_GOBIZ_AUTH_TOKEN_HERE",
-        "merchant_name": "MERCHANT CONTOH",
+        "merchant_name": "MERCHANT CONTOH 1",
         "city": "JAKARTA",
         "auto_random_merchant": true
     },
+    "gobiz_accounts": [
+        {
+            "account_name": "Akun GoBiz 1 (Contoh)",
+            "mode": "api",
+            "raw_qris": "",
+            "merchant_id": "G000000000",
+            "outlet_id": "",
+            "pop_id": "",
+            "server_key": "Mid-server-xxxxxxxxxxxxxxxxx",
+            "client_key": "Mid-client-xxxxxxxxxxxxxxxxx",
+            "auth_token": "YOUR_GOBIZ_AUTH_TOKEN_HERE",
+            "merchant_name": "MERCHANT CONTOH 1",
+            "city": "JAKARTA",
+            "auto_random_merchant": true
+        },
+        {
+            "account_name": "Akun GoBiz 2 (Contoh)",
+            "mode": "api",
+            "raw_qris": "",
+            "merchant_id": "G000000001",
+            "outlet_id": "",
+            "pop_id": "",
+            "server_key": "Mid-server-yyyyyyyyyyyyyyyyy",
+            "client_key": "Mid-client-yyyyyyyyyyyyyyyyy",
+            "auth_token": "YOUR_GOBIZ_AUTH_TOKEN_2_HERE",
+            "merchant_name": "MERCHANT CONTOH 2",
+            "city": "BANDUNG",
+            "auto_random_merchant": true
+        }
+    ],
+    "gobiz_active_index": 0,
+    "gobiz_shift_rotation": true,
     "wallet_tebar": {
         "address": "0x0000000000000000000000000000000000000000",
         "private_key": "0x0000000000000000000000000000000000000000000000000000000000000000"

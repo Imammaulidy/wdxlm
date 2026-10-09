@@ -426,12 +426,70 @@ def fetch_gobiz_merchant_info(auth_token: str, timeout: int = 10) -> Dict[str, A
     except Exception as e:
         return {"success": False, "error": f"Koneksi gagal: {e}"}
 
+def get_gobiz_accounts(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Mendapatkan daftar semua akun GoBiz dari konfigurasi (dengan migrasi otomatis)."""
+    accounts = cfg.get("gobiz_accounts")
+    if not accounts or not isinstance(accounts, list):
+        single_gobiz = cfg.get("gobiz", {})
+        if single_gobiz:
+            acc = dict(single_gobiz)
+            if not acc.get("account_name"):
+                acc["account_name"] = acc.get("merchant_name") or "Akun GoBiz 1"
+            accounts = [acc]
+            cfg["gobiz_accounts"] = accounts
+            cfg["gobiz_active_index"] = 0
+            cfg["gobiz_shift_rotation"] = True
+        else:
+            accounts = []
+    return accounts
+
+def get_active_gobiz_account(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Mendapatkan akun GoBiz yang saat ini sedang aktif bertugas."""
+    accounts = get_gobiz_accounts(cfg)
+    if not accounts:
+        return cfg.get("gobiz", {})
+    idx = int(cfg.get("gobiz_active_index", 0)) % len(accounts)
+    return accounts[idx]
+
+def rotate_gobiz_shift(cfg: Dict[str, Any], save_cb=None) -> Dict[str, Any]:
+    """
+    Memutar shift akun GoBiz ke akun berikutnya secara bergantian (selang-seling).
+    Misal 2 akun: Akun 1 -> Akun 2 -> Akun 1 -> Akun 2...
+    """
+    accounts = get_gobiz_accounts(cfg)
+    if not accounts or len(accounts) <= 1:
+        return get_active_gobiz_account(cfg)
+
+    if not cfg.get("gobiz_shift_rotation", True):
+        return get_active_gobiz_account(cfg)
+
+    curr_idx = int(cfg.get("gobiz_active_index", 0))
+    next_idx = (curr_idx + 1) % len(accounts)
+    cfg["gobiz_active_index"] = next_idx
+    cfg["gobiz"] = accounts[next_idx]
+    if save_cb:
+        save_cb(cfg)
+
+    next_acc = accounts[next_idx]
+    print("\n" + "="*65)
+    print(f" [*] [ROTASI SHIFT GOBIZ] Berganti ke Akun #{next_idx + 1}/{len(accounts)}")
+    print(f"     Nama Toko : {next_acc.get('merchant_name', 'TOKO GOBIZ')}")
+    print(f"     Kota      : {next_acc.get('city', 'KOTA')}")
+    print(f"     Outlet ID : {next_acc.get('outlet_id', '-')[:12]}...")
+    print("="*65 + "\n")
+    return next_acc
+
 class GoBizQRISGenerator:
-    """Generator QRIS GoBiz Dinamis Berdiri Sendiri (Standalone)."""
+    """Generator QRIS GoBiz Dinamis Berdiri Sendiri (Standalone) dengan Dukungan Multi-Akun."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
-        gobiz_cfg = self.config.get("gobiz", {})
+        self.reload_account()
+
+    def reload_account(self):
+        """Memuat ulang kredensial dari akun GoBiz yang saat ini aktif bertugas."""
+        gobiz_cfg = get_active_gobiz_account(self.config)
+        self.active_account = gobiz_cfg
         self.mode = (gobiz_cfg.get("mode") or "api").lower().strip()
         self.raw_qris = gobiz_cfg.get("raw_qris") or DEFAULT_BASE_GOBIZ_QRIS
         self.server_key = gobiz_cfg.get("server_key", "").strip()
@@ -692,6 +750,7 @@ class GoBizQRISGenerator:
         1. Jika mode 'api' dan Server Key Midtrans tersedia: panggil Midtrans Core API resmi!
         2. Jika mode 'standalone' atau Midtrans API gagal: fallback otomatis ke Standalone ASPI lokal.
         """
+        self.reload_account()
         if self.mode == "api" and self.server_key:
             ok, qr_api, det_api = self.create_dynamic_qris_midtrans_api(amount)
             if ok:

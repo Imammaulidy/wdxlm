@@ -34,7 +34,14 @@ from screen_manager import (
     get_cached_screen
 )
 from adb_controller import ADBController, CLONE_APPS
-from gobiz_qris import GoBizQRISGenerator, fetch_gobiz_merchant_info, extract_token_from_input
+from gobiz_qris import (
+    GoBizQRISGenerator,
+    fetch_gobiz_merchant_info,
+    extract_token_from_input,
+    get_gobiz_accounts,
+    get_active_gobiz_account,
+    rotate_gobiz_shift
+)
 from morph_wallet import MorphWallet
 
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
@@ -731,12 +738,21 @@ class BotRunner:
         if not self.adb.force_stop_and_clear_cache(clone_key, stop_checker=self.is_stopped):
             return False
 
-        # Reset Google Advertising ID via Step Macro (bisa manual ENTER & rekam delay)
-        print("\n[*] Menjalankan Reset Google Advertising ID (ID Iklan)...")
-        if not self.run_step_flow("0.1", "Buka Pengaturan Iklan Google", is_manual): return False
-        if not self.run_step_flow("0.2", "Ketuk Reset Advertising ID", is_manual): return False
-        if not self.run_step_flow("0.3", "Ketuk Confirm Dialog Reset ID", is_manual): return False
-        if not self.run_step_flow("0.4", "Tutup Pengaturan Iklan & Kembali", is_manual): return False
+        # Reset Google Advertising ID via Step Macro (0.1 s/d 0.8)
+        print("\n[*] Menjalankan Reset Google Advertising ID (Delete -> Get New -> Reset)...")
+        gaid_steps = [
+            ("0.1", "Buka Pengaturan Iklan Google"),
+            ("0.2", "Ketuk Delete Advertising ID"),
+            ("0.3", "Ketuk Tombol Hijau Delete Advertising ID"),
+            ("0.4", "Ketuk Get New Advertising ID"),
+            ("0.5", "Ketuk Confirm Dialog Get New ID"),
+            ("0.6", "Ketuk Reset Advertising ID"),
+            ("0.7", "Ketuk Confirm Dialog Reset ID"),
+            ("0.8", "Tutup Pengaturan Iklan & Kembali")
+        ]
+        for sid, slbl in gaid_steps:
+            if not self.run_step_flow(sid, slbl, is_manual):
+                return False
 
         # Mode Pesawat (Reset IP Jaringan)
         airplane_sec = self.config.get("airplane_seconds", 3)
@@ -773,6 +789,12 @@ class BotRunner:
                 return False
 
         # 5. Buat QRIS GoBiz Dinamis & Auto-Increment (+1)
+        active_acc = get_active_gobiz_account(self.config)
+        accs = get_gobiz_accounts(self.config)
+        acc_idx = int(self.config.get("gobiz_active_index", 0)) % len(accs) if accs else 0
+        rot_status = " (Shift Rotasi Otomatis)" if self.config.get("gobiz_shift_rotation", True) and len(accs) > 1 else ""
+        print(f"\n[*] [SHIFT GOBIZ #{acc_idx + 1}/{len(accs)}] Menggunakan Akun: {active_acc.get('merchant_name', 'TOKO')}{rot_status}")
+
         target_amount = int(self.config.get("default_qris_nominal", 18501))
         ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
         if not ok_qr:
@@ -913,6 +935,10 @@ class BotRunner:
         print("\n" + "="*70)
         print(f" [SELESAI] Eksekusi {mode_label} Berhasil Sukses!")
         print("="*70 + "\n")
+
+        # Rotasi Shift Akun GoBiz untuk siklus berikutnya
+        rotate_gobiz_shift(self.config, save_config)
+
         return True
 
     def run_rekam_delay(self):
@@ -1036,14 +1062,19 @@ class BotRunner:
             self.adb.force_stop_and_clear_cache(clone_key, stop_checker=self.is_stopped)
 
             print("\n[*] [FASE 0] MEREKAM DELAY RESET ID IKLAN (GOOGLE ADVERTISING ID)...")
-            res = record_single_step("0.1", "Buka Pengaturan Iklan Google")
-            if res == 'q': return False
-            res = record_single_step("0.2", "Ketuk Reset Advertising ID")
-            if res == 'q': return False
-            res = record_single_step("0.3", "Ketuk Confirm Dialog Reset ID")
-            if res == 'q': return False
-            res = record_single_step("0.4", "Tutup Pengaturan Iklan & Kembali")
-            if res == 'q': return False
+            gaid_steps = [
+                ("0.1", "Buka Pengaturan Iklan Google"),
+                ("0.2", "Ketuk Delete Advertising ID"),
+                ("0.3", "Ketuk Tombol Hijau Delete Advertising ID"),
+                ("0.4", "Ketuk Get New Advertising ID"),
+                ("0.5", "Ketuk Confirm Dialog Get New ID"),
+                ("0.6", "Ketuk Reset Advertising ID"),
+                ("0.7", "Ketuk Confirm Dialog Reset ID"),
+                ("0.8", "Tutup Pengaturan Iklan & Kembali")
+            ]
+            for sid, slbl in gaid_steps:
+                res = record_single_step(sid, slbl)
+                if res == 'q': return False
 
             airplane_sec = self.config.get("airplane_seconds", 3)
             self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped)
@@ -1394,126 +1425,250 @@ def _do_generate_and_push(cfg, amount):
     wait_any_key()
 
 def menu_gobiz_credentials():
-    cfg = load_config()
-    gobiz_cfg = cfg.setdefault("gobiz", {})
-    clear_screen()
-    print("="*65)
-    print("           PENGATURAN KREDENSIAL GOBIZ / MIDTRANS")
-    print("="*65)
-    tok = gobiz_cfg.get("auth_token", "")
-    print(f" Token JWT GoBiz     : {(tok[:15] + '...') if tok else '(Kosong - Belum Diisi)'}")
-    sk = gobiz_cfg.get("server_key", "")
-    print(f" Server Key Midtrans : {(sk[:12] + '...') if sk else '(Otomatis Diambil dari Token)'}")
-    print(f" Outlet / Pop ID     : {gobiz_cfg.get('pop_id', '(Otomatis Diambil dari Token)')}")
-    print(f" Nama Merchant Asli  : {gobiz_cfg.get('merchant_name', 'TOKO GOBIZ MERCHANT')}")
-    print(f" Acak Nama (Stealth) : {'Aktif' if gobiz_cfg.get('auto_random_merchant', True) else 'Non-Aktif (Nama Asli Toko)'}")
-    print("="*65)
-    print(" [1] Sync Ulang Kredensial Toko dari Token yang Ada")
-    print(" [2] Tempel Otomatis dari Clipboard Windows (Copy cURL -> Tekan 2 Langsung Beres!)")
-    print(" [3] Ketik / Paste Token atau cURL Manual via Keyboard")
-    print(" [4] Toggle Acak Nama Toko (Stealth vs Nama Asli)")
-    print(" [0] Kembali")
-    print("="*65)
-    p = get_key_press(" Pilih opsi [0-4]: ").strip()
-    if p == "1":
-        curr_tok = gobiz_cfg.get("auth_token", "")
-        if not curr_tok:
-            print("\n[!] Belum ada token JWT yang tersimpan. Silakan pilih opsi [2] untuk tempel dari clipboard.")
-            time.sleep(1.5)
+    while True:
+        cfg = load_config()
+        accounts = get_gobiz_accounts(cfg)
+        active_idx = int(cfg.get("gobiz_active_index", 0)) % len(accounts) if accounts else 0
+        active_acc = get_active_gobiz_account(cfg)
+        is_rotation_on = cfg.get("gobiz_shift_rotation", True)
+
+        clear_screen()
+        print("="*65)
+        print("         PENGELOLAAN MULTI-AKUN GOBIZ & SHIFT ROTASI")
+        print("="*65)
+        rot_label = "[ AKTIF (Selang-Seling Tiap Siklus) ]" if is_rotation_on else "[ NON-AKTIF (Terkunci di Akun Pilihan) ]"
+        print(f" Status Shift Rotasi : {rot_label}")
+        print(f" Total Akun Terdaftar: {len(accounts)} Akun\n")
+        print(" DAFTAR AKUN GOBIZ:")
+        print("-" * 65)
+        if not accounts:
+            print("  (Belum ada akun GoBiz yang terdaftar)")
         else:
-            print("\n[*] Menghubungi GoBiz untuk auto-sync data toko...")
-            res = fetch_gobiz_merchant_info(curr_tok)
-            if res.get("success"):
-                cfg["gobiz"]["server_key"] = res["server_key"]
-                cfg["gobiz"]["pop_id"] = res["pop_id"]
-                cfg["gobiz"]["outlet_id"] = res["outlet_id"]
-                cfg["gobiz"]["merchant_name"] = res["merchant_name"]
-                cfg["gobiz"]["city"] = res["city"]
-                if res.get("raw_qris"):
-                    cfg["gobiz"]["raw_qris"] = res["raw_qris"]
-                save_config(cfg)
-                print(f"[V] Sinkronisasi Sukses! Toko: {res['merchant_name']} ({res['city']})")
+            for idx, acc in enumerate(accounts):
+                is_active = (idx == active_idx)
+                marker = "[*] AKTIF BERTUGAS" if is_active else "[ ]"
+                acc_name = acc.get("account_name") or acc.get("merchant_name") or f"Akun #{idx+1}"
+                city = acc.get("city") or "KOTA"
+                sk = acc.get("server_key", "")
+                mode_stat = "Midtrans API Terhubung" if sk else "Standalone Offline"
+                print(f" {marker} Akun #{idx+1}: {acc_name} ({city})")
+                print(f"     -> Outlet ID: {str(acc.get('outlet_id', '-'))[:18]}... | Status: {mode_stat}")
+        print("="*65)
+        print(" [1] Tambah Akun via Clipboard Windows (Copy cURL/Token -> Tekan 1)")
+        print(" [2] Tambah Akun via Input Keyboard Manual (Paste Token/cURL)")
+        print(" [3] Pilih Akun Aktif Manual (Kunci Akun Tertentu)")
+        print(" [4] Toggle Rotasi Shift Otomatis (ON / OFF)")
+        print(" [5] Sync Ulang Semua Data Toko dari Server GoBiz")
+        print(" [6] Hapus Salah Satu Akun dari Daftar")
+        print(" [7] Toggle Acak Nama Merchant (Stealth vs Nama Asli)")
+        print(" [0] Kembali ke Menu Sebelumnya")
+        print("="*65)
+
+        p = get_key_press(" Pilih opsi [0-7]: ").strip()
+        if p == "0":
+            break
+        elif p == "1":
+            print("\n[*] Membaca data cURL / Token dari Clipboard Windows...")
+            clip_data = get_windows_clipboard_text()
+            if not clip_data:
+                print("[!] Clipboard Windows kosong atau tidak dapat diakses.")
+                time.sleep(1.5)
             else:
-                print(f"[X] Gagal sinkronisasi: {res.get('error')}")
-            time.sleep(2.0)
-    elif p == "2":
-        print("\n[*] Membaca data cURL / Token dari Clipboard Windows...")
-        clip_data = get_windows_clipboard_text()
-        if not clip_data:
-            print("[!] Clipboard Windows kosong atau tidak dapat diakses.")
-            time.sleep(1.5)
-        else:
-            clean_tok = extract_token_from_input(clip_data)
-            if not clean_tok:
-                print("[!] Tidak ditemukan token atau cURL yang valid di clipboard Windows.")
-                time.sleep(2.0)
-            else:
-                cfg["gobiz"]["auth_token"] = clean_tok
-                print(f"[*] Token terdeteksi dari Clipboard: {(clean_tok[:18] + '...')}")
-                print("[*] Menghubungi server GoBiz untuk verifikasi toko...")
-                res = fetch_gobiz_merchant_info(clean_tok)
-                if res.get("success"):
-                    cfg["gobiz"]["server_key"] = res["server_key"]
-                    cfg["gobiz"]["pop_id"] = res["pop_id"]
-                    cfg["gobiz"]["outlet_id"] = res["outlet_id"]
-                    cfg["gobiz"]["merchant_name"] = res["merchant_name"]
-                    cfg["gobiz"]["city"] = res["city"]
-                    if res.get("raw_qris"):
-                        cfg["gobiz"]["raw_qris"] = res["raw_qris"]
-                    print(f"\n[V] AUTO-DISCOVERY BERHASIL! Toko: {res['merchant_name']} ({res['city']})")
+                clean_tok = extract_token_from_input(clip_data)
+                if not clean_tok:
+                    print("[!] Tidak ditemukan token atau cURL yang valid di clipboard Windows.")
+                    time.sleep(2.0)
                 else:
-                    print(f"[!] Token tersimpan, tetapi auto-discovery gagal: {res.get('error')}")
-                save_config(cfg)
+                    print(f"[*] Token terdeteksi dari Clipboard: {clean_tok[:18]}...")
+                    print("[*] Menghubungi server GoBiz untuk verifikasi toko...")
+                    res = fetch_gobiz_merchant_info(clean_tok)
+                    if res.get("success"):
+                        new_acc = {
+                            "account_name": res.get("merchant_name") or f"Akun GoBiz #{len(accounts) + 1}",
+                            "mode": "api",
+                            "raw_qris": res.get("raw_qris", ""),
+                            "merchant_id": res.get("merchant_id", ""),
+                            "outlet_id": res.get("outlet_id", ""),
+                            "pop_id": res.get("pop_id", ""),
+                            "server_key": res.get("server_key", ""),
+                            "client_key": res.get("client_key", ""),
+                            "auth_token": clean_tok,
+                            "merchant_name": res.get("merchant_name", "TOKO GOBIZ"),
+                            "city": res.get("city", "INDONESIA"),
+                            "auto_random_merchant": True
+                        }
+                        found_idx = -1
+                        for i, existing in enumerate(accounts):
+                            if (new_acc["outlet_id"] and existing.get("outlet_id") == new_acc["outlet_id"]) or \
+                               (new_acc["merchant_id"] and existing.get("merchant_id") == new_acc["merchant_id"]):
+                                found_idx = i
+                                break
+                        if found_idx >= 0:
+                            accounts[found_idx] = new_acc
+                            print(f"\n[V] Akun #{found_idx + 1} berhasil diperbarui: {new_acc['merchant_name']} ({new_acc['city']})")
+                        else:
+                            accounts.append(new_acc)
+                            print(f"\n[V] Akun #{len(accounts)} berhasil ditambahkan: {new_acc['merchant_name']} ({new_acc['city']})")
+                        cfg["gobiz_accounts"] = accounts
+                        cfg["gobiz"] = accounts[active_idx]
+                        save_config(cfg)
+                    else:
+                        print(f"[X] Gagal verifikasi GoBiz: {res.get('error')}")
+                    wait_any_key("\n Tekan sembarang tombol untuk melanjutkan...")
+        elif p == "2":
+            new_input = input("\n Paste Token JWT atau cURL Perintah GoBiz: ").strip()
+            if new_input:
+                clean_tok = extract_token_from_input(new_input)
+                if clean_tok:
+                    print(f"[*] Token diekstrak: {clean_tok[:18]}...")
+                    print("[*] Menghubungi server GoBiz untuk verifikasi toko...")
+                    res = fetch_gobiz_merchant_info(clean_tok)
+                    if res.get("success"):
+                        new_acc = {
+                            "account_name": res.get("merchant_name") or f"Akun GoBiz #{len(accounts) + 1}",
+                            "mode": "api",
+                            "raw_qris": res.get("raw_qris", ""),
+                            "merchant_id": res.get("merchant_id", ""),
+                            "outlet_id": res.get("outlet_id", ""),
+                            "pop_id": res.get("pop_id", ""),
+                            "server_key": res.get("server_key", ""),
+                            "client_key": res.get("client_key", ""),
+                            "auth_token": clean_tok,
+                            "merchant_name": res.get("merchant_name", "TOKO GOBIZ"),
+                            "city": res.get("city", "INDONESIA"),
+                            "auto_random_merchant": True
+                        }
+                        found_idx = -1
+                        for i, existing in enumerate(accounts):
+                            if (new_acc["outlet_id"] and existing.get("outlet_id") == new_acc["outlet_id"]) or \
+                               (new_acc["merchant_id"] and existing.get("merchant_id") == new_acc["merchant_id"]):
+                                found_idx = i
+                                break
+                        if found_idx >= 0:
+                            accounts[found_idx] = new_acc
+                            print(f"\n[V] Akun #{found_idx + 1} berhasil diperbarui: {new_acc['merchant_name']} ({new_acc['city']})")
+                        else:
+                            accounts.append(new_acc)
+                            print(f"\n[V] Akun #{len(accounts)} berhasil ditambahkan: {new_acc['merchant_name']} ({new_acc['city']})")
+                        cfg["gobiz_accounts"] = accounts
+                        cfg["gobiz"] = accounts[active_idx]
+                        save_config(cfg)
+                    else:
+                        print(f"[X] Gagal verifikasi GoBiz: {res.get('error')}")
+                else:
+                    print("[!] Token atau cURL tidak valid.")
                 wait_any_key("\n Tekan sembarang tombol untuk melanjutkan...")
-    elif p == "3":
-        new_input = input("\n Paste Token JWT atau cURL Perintah GoBiz: ").strip()
-        if new_input:
-            clean_tok = extract_token_from_input(new_input)
-            cfg["gobiz"]["auth_token"] = clean_tok
-            print(f"[*] Token diekstrak: {(clean_tok[:15] + '...') if clean_tok else '(Kosong)'}")
-            res = fetch_gobiz_merchant_info(clean_tok)
-            if res.get("success"):
-                cfg["gobiz"]["server_key"] = res["server_key"]
-                cfg["gobiz"]["pop_id"] = res["pop_id"]
-                cfg["gobiz"]["outlet_id"] = res["outlet_id"]
-                cfg["gobiz"]["merchant_name"] = res["merchant_name"]
-                cfg["gobiz"]["city"] = res["city"]
-                if res.get("raw_qris"):
-                    cfg["gobiz"]["raw_qris"] = res["raw_qris"]
-                print(f"[V] Token Valid! Toko: {res['merchant_name']}")
+        elif p == "3":
+            if not accounts:
+                print("\n[!] Belum ada akun yang terdaftar.")
+                time.sleep(1.5)
             else:
-                print(f"[!] Token disimpan, tetapi auto-discovery gagal: {res.get('error')}")
+                pilih_acc = input(f"\n Masukkan nomor akun yang ingin dijadikan aktif [1-{len(accounts)}]: ").strip()
+                if pilih_acc.isdigit():
+                    idx_pilih = int(pilih_acc) - 1
+                    if 0 <= idx_pilih < len(accounts):
+                        cfg["gobiz_active_index"] = idx_pilih
+                        cfg["gobiz"] = accounts[idx_pilih]
+                        save_config(cfg)
+                        print(f"[V] Akun aktif berhasil diubah ke #{idx_pilih + 1}: {accounts[idx_pilih].get('merchant_name')}")
+                        time.sleep(1.5)
+                    else:
+                        print("[X] Nomor akun di luar rentang.")
+                        time.sleep(1.0)
+        elif p == "4":
+            curr_rot = cfg.get("gobiz_shift_rotation", True)
+            cfg["gobiz_shift_rotation"] = not curr_rot
             save_config(cfg)
-            time.sleep(2.0)
-    elif p == "4":
-        curr = cfg["gobiz"].get("auto_random_merchant", True)
-        cfg["gobiz"]["auto_random_merchant"] = not curr
-        save_config(cfg)
-        status_txt = "Aktif (Stealth)" if not curr else "Non-Aktif (Nama Asli Toko)"
-        print(f"\n[V] Acak nama merchant sekarang: {status_txt}")
-        time.sleep(1.0)
+            stat = "AKTIF (Selang-Seling Tiap Siklus Transaksi)" if not curr_rot else "NON-AKTIF"
+            print(f"\n[V] Rotasi Shift sekarang: {stat}")
+            time.sleep(1.5)
+        elif p == "5":
+            if not accounts:
+                print("\n[!] Belum ada akun yang terdaftar.")
+                time.sleep(1.5)
+            else:
+                print("\n[*] Menyinkronkan seluruh akun GoBiz...")
+                for idx, acc in enumerate(accounts):
+                    tok = acc.get("auth_token", "")
+                    if tok:
+                        print(f" -> Sinkronisasi Akun #{idx + 1} ({acc.get('merchant_name', 'TOKO')})...")
+                        res = fetch_gobiz_merchant_info(tok)
+                        if res.get("success"):
+                            acc["server_key"] = res["server_key"]
+                            acc["pop_id"] = res["pop_id"]
+                            acc["outlet_id"] = res["outlet_id"]
+                            acc["merchant_name"] = res["merchant_name"]
+                            acc["city"] = res["city"]
+                            if res.get("raw_qris"):
+                                acc["raw_qris"] = res["raw_qris"]
+                            print(f"    [V] Sukses: {res['merchant_name']} ({res['city']})")
+                        else:
+                            print(f"    [X] Gagal: {res.get('error')}")
+                cfg["gobiz_accounts"] = accounts
+                cfg["gobiz"] = accounts[active_idx]
+                save_config(cfg)
+                wait_any_key("\n Selesai sinkronisasi. Tekan sembarang tombol...")
+        elif p == "6":
+            if not accounts:
+                print("\n[!] Tidak ada akun yang bisa dihapus.")
+                time.sleep(1.5)
+            else:
+                del_str = input(f"\n Masukkan nomor akun yang ingin dihapus [1-{len(accounts)}]: ").strip()
+                if del_str.isdigit():
+                    del_idx = int(del_str) - 1
+                    if 0 <= del_idx < len(accounts):
+                        removed = accounts.pop(del_idx)
+                        cfg["gobiz_accounts"] = accounts
+                        if active_idx >= len(accounts):
+                            active_idx = max(0, len(accounts) - 1)
+                        cfg["gobiz_active_index"] = active_idx
+                        if accounts:
+                            cfg["gobiz"] = accounts[active_idx]
+                        else:
+                            cfg["gobiz"] = {}
+                        save_config(cfg)
+                        print(f"[V] Akun '{removed.get('merchant_name')}' berhasil dihapus.")
+                        time.sleep(1.5)
+                    else:
+                        print("[X] Nomor akun di luar rentang.")
+                        time.sleep(1.0)
+        elif p == "7":
+            if accounts:
+                curr_stealth = accounts[active_idx].get("auto_random_merchant", True)
+                new_stealth = not curr_stealth
+                for acc in accounts:
+                    acc["auto_random_merchant"] = new_stealth
+                cfg.setdefault("gobiz", {})["auto_random_merchant"] = new_stealth
+                save_config(cfg)
+                stat = "AKTIF (Stealth Acak)" if new_stealth else "NON-AKTIF (Nama Asli Toko)"
+                print(f"\n[V] Acak nama merchant sekarang: {stat}")
+                time.sleep(1.5)
 
 def menu_generate_qris():
     while True:
         cfg = load_config()
-        gobiz_cfg = cfg.get("gobiz", {})
-        current_mode = (gobiz_cfg.get("mode") or "api").upper()
-        server_key_set = bool(gobiz_cfg.get("server_key"))
+        accounts = get_gobiz_accounts(cfg)
+        active_idx = int(cfg.get("gobiz_active_index", 0)) % len(accounts) if accounts else 0
+        active_acc = get_active_gobiz_account(cfg)
+        current_mode = (active_acc.get("mode") or "api").upper()
+        server_key_set = bool(active_acc.get("server_key"))
         default_nom = int(cfg.get("default_qris_nominal", 18501))
+        rot_on = cfg.get("gobiz_shift_rotation", True)
 
         clear_screen()
         print("="*65)
         print("        GENERATOR GOBIZ QRIS & PUSH KE GALERI HP")
         print("="*65)
         engine_label = "[API MIDTRANS RESMI]" if (current_mode == "API" and server_key_set) else "[STANDALONE OFFLINE]"
+        rot_lbl = " (Shift Rotasi Otomatis AKTIF)" if rot_on and len(accounts) > 1 else ""
         print(f" Mode Engine    : {engine_label}")
-        print(f" Merchant Resmi : {gobiz_cfg.get('merchant_name', 'TOKO GOBIZ MERCHANT')}")
+        print(f" Merchant Aktif : Akun #{active_idx + 1}: {active_acc.get('merchant_name', 'TOKO GOBIZ MERCHANT')}{rot_lbl}")
         print(f" Nominal Default: Rp {default_nom:,}".replace(",", "."))
         print("="*65)
         print(f" [1] Generate QRIS Nominal Standar (Rp {default_nom:,})".replace(",", "."))
         print(f" [2] Set Nominal Default Baru (Sekarang: Rp {default_nom:,})".replace(",", "."))
         print(f" [3] Ganti Mode Engine (Sekarang: {current_mode})")
-        print(" [4] Atur Kredensial GoBiz (Server Key / Token JWT / Stealth)")
+        print(f" [4] Atur Multi-Akun GoBiz & Shift Rotasi ({len(accounts)} Akun Terdaftar)")
         print(" [0] Kembali ke Menu Sebelumnya")
         print("="*65)
 
@@ -1542,6 +1697,10 @@ def menu_generate_qris():
                 time.sleep(1.0)
         elif sub_pil == "3":
             new_mode = "standalone" if current_mode == "API" else "api"
+            active_acc["mode"] = new_mode
+            if accounts:
+                accounts[active_idx]["mode"] = new_mode
+                cfg["gobiz_accounts"] = accounts
             cfg.setdefault("gobiz", {})["mode"] = new_mode
             save_config(cfg)
             print(f"\n[V] Mode GoBiz diubah ke: {new_mode.upper()}!")
@@ -1561,6 +1720,10 @@ def menu_manage_steps():
         "k": "0.2",
         "l": "0.3",
         "m": "0.4",
+        "o": "0.5",
+        "u": "0.6",
+        "v": "0.7",
+        "w": "0.8",
         "1": "1",
         "2": "2",
         "3": "3",
@@ -1590,9 +1753,13 @@ def menu_manage_steps():
             return "[OFF ]" if step_map.get(sid, {}).get("is_off") else "[ ON ]"
 
         print(f" [J] Step 0.1 {_st('0.1')} : {step_map.get('0.1', {}).get('name', 'Buka Pengaturan Iklan Google')}")
-        print(f" [K] Step 0.2 {_st('0.2')} : {step_map.get('0.2', {}).get('name', 'Ketuk Reset Advertising ID')}")
-        print(f" [L] Step 0.3 {_st('0.3')} : {step_map.get('0.3', {}).get('name', 'Ketuk Confirm Dialog Reset ID')}")
-        print(f" [M] Step 0.4 {_st('0.4')} : {step_map.get('0.4', {}).get('name', 'Tutup Pengaturan Iklan & Kembali')}")
+        print(f" [K] Step 0.2 {_st('0.2')} : {step_map.get('0.2', {}).get('name', 'Ketuk Delete Advertising ID')}")
+        print(f" [L] Step 0.3 {_st('0.3')} : {step_map.get('0.3', {}).get('name', 'Ketuk Tombol Hijau Delete ID')}")
+        print(f" [M] Step 0.4 {_st('0.4')} : {step_map.get('0.4', {}).get('name', 'Ketuk Get New Advertising ID')}")
+        print(f" [O] Step 0.5 {_st('0.5')} : {step_map.get('0.5', {}).get('name', 'Ketuk Confirm Dialog Get New ID')}")
+        print(f" [U] Step 0.6 {_st('0.6')} : {step_map.get('0.6', {}).get('name', 'Ketuk Reset Advertising ID')}")
+        print(f" [V] Step 0.7 {_st('0.7')} : {step_map.get('0.7', {}).get('name', 'Ketuk Confirm Dialog Reset ID')}")
+        print(f" [W] Step 0.8 {_st('0.8')} : {step_map.get('0.8', {}).get('name', 'Tutup Pengaturan Iklan & Kembali')}")
         print("-"*70)
         print(f" [1] Step 1   {_st('1')} : {step_map.get('1', {}).get('name', 'Scan QR Bitget')}")
         print(f" [2] Step 2   {_st('2')} : {step_map.get('2', {}).get('name', 'Galeri Scanner')}")
@@ -1612,7 +1779,7 @@ def menu_manage_steps():
         print(" [F] Sub-Tap : Pilih Token USDC Morph Paling Atas Saja (517 1536)")
         print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
         print(" [P] Sub-Tap : Ketik Sandi PIN 080808 Saja")
-        print(" [I] Sub-Tap : Jalankan Alur Penuh Reset GAID (Step 0.1 s/d 0.4)")
+        print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.8)")
         print(" [T] Atur ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")
         print(" [N] Buka / Edit File kordinat_qris_morph.txt di Notepad")
         print(" [0] Kembali ke Menu Sebelumnya")
@@ -1622,7 +1789,7 @@ def menu_manage_steps():
             print(f" Status: {last_tested_msg}\n")
             last_tested_msg = ""
 
-        key = get_key_press(" Tekan Tombol [1-9 / A-G / P / I / T / N / 0]: ").strip().lower()
+        key = get_key_press(" Tekan Tombol [1-9 / A-G / J-M / O / U-W / P / I / T / N / 0]: ").strip().lower()
 
         if key == "0":
             break
@@ -1633,12 +1800,10 @@ def menu_manage_steps():
                 os.system(f'notepad "{KORDINAT_FILE}"')
             last_tested_msg = "Membuka file koordinat di Notepad..."
         elif key == "i":
-            print("\n[>] Menjalankan Alur Reset Google Advertising ID (Step 0.1 s/d 0.4)...")
-            runner.execute_macro_step("0.1", force=True)
-            runner.execute_macro_step("0.2", force=True)
-            runner.execute_macro_step("0.3", force=True)
-            runner.execute_macro_step("0.4", force=True)
-            last_tested_msg = "[V] Alur Step 0.1 s/d 0.4 (Reset GAID) selesai dieksekusi!"
+            print("\n[>] Menjalankan Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.8)...")
+            for sid in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8"]:
+                runner.execute_macro_step(sid, force=True)
+            last_tested_msg = "[V] Alur Step 0.1 s/d 0.8 (Reset GAID Lengkap) selesai dieksekusi!"
         elif key == "e":
             print("\n[>] Mengetuk kolom Jumlah pembayaran (916, 1594)...")
             runner.adb.tap(916, 1594, delay_after=1.0)
