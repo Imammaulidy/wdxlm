@@ -238,7 +238,7 @@ def fetch_gobiz_merchant_info(auth_token: str, timeout: int = 10) -> Dict[str, A
             server_key = data.get("server_key", "")
             client_key = data.get("client_key", "")
             m_name = data.get("merchant_name") or data.get("vtweb_settings", {}).get("display_name", "")
-            raw_city = data.get("outlet_city") or data.get("aspi", {}).get("merchant_city", "CILEGON")
+            raw_city = data.get("outlet_city") or data.get("aspi", {}).get("merchant_city", "JAKARTA")
             m_city = str(raw_city)[4:].strip() if str(raw_city).startswith("6007") else str(raw_city).strip()
 
             return {
