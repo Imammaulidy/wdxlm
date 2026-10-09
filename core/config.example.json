@@ -114,9 +114,35 @@
         "address": "0x0000000000000000000000000000000000000000",
         "private_key": "0x0000000000000000000000000000000000000000000000000000000000000000"
     },
-    "base": {
-        "chain_id": 8453,
-        "rpc_url": "https://mainnet.base.org",
-        "usdc_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    "active_chain": "base",
+    "chains": {
+        "base": {
+            "name": "Base Network (Coinbase L2)",
+            "chain_id": 8453,
+            "native_symbol": "ETH",
+            "rpc_url": "https://mainnet.base.org",
+            "usdc_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        },
+        "morph": {
+            "name": "Morph L2",
+            "chain_id": 2818,
+            "native_symbol": "ETH",
+            "rpc_url": "https://rpc.morphl2.io",
+            "usdc_contract": "0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B"
+        },
+        "arbitrum": {
+            "name": "Arbitrum One",
+            "chain_id": 42161,
+            "native_symbol": "ETH",
+            "rpc_url": "https://arb1.arbitrum.io/rpc",
+            "usdc_contract": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+        },
+        "polygon": {
+            "name": "Polygon PoS",
+            "chain_id": 137,
+            "native_symbol": "POL",
+            "rpc_url": "https://polygon-rpc.com",
+            "usdc_contract": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+        }
     }
 }

@@ -1,112 +1,130 @@
-# 🚀 BOT AUTO WD XLM & CREATOR BITGET WALLET (ADB MULTI-DEVICE)
+# 🚀 BOT AUTO WD XLM, CREATOR BITGET & QRIS MULTI-CHAIN EVM (ADB STANDALONE)
 
-Bot otomatisasi cerdas untuk melakukan **Withdraw (WD) XLM secara massal** serta **Pembuatan Akun Dompet Baru (Create Account)** dari akun kloningan Bitget Wallet menggunakan ADB, dilengkapi **Web UI Dashboard** modern berbasis Glassmorphism serta CLI terminal interaktif.
+Ekosistem otomasi cerdas untuk **Withdraw (WD) XLM Massal**, **Pembuatan Akun Dompet Baru (Create Account)**, dan **Bot QRIS Payment & Tebar Saldo Multi-Chain EVM (Base / Morph / Arbitrum / Polygon / BSC)** dari Bitget Wallet menggunakan ADB Android.
 
 ---
 
 ## ⚡ SHORTCUT MENJALANKAN BOT
 
-### 🌐 Mode Web UI Dashboard (Rekomendasi PC):
-Cukup double-click **`WEB_UI.bat`** di Windows!
-Browser otomatis terbuka di:
+### 🌐 1. Mode Web UI Dashboard (Rekomendasi PC):
+Double-click **`WEB_UI.bat`** di Windows. Browser otomatis terbuka di:
 👉 **`http://127.0.0.1:5000`**
 
-### 💻 Mode Terminal / CLI (Windows):
+### 💎 2. Mode Bot QRIS & Multi-Chain EVM (Base / Morph):
+Double-click **`GAS QRIS MORPH.bat`** atau jalankan via terminal:
+```bash
+python core/qris_morph.py
+```
+
+### 💻 3. Mode Terminal WD XLM & Creator:
 Double-click **`GAS WD.bat`** atau jalankan via terminal:
 ```bash
 python core/menu.py
 ```
 
-### 📱 Mode Termux (Android tanpa PC):
-Jalankan runner all-in-one di aplikasi Termux:
+### 📱 4. Mode Termux (Android tanpa PC):
+Jalankan runner di aplikasi Termux:
 ```bash
 bash run.sh
 ```
 
 ---
 
-## ✨ Fitur Utama
+## ✨ FITUR UTAMA SISTEM
 
-- 🆕 **Bot Auto Create Account Bitget Wallet:**
-  - Otomatisasi alur pendaftaran dompet baru di clone Bitget Wallet (`core/create_account.py`).
-  - Mendukung input PIN 6 digit dinamis via keypad mapping.
-  - Penanganan otomatis dialog Biometric Fingerprint & penundaan Mnemonic Backup.
-  - Pencatatan log riwayat pembuatan akun di `core/created_accounts.json`.
-  - Script koordinat terpisah yang dapat di-custom (`core/kordinat_create_account.txt`).
-- 🌐 **Web UI Controller Dashboard:**
-  - Dashboard modern bertema Dark Glassmorphism.
-  - Streaming log terminal real-time via Server-Sent Events (SSE).
-  - Kontrol one-click: Mulai Bot (WD XLM / Create Account), Lanjut Loop Akun Berikutnya (ENTER), Stop Bot.
-  - Shortcut keyboard: Cukup tekan tombol `ENTER` untuk melanjutkan ke clone berikutnya.
-  - Pengelola visual langkah macro (`kordinat.txt` & `kordinat_create_account.txt`): toggle switch ON/OFF dan edit jeda waktu (`sleep`).
-  - Quick tools: Buka SCRCPY mirroring (120 FPS), set format bot, dan restore layar HP asli.
-- 📐 **Zero-Factory-Reset Screen Protection:**
-  - Otomatis membaca & merekam resolusi & DPI aktif yang sedang dipakai HP saat awal bot dijalankan.
-  - Menerapkan format bot (`1080x2400 @ 352 DPI`).
-  - Saat bot selesai atau ditutup, layar otomatis dipulihkan ke ukuran terekam (tanpa perintah `wm size reset` / `wm density reset`).
-- 🔁 **Continuous Loop Account WD & Creation:**
-  - Menyimpan nomor urutan clone terakhir (`start_index`) secara otomatis.
-  - Selesai satu akun, bot berhenti sejenak dan menunggu konfirmasi ENTER sebelum mengeksekusi akun berikutnya.
-- 📱 **Smart SCRCPY & Wi-Fi Auto-Detect:**
-  - Deteksi otomatis koneksi USB dan IP Wi-Fi lokal (`wlan0`/`wlan1`).
-  - Kabel USB dapat dicabut setelah tersambung tanpa mematikan sesi mirroring.
-- 📝 **Script Koordinat Dinamis (`core/kordinat.txt` & `core/kordinat_create_account.txt`):**
-  - Seluruh alur step, tap, swipe, sleep, dan PIN keypad 0–9 dapat dikustomisasi langsung.
+### 🔗 1. Dompet Tebar Multi-Chain EVM (Universal & Elastic):
+- **Bebas Pilih Jaringan (Multi-Chain Switcher):**
+  - **Base Network (Coinbase L2)** — *Default* (Chain ID: `8453`, Gas: `ETH`, Token: `USDC`)
+  - **Morph L2** (Chain ID: `2818`, Gas: `ETH`, Token: `USDC`)
+  - **Arbitrum One** (Chain ID: `42161`, Gas: `ETH`, Token: `USDC`)
+  - **Polygon PoS** (Chain ID: `137`, Gas: `POL`, Token: `USDC`)
+  - **BNB Smart Chain (BSC)** (Chain ID: `56`, Gas: `BNB`, Token: `USDC`)
+  - **Custom EVM Network** — Bebas tentukan Chain ID, Custom RPC URL, dan Kontrak Token ERC-20.
+- **Pengecekan Saldo Real-Time:** Membaca saldo Native Gas (ETH/POL/BNB) dan Token ERC-20 (USDC) langsung dari node on-chain.
+- **Transfer Otomatis ke Alamat Tuyul:** Melakukan transfer token dari wallet tebar ke dompet sasaran secara instan sesuai kebutuhan layar Bitget Wallet.
+- **Auto-Failover RPC:** Dilengkapi rotasi multi-node RPC publik untuk menjamin keandalan koneksi saat broadcast transaksi.
+
+### 💳 2. Bot QRIS GoBiz Dinamis & Multi-Akun Rotasi:
+- **Multi-Account Shift Rotation:** Mendukung penambahan multi akun GoBiz dengan mode rotasi bergantian (*selang-seling shift*) tiap satu siklus transaksi.
+- **Auto Push QR ke HP:** Gambar QRIS digenerate secara on-the-fly dan langsung dikirim ke memori internal HP (`/sdcard/Download/qris_pay.png`).
+- **Penyalinan Alamat Tuyul Otomatis:** Membaca alamat EVM deposit Bitget Wallet tuyul via clipboard / UI dump dan menyimpannya ke memori bot.
+
+### 🛡️ 3. Reset Identitas Clone & GAID Presisi:
+- **Pembersihan Cache & Force Stop:** Menghentikan dan membersihkan cache aplikasi kloningan (Dual Space / Multi App).
+- **Alur Baru Reset GAID (Google Advertising ID):**
+  - Delete advertising ID -> Confirm -> Get new advertising ID -> Confirm -> Reset advertising ID -> Confirm.
+- **Reset IP Jaringan (Mode Pesawat 3s):** Mematikan koneksi sesaat untuk mendapatkan alokasi IP baru sebelum membuka clone Bitget.
+
+### 📐 4. Zero-Factory-Reset Screen Protection:
+- Merekam resolusi & DPI asli perangkat saat bot dijalankan.
+- Mengatur ukuran kerja bot (`1080x2400 @ 352 DPI`).
+- Mengembalikan resolusi asli HP secara mulus saat bot selesai atau ditutup (tanpa perintah berbahaya `wm size reset` / `wm density reset`).
 
 ---
 
-## 🛠️ Persyaratan Sistem
+## 🛠️ PERSYARATAN SISTEM
 
 ### 📱 Di HP Android:
-1. **Multi App Ultra** (`com.waxmoon.ma.gp`) — Aplikasi clone Bitget Wallet.
-2. **Google Authenticator** — Aplikasi 2FA OTP.
+1. **Dual Space** (`com.xunijun.app.gp`) atau **Multi App Ultra** (`com.waxmoon.ma.gp`).
+2. **Bitget Wallet** terinstall di dalam aplikasi clone.
 3. **Opsi Pengembang (Developer Options):**
    - Aktifkan *Debugging USB* (untuk PC).
-   - Aktifkan *Proses Debug Nirkabel* / *Wireless Debugging* (untuk Termux).
+   - Aktifkan *Proses Debug Nirkabel* / *Wireless Debugging* (jika menggunakan koneksi Wi-Fi/Termux).
 
 ### 💻 Di PC / Windows:
-- Python 3.8+ terinstall (dengan Flask: `pip install flask`).
-- Driver ADB & scrcpy sudah tersedia di folder `core/`.
-
-### 📱 Di Android (Termux):
-- Unduh dan buka aplikasi **Termux** (disarankan versi F-Droid).
+- Python 3.8+ (`pip install -r requirements.txt` atau minimal `requests`, `eth-account`, `flask`).
+- Driver ADB & scrcpy sudah disertakan di folder `core/`.
 
 ---
 
-## 📥 PANDUAN PENGGUNAAN
+## ⚙️ STRUKTUR KONFIGURASI (`core/config.json`)
 
-### 🌐 1. Menggunakan Web UI Dashboard:
-1. Hubungkan HP via kabel USB (USB Debugging aktif).
-2. Jalankan file **`WEB_UI.bat`**.
-3. Browser akan otomatis membuka `http://127.0.0.1:5000`.
-4. Anda dapat:
-   - Mengatur nomor clone awal, alamat wallet XLM, dan PIN.
-   - Mengaktifkan/menonaktifkan langkah macro sesuai kebutuhan.
-   - Mengklik tombol **Mulai Auto WD**.
-   - Ketika selesai memproses 1 akun, tekan **Lanjut Clone Berikutnya** atau tekan tombol **ENTER** di keyboard.
+Contoh file template tersedia pada [`core/config.example.json`](core/config.example.json):
 
-### 💻 2. Menggunakan Menu Terminal (GAS WD.bat):
-1. Jalankan **`GAS WD.bat`**.
-2. Pilih **Opsi 7** (`KONEK ADB & SCRCPY`) untuk menghubungkan perangkat.
-3. Pilih **Opsi 1** (`MULAI WD OTOMATIS FULL`) untuk memulai proses loop.
-
----
-
-## ⚙️ PENGATURAN & SCRIPT KOORDINAT
-
-### 📝 Edit Langkah & Koordinat (`core/kordinat.txt`)
-Untuk melihat, menambah, merevisi seluruh koordinat klik, swipe, jeda waktu (*timing*), atau menonaktifkan step (tambah kata `OFF`), silakan buka:
-👉 **[`core/kordinat.txt`](core/kordinat.txt)**
-
-### 🔧 Konfigurasi (`core/config.json`)
-Dapat diedit langsung lewat Web Dashboard, menu terminal (**Opsi 3**), atau manual:
 ```json
 {
-    "total_akun": 1,
-    "start_index": 43,
-    "alamat_wd": "0x41739ee3a2641B096D0F0DD2427796f2A55d85aa",
-    "pin": "080808",
-    "last_wifi_ip": "192.168.1.24",
-    "disabled_steps": [0, 1, 11, 28, 29, 30, 33, 41, 42]
+    "active_chain": "base",
+    "chains": {
+        "base": {
+            "name": "Base Network (Coinbase L2)",
+            "chain_id": 8453,
+            "native_symbol": "ETH",
+            "rpc_url": "https://mainnet.base.org",
+            "usdc_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        },
+        "morph": {
+            "name": "Morph L2",
+            "chain_id": 2818,
+            "native_symbol": "ETH",
+            "rpc_url": "https://rpc.morphl2.io",
+            "usdc_contract": "0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B"
+        }
+    },
+    "wallet_tebar": {
+        "address": "0x26450eAA15C681Db5eBF3d9823B64D98D9ccD7BF",
+        "private_key": "0xYOUR_PRIVATE_KEY_HERE"
+    },
+    "default_qris_nominal": 10500,
+    "usdc_buffer": 0.0,
+    "fallback_rate": 17400,
+    "gobiz_accounts": [
+        {
+            "merchant_id": "G000000001",
+            "auth_token": "YOUR_TOKEN_1",
+            "merchant_name": "MERCHANT 1"
+        },
+        {
+            "merchant_id": "G000000002",
+            "auth_token": "YOUR_TOKEN_2",
+            "merchant_name": "MERCHANT 2"
+        }
+    ],
+    "gobiz_shift_rotation": true
 }
 ```
+
+---
+
+## 🔒 KEAMANAN & PRIVASI (GIT SANITIZATION)
+Proyek ini mematuhi standar sanitasi keamanan ketat:
+- Seluruh kredensial pribadi, private key, token GoBiz, email OTP, serta file database transaksi lokal dilindungi secara otomatis melalui [`.gitignore`](.gitignore) dan tidak akan pernah ter-push ke repository publik.

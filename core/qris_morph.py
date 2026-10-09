@@ -45,7 +45,7 @@ from gobiz_qris import (
     get_active_gobiz_account,
     rotate_gobiz_shift
 )
-from base_wallet import BaseWallet, MorphWallet
+from evm_wallet import EVMWallet, BaseWallet, MorphWallet, DEFAULT_CHAINS_PRESET
 
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
 CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
@@ -558,9 +558,17 @@ class BotRunner:
         self.config = load_config()
         self.adb = ADBController()
         self.qris_gen = GoBizQRISGenerator(self.config)
-        self.wallet = BaseWallet(
+        active_chain = self.config.get("active_chain", "base")
+        custom_rpc = (
+            self.config.get("chains", {}).get(active_chain, {}).get("rpc_url") or
+            self.config.get(active_chain, {}).get("rpc_url") or
+            self.config.get("base", {}).get("rpc_url") or
+            self.config.get("morph", {}).get("rpc_url")
+        )
+        self.wallet = EVMWallet(
             private_key=self.config.get("wallet_tebar", {}).get("private_key"),
-            custom_rpc=self.config.get("base", {}).get("rpc_url") or self.config.get("morph", {}).get("rpc_url")
+            chain_key=active_chain,
+            custom_rpc=custom_rpc
         )
         self.stopped = False
         self.is_manual = False
@@ -943,7 +951,10 @@ class BotRunner:
             buf_str = f" (Termasuk buffer aman +{buffer_usdc})" if buffer_usdc > 0 else ""
             print(f"[V] Nominal Ditransfer : {usdc_needed} USDC{buf_str}")
 
-        # 10. Kirim Saldo USDC Base dari Wallet Tebar
+        # 10. Kirim Saldo Token dari Wallet Tebar (Multi-Chain EVM)
+        chain_info = self.wallet.get_chain_info()
+        tok_symbol = chain_info.get("token_symbol", "USDC")
+        net_name = chain_info.get("name", "Base Network")
         pk_tebar = self.config.get("wallet_tebar", {}).get("private_key")
         if not pk_tebar:
             print("\n[!] PERINGATAN: Private Key wallet_tebar belum diatur di config.json!")
@@ -954,21 +965,21 @@ class BotRunner:
                 save_config(self.config)
 
         if self.wallet.private_key:
-            print(f"\n[*] Mengirim {usdc_needed} USDC (Base Network) ke {tuyul_addr}...")
+            print(f"\n[*] Mengirim {usdc_needed} {tok_symbol} ({net_name}) ke {tuyul_addr}...")
             try:
-                tx_res = self.wallet.send_usdc(tuyul_addr, usdc_needed)
+                tx_res = self.wallet.send_token(tuyul_addr, usdc_needed)
             except Exception as e:
                 tx_res = {"success": False, "error": f"Exception: {e}"}
 
             if tx_res.get("success"):
-                print(f"[V] Berhasil transfer {usdc_needed} USDC Base ke tuyul!")
+                print(f"[V] Berhasil transfer {usdc_needed} {tok_symbol} ({net_name}) ke tuyul!")
                 print(f"    Tx Hash : {tx_res.get('tx_hash')}")
                 print(f"    Explorer: {tx_res.get('explorer')}")
                 if not is_manual:
                     print("[*] Menunggu 4 detik agar saldo masuk...")
                     if not self.smart_sleep(4.0): return False
             else:
-                print(f"[X] Transfer USDC Base gagal: {tx_res.get('error')}")
+                print(f"[X] Transfer {tok_symbol} ({net_name}) gagal: {tx_res.get('error')}")
                 if is_manual:
                     c_ans = get_key_press(" Lanjutkan pembayaran di HP? [Y/n]: ").strip().lower()
                     if c_ans == 'n':
@@ -1220,14 +1231,17 @@ class BotRunner:
             tuyul_addr = input("\n>>> Masukkan Address EVM Tuyul: ").strip()
 
         if self.wallet.private_key and tuyul_addr:
-            print(f"\n[*] Mengirim {usdc_needed} USDC (Base Network) ke {tuyul_addr}...")
-            tx_res = self.wallet.send_usdc(tuyul_addr, usdc_needed)
+            chain_info = self.wallet.get_chain_info()
+            tok_sym = chain_info.get("token_symbol", "USDC")
+            net_name = chain_info.get("name", "Base Network")
+            print(f"\n[*] Mengirim {usdc_needed} {tok_sym} ({net_name}) ke {tuyul_addr}...")
+            tx_res = self.wallet.send_token(tuyul_addr, usdc_needed)
             if tx_res.get("success"):
-                print(f"[V] Berhasil transfer {usdc_needed} USDC Base ke tuyul!")
+                print(f"[V] Berhasil transfer {usdc_needed} {tok_sym} ({net_name}) ke tuyul!")
                 print(f"    Tx Hash : {tx_res.get('tx_hash')}")
                 print(f"    Explorer: {tx_res.get('explorer')}")
             else:
-                print(f"[X] Transfer USDC Base gagal: {tx_res.get('error')}")
+                print(f"[X] Transfer {tok_sym} ({net_name}) gagal: {tx_res.get('error')}")
 
         # Stopwatch tunggu saldo masuk ke Tuyul
         t_saldo = time.time()
@@ -1381,75 +1395,147 @@ def menu_screen_settings():
         wait_any_key()
 
 def menu_wallet_and_token():
-    cfg = load_config()
-    wt_cfg = cfg.get("wallet_tebar", {})
-    wallet = BaseWallet(
-        private_key=wt_cfg.get("private_key"),
-        custom_rpc=cfg.get("base", {}).get("rpc_url") or cfg.get("morph", {}).get("rpc_url")
-    )
+    while True:
+        cfg = load_config()
+        wt_cfg = cfg.get("wallet_tebar", {})
+        active_chain = cfg.get("active_chain", "base")
+        custom_rpc = (
+            cfg.get("chains", {}).get(active_chain, {}).get("rpc_url") or
+            cfg.get(active_chain, {}).get("rpc_url")
+        )
+        custom_chain_cfg = cfg.get("chains", {}).get(active_chain)
 
-    clear_screen()
-    print("="*65)
-    print("         DOMPET TEBAR - SALDO & TRANSFER BASE (USDC)")
-    print("="*65)
-    print(f" Address Wallet Tebar : {wallet.address or wt_cfg.get('address') or '(Belum diisi)'}")
-    print(f" Status Private Key   : {'Sudah Diatur' if wallet.private_key else 'KOSONG / Belum Diisi'}\n")
+        wallet = EVMWallet(
+            private_key=wt_cfg.get("private_key"),
+            chain_key=active_chain,
+            custom_rpc=custom_rpc,
+            custom_chain_config=custom_chain_cfg
+        )
 
-    addr_target = wallet.address or wt_cfg.get("address")
-    if addr_target:
-        print("[*] Mengambil saldo dari node Base Network...")
-        bals = wallet.get_balances(addr_target)
-        if bals.get("success"):
-            print(f" - Saldo Gas (ETH) : {bals['eth_balance']:.6f} ETH")
-            print(f" - Saldo USDC Base : {bals['usdc_balance']:.4f} USDC")
-        else:
-            print(f"[!] Gagal cek saldo: {bals.get('error')}")
-    print("="*65)
-    print(" [1] Atur / Ganti Private Key Wallet Tebar")
-    print(" [2] Test Transfer USDC Base ke Address Tertentu")
-    print(" [3] Cek Saldo Address Lain")
-    print(" [0] Kembali")
-    print("="*65)
+        clear_screen()
+        info = wallet.get_chain_info()
+        print("="*68)
+        print(f"      DOMPET TEBAR - MULTI-CHAIN EVM & TRANSFER {info['token_symbol']}")
+        print("="*68)
+        print(f" Jaringan Aktif       : {info['name']} (Chain ID: {info['chain_id']})")
+        print(f" Node RPC Terhubung   : {info['active_rpc']}")
+        print(f" Kontrak {info['token_symbol']:<12}: {info['contract']} (Decimals: {info['decimals']})")
+        print(f" Address Wallet Tebar : {wallet.address or wt_cfg.get('address') or '(Belum diisi)'}")
+        print(f" Status Private Key   : {'Sudah Diatur' if wallet.private_key else 'KOSONG / Belum Diisi'}\n")
 
-    pilihan = get_key_press(" Pilih opsi [0-3]: ").strip()
-    if pilihan == "1":
-        pk_in = input("\n Masukkan Private Key (0x...): ").strip()
-        if pk_in:
-            ok, res_addr = wallet.set_private_key(pk_in)
-            if ok:
-                cfg.setdefault("wallet_tebar", {})["private_key"] = pk_in
-                cfg["wallet_tebar"]["address"] = res_addr
+        addr_target = wallet.address or wt_cfg.get("address")
+        if addr_target:
+            print(f"[*] Mengambil saldo dari node {info['name']}...")
+            bals = wallet.get_balances(addr_target)
+            if bals.get("success"):
+                print(f" - Saldo Gas ({info['native_symbol']}) : {bals['gas_balance']:.6f} {info['native_symbol']}")
+                print(f" - Saldo {info['token_symbol']}         : {bals['usdc_balance']:.4f} {info['token_symbol']}")
+            else:
+                print(f"[!] Gagal cek saldo: {bals.get('error')}")
+        print("="*68)
+        print(" [1] Atur / Ganti Private Key Wallet Tebar")
+        print(f" [2] Test Transfer {info['token_symbol']} ({info['name']}) ke Address Tertentu")
+        print(" [3] Cek Saldo Address Lain di Jaringan Ini")
+        print(" [4] Ganti Jaringan Aktif (Multi-Chain Switcher: Base / Morph / Arb / Poly / BSC)")
+        print(" [5] Pengaturan Custom RPC / Kontrak Token Jaringan Aktif")
+        print(" [0] Kembali ke Menu Utama")
+        print("="*68)
+
+        pilihan = get_key_press(" Pilih opsi [0-5]: ").strip().lower()
+        if pilihan == "0":
+            break
+        elif pilihan == "1":
+            pk_in = input("\n Masukkan Private Key Wallet Tebar (0x...): ").strip()
+            if pk_in:
+                ok, res_addr = wallet.set_private_key(pk_in)
+                if ok:
+                    cfg.setdefault("wallet_tebar", {})["private_key"] = pk_in
+                    cfg["wallet_tebar"]["address"] = res_addr
+                    save_config(cfg)
+                    print(f"[V] Private key berhasil disimpan! Address: {res_addr}")
+                else:
+                    print(f"[X] Gagal: {res_addr}")
+                wait_any_key()
+        elif pilihan == "2":
+            if not wallet.private_key:
+                print("\n[!] Private key belum diisi! Silakan isi private key terlebih dahulu.")
+                wait_any_key()
+                continue
+            to_addr = input("\n Masukkan address target tuyul: ").strip()
+            amt_str = input(f" Masukkan nominal {info['token_symbol']}: ").strip()
+            try:
+                amt = float(amt_str)
+                res = wallet.send_token(to_addr, amt)
+                if res.get("success"):
+                    print(f"\n[V] Transfer Sukses! TxHash: {res.get('tx_hash')}")
+                    print(f"    Explorer: {res.get('explorer')}")
+                else:
+                    print(f"\n[X] Transfer Gagal: {res.get('error')}")
+            except ValueError:
+                print("[X] Nominal tidak valid.")
+            wait_any_key()
+        elif pilihan == "3":
+            addr_in = input("\n Masukkan address yang ingin dicek: ").strip()
+            bals = wallet.get_balances(addr_in)
+            if bals.get("success"):
+                print(f" - Saldo Gas ({info['native_symbol']}) : {bals['gas_balance']:.6f} {info['native_symbol']}")
+                print(f" - Saldo {info['token_symbol']}         : {bals['usdc_balance']:.4f} {info['token_symbol']}")
+            else:
+                print(f"[X] Error: {bals.get('error')}")
+            wait_any_key()
+        elif pilihan == "4":
+            clear_screen()
+            print("="*68)
+            print("          PILIH JARINGAN EVM AKTIF (MULTI-CHAIN SWITCHER)")
+            print("="*68)
+            print(f" [1] Base Network (Coinbase L2)  {'[AKTIF]' if active_chain == 'base' else ''}")
+            print(f" [2] Morph L2                    {'[AKTIF]' if active_chain == 'morph' else ''}")
+            print(f" [3] Arbitrum One                {'[AKTIF]' if active_chain == 'arbitrum' else ''}")
+            print(f" [4] Polygon PoS                 {'[AKTIF]' if active_chain == 'polygon' else ''}")
+            print(f" [5] BNB Smart Chain (BSC)       {'[AKTIF]' if active_chain == 'bsc' else ''}")
+            print(f" [6] Custom EVM Network          {'[AKTIF]' if active_chain == 'custom' else ''}")
+            print(" [0] Batal")
+            print("="*68)
+            c_pick = get_key_press(" Pilih jaringan [0-6]: ").strip()
+            chain_map = {
+                "1": "base",
+                "2": "morph",
+                "3": "arbitrum",
+                "4": "polygon",
+                "5": "bsc",
+                "6": "custom"
+            }
+            if c_pick in chain_map:
+                new_chain = chain_map[c_pick]
+                cfg["active_chain"] = new_chain
                 save_config(cfg)
-                print(f"[V] Private key berhasil disimpan! Address: {res_addr}")
-            else:
-                print(f"[X] Gagal: {res_addr}")
+                wallet.switch_chain(new_chain)
+                new_info = wallet.get_chain_info()
+                print(f"\n[V] Berhasil beralih ke jaringan: {new_info['name']} (Chain ID: {new_info['chain_id']})")
+                time.sleep(1.2)
+        elif pilihan == "5":
+            clear_screen()
+            print("="*68)
+            print(f"    PENGATURAN CUSTOM RPC / KONTRAK TOKEN ({info['name']})")
+            print("="*68)
+            print(f" Jaringan Aktif : {active_chain}")
+            print(f" RPC Saat Ini   : {info['active_rpc']}")
+            print(f" Kontrak Token  : {info['contract']}")
+            print("-"*68)
+            new_rpc = input(" Masukkan Custom RPC URL baru (ENTER untuk lewati): ").strip()
+            new_tok = input(" Masukkan Custom Kontrak Token baru (ENTER untuk lewati): ").strip()
+            chains_cfg = cfg.setdefault("chains", {})
+            cur_chain_entry = chains_cfg.setdefault(active_chain, {})
+            if new_rpc:
+                cur_chain_entry["rpc_url"] = new_rpc
+                print(f"[V] RPC URL diperbarui ke: {new_rpc}")
+            if new_tok:
+                tok_entry = cur_chain_entry.setdefault("token_usdc", {})
+                tok_entry["contract"] = new_tok
+                print(f"[V] Kontrak token diperbarui ke: {new_tok}")
+            if new_rpc or new_tok:
+                save_config(cfg)
             wait_any_key()
-    elif pilihan == "2":
-        if not wallet.private_key:
-            print("\n[!] Private key belum diisi! Silakan isi private key terlebih dahulu.")
-            wait_any_key()
-            return
-        to_addr = input("\n Masukkan address tujuan: ").strip()
-        amt_str = input(" Masukkan nominal USDC: ").strip()
-        try:
-            amt = float(amt_str)
-            res = wallet.send_usdc(to_addr, amt)
-            if res.get("success"):
-                print(f"\n[V] Transfer Sukses! Tx: {res.get('tx_hash')}")
-            else:
-                print(f"\n[X] Transfer Gagal: {res.get('error')}")
-        except ValueError:
-            print("[X] Nominal tidak valid.")
-        wait_any_key()
-    elif pilihan == "3":
-        addr_in = input("\n Masukkan address target: ").strip()
-        bals = wallet.get_balances(addr_in)
-        if bals.get("success"):
-            print(f" - ETH  : {bals['eth_balance']:.6f} ETH")
-            print(f" - USDC : {bals['usdc_balance']:.4f} USDC")
-        else:
-            print(f"[X] Error: {bals.get('error')}")
-        wait_any_key()
 
 def _do_generate_and_push(cfg, amount):
     generator = GoBizQRISGenerator(cfg)
@@ -1812,6 +1898,9 @@ def menu_manage_steps():
         print("      TEST KOORDINAT MACRO INSTAN (TETAP DI MENU TEST)")
         print("   Tekan angka / huruf langsung dieksekusi seketika tanpa ENTER!")
         print("="*70)
+        chain_info = runner.wallet.get_chain_info()
+        tok_symbol = chain_info.get("token_symbol", "USDC")
+        net_name = chain_info.get("name", "Base Network")
         steps = parse_macro_steps()
         step_map = {str(s["id"]): s for s in steps}
 
@@ -1834,14 +1923,14 @@ def menu_manage_steps():
         print(f" [6] Step 6   {_st('6')} : {step_map.get('6', {}).get('name', 'Terima Aset Kripto')}")
         print(f" [7] Step 7   {_st('7')} : {step_map.get('7', {}).get('name', 'Salin Address EVM Tuyul')}")
         print(f" [8] Step 8   {_st('8')} : {step_map.get('8', {}).get('name', 'Kembali ke Tinjau Order (Back 2x)')}")
-        print(" [D] Auto-Tebar  : Kirim Saldo USDC Base (Baca Layar & Transfer On-Chain)")
+        print(f" [D] Auto-Tebar  : Kirim Saldo {tok_symbol} ({net_name}) (Baca Layar & Transfer On-Chain)")
         print(f" [9] Step 9   {_st('9')} : {step_map.get('9', {}).get('name', 'Pilih Token & Konfirmasi Pembayaran')}")
         print(f" [A] Step 10  {_st('10')} : {step_map.get('10', {}).get('name', 'Input PIN Transaksi')}")
         print(f" [B] Step 11  {_st('11')} : {step_map.get('11', {}).get('name', 'Masuk Event Cashback')}")
         print(f" [C] Step 12  {_st('12')} : {step_map.get('12', {}).get('name', 'Claim Reward')}")
         print("-"*70)
         print(" [E] Sub-Tap : Klik Kolom Jumlah Pembayaran Saja (916 1594)")
-        print(" [F] Sub-Tap : Pilih Token USDC Base Paling Atas Saja (517 1536)")
+        print(f" [F] Sub-Tap : Pilih Token {tok_symbol} Paling Atas Saja (517 1536)")
         print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
         print(" [P] Sub-Tap : Ketik Sandi PIN 080808 Saja")
         print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)")
@@ -1874,9 +1963,9 @@ def menu_manage_steps():
             runner.adb.tap(916, 1594, delay_after=1.0)
             last_tested_msg = "[V] Kolom Jumlah pembayaran diketuk."
         elif key == "f":
-            print("\n[>] Mengetuk item USDC Base paling atas (517, 1536)...")
+            print(f"\n[>] Mengetuk item {tok_symbol} {net_name} paling atas (517, 1536)...")
             runner.adb.tap(517, 1536, delay_after=1.0)
-            last_tested_msg = "[V] Item USDC Base diketuk."
+            last_tested_msg = f"[V] Item {tok_symbol} diketuk."
         elif key == "g":
             print("\n[>] Mengetuk tombol Konfirmasi Pembayaran (540, 2193)...")
             runner.adb.tap(540, 2193, delay_after=1.0)
@@ -1893,36 +1982,36 @@ def menu_manage_steps():
                 if not (tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
                     tuyul_addr = input("\n Masukkan Address EVM Tuyul: ").strip()
 
-                print("\n[*] Mendeteksi nominal tagihan USDC dari layar HP...")
+                print(f"\n[*] Mendeteksi nominal tagihan {tok_symbol} dari layar HP...")
                 detected = runner.adb.read_required_usdc_from_screen()
                 buffer_usdc = float(runner.config.get("usdc_buffer", 0.006))
                 if detected:
                     send_amt = round(detected + buffer_usdc, 4)
-                    print(f" - Kebutuhan Layar : {detected} USDC")
-                    print(f" - Siap Ditransfer  : {send_amt} USDC (Termasuk buffer aman +{buffer_usdc})")
+                    print(f" - Kebutuhan Layar : {detected} {tok_symbol}")
+                    print(f" - Siap Ditransfer  : {send_amt} {tok_symbol} (Termasuk buffer aman +{buffer_usdc})")
                 else:
                     safe_rate = float(runner.config.get("fallback_rate", 17400.0))
                     cur_nom = int(runner.config.get("default_qris_nominal", 18501))
                     base_est = round(cur_nom / safe_rate, 4)
                     send_amt = round(base_est + buffer_usdc, 4)
-                    print(f" [!] Nominal layar tidak terdeteksi, estimasi kurs aman: {send_amt} USDC (Buffer +{buffer_usdc})")
+                    print(f" [!] Nominal layar tidak terdeteksi, estimasi kurs aman: {send_amt} {tok_symbol} (Buffer +{buffer_usdc})")
 
                 print(f" - Target Tuyul    : {tuyul_addr}")
                 print("\n [Y] Eksekusi Transfer Sekarang")
                 print(" [N] Batal")
                 cf = get_key_press(" Konfirmasi [Y/n]: ").strip().lower()
                 if cf != 'n':
-                    print(f"\n[*] Mengirim {send_amt} USDC Base dari Wallet Tebar...")
-                    res = runner.wallet.send_usdc(tuyul_addr, send_amt)
+                    print(f"\n[*] Mengirim {send_amt} {tok_symbol} ({net_name}) dari Wallet Tebar...")
+                    res = runner.wallet.send_token(tuyul_addr, send_amt)
                     if res.get("success"):
                         tx = res.get('tx_hash')
                         print(f"\n[V] Sukses Transfer! Tx: {tx}")
                         print(f"    Explorer: {res.get('explorer')}")
                         print("[*] Menunggu 4 detik agar saldo masuk...")
                         time.sleep(4.0)
-                        last_tested_msg = f"[V] Saldo {send_amt} USDC Base terkirim ke Tuyul! Siap tekan Step 9 (Bayar)."
+                        last_tested_msg = f"[V] Saldo {send_amt} {tok_symbol} ({net_name}) terkirim ke Tuyul! Siap tekan Step 9 (Bayar)."
                     else:
-                        last_tested_msg = f"[X] Gagal kirim USDC: {res.get('error')}"
+                        last_tested_msg = f"[X] Gagal kirim {tok_symbol}: {res.get('error')}"
                 else:
                     last_tested_msg = "Pengiriman dibatalkan."
             except Exception as e:
@@ -1993,7 +2082,11 @@ def main():
         print(f" Mode Clone Aktif  : {clone_info['name']} ({clone_info['package']})")
         cur_nom = int(cfg.get('default_qris_nominal', 18501))
         nom_display = f"{cur_nom:,}".replace(",", ".")
+        active_chain_key = cfg.get("active_chain", "base")
+        preset_info = DEFAULT_CHAINS_PRESET.get(active_chain_key, {})
+        chain_name_display = preset_info.get("name", active_chain_key.upper())
         print(f" PIN Transaksi     : {cfg.get('pin', '080808')}")
+        print(f" Jaringan Tebar    : {chain_name_display} (Multi-Chain EVM)")
         print(f" Wallet Tebar      : {cfg.get('wallet_tebar', {}).get('address', 'Belum Diatur')}")
         print(f" Nominal Default   : Rp {nom_display}")
         print("="*70)
@@ -2003,7 +2096,7 @@ def main():
         print(" [4] Reset & Buka Clone Saja (Clear Cache + Reset ID Iklan + Mode Pesawat 3s + Launch)")
         print(" [5] Pilih / Ganti Aplikasi Clone (Dual Space / Multiple App / Multi App)")
         print(" [6] Generator GoBiz QRIS & Push ke HP (Uji Coba Gambar QR)")
-        print(" [7] Cek Saldo & Test Transfer USDC Base (Wallet Tebar)")
+        print(" [7] Dompet Tebar Multi-Chain (Cek Saldo, Switch Jaringan & Transfer)")
         print(" [8] Pengelolaan Layar & Resolusi HP (Auto 1080x2400 @ 352 DPI)")
         print(" [9] Kelola / Test Langkah Koordinat Macro (kordinat_qris_morph.txt)")
         print(" [T] Pengaturan ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")

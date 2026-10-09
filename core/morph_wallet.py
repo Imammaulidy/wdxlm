@@ -1,11 +1,25 @@
 """
-Base Network USDC Wallet Transfer Engine (Alias / Wrapper)
-===========================================================
-Mengalihkan ke modul base_wallet.py untuk jaringan Base Mainnet (Chain ID: 8453).
+Morph L2 USDC Wallet Transfer Engine (Facade)
+=============================================
+Mengarahkan ke modul evm_wallet.py untuk arsitektur multi-chain elastis.
 """
 
-from base_wallet import BaseWallet, BASE_CONFIG, to_checksum_address
+from evm_wallet import (
+    EVMWallet,
+    BaseWallet,
+    MorphWallet,
+    BASE_CONFIG,
+    MORPH_CONFIG,
+    DEFAULT_CHAINS_PRESET,
+    to_checksum_address
+)
 
-# Alias kompatibilitas
-MorphWallet = BaseWallet
-MORPH_CONFIG = BASE_CONFIG
+__all__ = [
+    "EVMWallet",
+    "BaseWallet",
+    "MorphWallet",
+    "BASE_CONFIG",
+    "MORPH_CONFIG",
+    "DEFAULT_CHAINS_PRESET",
+    "to_checksum_address"
+]

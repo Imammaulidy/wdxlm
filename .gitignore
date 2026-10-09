@@ -28,12 +28,14 @@ core/kordinat.backup_*.txt
 core/kordinat_backup_*.txt
 core/kordinat_create_account.backup.txt
 
-# 4. OS & Editor Artifacts
+# 4. File Hasil Generate Runtime
+core/qris_pay.png
+
+# 5. OS & Editor Artifacts
 .DS_Store
 Thumbs.db
 *.swp
 *.swo
 .vscode/
 .idea/
-folder pengecekan sanitasi git clone/
 
