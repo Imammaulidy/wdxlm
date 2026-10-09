@@ -297,12 +297,13 @@ def execute_toggle_steps_logic(target_file: str = KORDINAT_FILE, config_key: str
             update_all_kordinat_txt_steps_file(target_file, set_off=True)
             print(f"\n[!] Semua step DINONAKTIFKAN di {file_name}!")
             time.sleep(1)
-        elif pil.isdigit():
+        elif pil.replace('.', '', 1).isdigit():
             target_step = None
-            idx_pil = int(pil) - 1
-            if 0 <= idx_pil < len(steps):
-                target_step = steps[idx_pil]
-            else:
+            if pil.isdigit():
+                idx_pil = int(pil) - 1
+                if 0 <= idx_pil < len(steps):
+                    target_step = steps[idx_pil]
+            if not target_step:
                 for s in steps:
                     if str(s['id']) == pil:
                         target_step = s
@@ -671,6 +672,10 @@ class BotRunner:
             coords = self.config.get("keypad_coords_morph") or self.config.get("keypad_coords")
             self.adb.type_pin(pin_code, keypad_coords=coords, delay_step=0.3)
 
+        else:
+            # Perintah umum ADB shell (am, pm, cmd, monkey, dll)
+            self.adb.run(f"shell {cmd_line}")
+
         return not self.stopped
 
     def run_full_auto(self) -> bool:
@@ -719,15 +724,29 @@ class BotRunner:
         if self.stopped:
             return False
 
-        # 3. Reset Cache & paksa berhenti, mode pesawat 3 detik, reset GAID, buka clone
-        airplane_sec = self.config.get("airplane_seconds", 3)
-        if not self.adb.reset_and_launch(clone_key, airplane_seconds=airplane_sec, stop_checker=self.is_stopped):
+        # 3. Reset Atomik Clone: Paksa Berhenti & Bersihkan Cache
+        print("\n" + "="*60)
+        print(f" MEMULAI RESET ATOMIK CLONE: {clone_info['name']}")
+        print("="*60)
+        if not self.adb.force_stop_and_clear_cache(clone_key, stop_checker=self.is_stopped):
             return False
 
-        if is_manual:
-            if prompt_manual_step("Reset Cache & Buka Aplikasi Clone") == 'q':
-                self.stopped = True
-                return False
+        # Reset Google Advertising ID via Step Macro (bisa manual ENTER & rekam delay)
+        print("\n[*] Menjalankan Reset Google Advertising ID (ID Iklan)...")
+        if not self.run_step_flow("0.1", "Buka Pengaturan Iklan Google", is_manual): return False
+        if not self.run_step_flow("0.2", "Ketuk Reset Advertising ID", is_manual): return False
+        if not self.run_step_flow("0.3", "Ketuk Confirm Dialog Reset ID", is_manual): return False
+        if not self.run_step_flow("0.4", "Tutup Pengaturan Iklan & Kembali", is_manual): return False
+
+        # Mode Pesawat (Reset IP Jaringan)
+        airplane_sec = self.config.get("airplane_seconds", 3)
+        if not self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped):
+            return False
+
+        # Buka kembali aplikasi Clone
+        if not self.adb.launch_clone_app(clone_key, stop_checker=self.is_stopped):
+            return False
+        print("="*60 + "\n")
 
         # 4. Tunggu User Masuk ke Bitget Wallet di dalam Clone
         print("\n" + "-"*70)
@@ -930,36 +949,6 @@ class BotRunner:
         register_auto_restore()
         record_and_apply_bot_screen()
 
-        # Opsi Reset Clone sebelum rekam
-        print("\n[?] Apakah ingin Reset Cache & Buka Clone sebelum mulai merekam?")
-        print("    [Y] Ya, Reset Atomik Clone dulu")
-        print("    [N] Tidak, saya sudah siap di Beranda Bitget Wallet HP")
-        p_rst = get_key_press(" Pilihan [Y/n]: ").strip().lower()
-        if p_rst != 'n':
-            airplane_sec = self.config.get("airplane_seconds", 3)
-            self.adb.reset_and_launch(clone_key, airplane_seconds=airplane_sec, stop_checker=self.is_stopped)
-            print("\n" + "-"*70)
-            print(" [ACTION] SILAKAN BUKA BITGET WALLET DI DALAM CLONE HP SAMPAI DI BERANDA")
-            print("-"*70)
-            wait_any_key(">>> Siap di beranda Bitget? Tekan ENTER untuk mulai rekam: ")
-
-        # 3. Buat QRIS GoBiz Dinamis & Push ke HP
-        target_amount = int(self.config.get("default_qris_nominal", 18501))
-        print(f"\n[*] Membuat QRIS GoBiz Dinamis: Rp {target_amount:,}...".replace(",", "."))
-        ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
-        if not ok_qr:
-            print(f"[X] Gagal membuat QRIS: {qr_det.get('error')}")
-            return False
-
-        # Auto-Increment
-        self.config["default_qris_nominal"] = target_amount + 1
-        save_config(self.config)
-
-        ok_push, remote_qr = self.adb.push_qr_image(TEMP_QR_PATH)
-        if not ok_push:
-            print("[X] Gagal mengirim file QR ke HP.")
-            return False
-
         recorded = {}
 
         def record_single_step(step_id: str, label: str) -> str:
@@ -1034,6 +1023,54 @@ class BotRunner:
             recorded[step_id] = elapsed
             print(f"  [V] Delay Step {step_id} direkam: {elapsed}s -> disimpan ke file!")
             return 'ok'
+
+        # Opsi Reset Clone sebelum rekam
+        print("\n[?] Apakah ingin Reset Cache & Buka Clone sebelum mulai merekam?")
+        print("    [Y] Ya, Reset Atomik Clone & Rekam Delay ID Iklan (GAID)")
+        print("    [N] Tidak, saya sudah siap di Beranda Bitget Wallet HP")
+        p_rst = get_key_press(" Pilihan [Y/n]: ").strip().lower()
+        if p_rst != 'n':
+            print("\n" + "="*60)
+            print(f" MEMULAI RESET ATOMIK CLONE: {clone_info['name']}")
+            print("="*60)
+            self.adb.force_stop_and_clear_cache(clone_key, stop_checker=self.is_stopped)
+
+            print("\n[*] [FASE 0] MEREKAM DELAY RESET ID IKLAN (GOOGLE ADVERTISING ID)...")
+            res = record_single_step("0.1", "Buka Pengaturan Iklan Google")
+            if res == 'q': return False
+            res = record_single_step("0.2", "Ketuk Reset Advertising ID")
+            if res == 'q': return False
+            res = record_single_step("0.3", "Ketuk Confirm Dialog Reset ID")
+            if res == 'q': return False
+            res = record_single_step("0.4", "Tutup Pengaturan Iklan & Kembali")
+            if res == 'q': return False
+
+            airplane_sec = self.config.get("airplane_seconds", 3)
+            self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped)
+            self.adb.launch_clone_app(clone_key, stop_checker=self.is_stopped)
+            print("="*60 + "\n")
+
+            print("\n" + "-"*70)
+            print(" [ACTION] SILAKAN BUKA BITGET WALLET DI DALAM CLONE HP SAMPAI DI BERANDA")
+            print("-"*70)
+            wait_any_key(">>> Siap di beranda Bitget? Tekan ENTER untuk lanjut rekam: ")
+
+        # 3. Buat QRIS GoBiz Dinamis & Push ke HP
+        target_amount = int(self.config.get("default_qris_nominal", 18501))
+        print(f"\n[*] Membuat QRIS GoBiz Dinamis: Rp {target_amount:,}...".replace(",", "."))
+        ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+        if not ok_qr:
+            print(f"[X] Gagal membuat QRIS: {qr_det.get('error')}")
+            return False
+
+        # Auto-Increment
+        self.config["default_qris_nominal"] = target_amount + 1
+        save_config(self.config)
+
+        ok_push, remote_qr = self.adb.push_qr_image(TEMP_QR_PATH)
+        if not ok_push:
+            print("[X] Gagal mengirim file QR ke HP.")
+            return False
 
         # --- REKAM LANGKAH 1 s/d 4 (Scan QRIS Galeri) ---
         for sid, lbl in [
@@ -1520,6 +1557,10 @@ def menu_manage_steps():
     """Menu untuk melihat dan menguji langkah koordinat kordinat_qris_morph.txt."""
     runner = BotRunner()
     key_mapping = {
+        "j": "0.1",
+        "k": "0.2",
+        "l": "0.3",
+        "m": "0.4",
         "1": "1",
         "2": "2",
         "3": "3",
@@ -1548,25 +1589,30 @@ def menu_manage_steps():
         def _st(sid):
             return "[OFF ]" if step_map.get(sid, {}).get("is_off") else "[ ON ]"
 
-        print(f" [1] Step 1  {_st('1')} : {step_map.get('1', {}).get('name', 'Scan QR Bitget')}")
-        print(f" [2] Step 2  {_st('2')} : {step_map.get('2', {}).get('name', 'Galeri Scanner')}")
-        print(f" [3] Step 3  {_st('3')} : {step_map.get('3', {}).get('name', 'Pilih Gambar QR')}")
-        print(f" [4] Step 4  {_st('4')} : {step_map.get('4', {}).get('name', 'Selesai / Done')}")
-        print(f" [5] Step 5  {_st('5')} : {step_map.get('5', {}).get('name', 'Tombol Deposit')}")
-        print(f" [6] Step 6  {_st('6')} : {step_map.get('6', {}).get('name', 'Terima Aset Kripto')}")
-        print(f" [7] Step 7  {_st('7')} : {step_map.get('7', {}).get('name', 'Salin Address EVM Tuyul')}")
-        print(f" [8] Step 8  {_st('8')} : {step_map.get('8', {}).get('name', 'Kembali ke Tinjau Order (Back 2x)')}")
-        print(" [D] Auto-Tebar : Kirim Saldo USDC Morph (Baca Layar & Transfer On-Chain)")
-        print(f" [9] Step 9  {_st('9')} : {step_map.get('9', {}).get('name', 'Pilih Token & Konfirmasi Pembayaran')}")
-        print(f" [A] Step 10 {_st('10')} : {step_map.get('10', {}).get('name', 'Input PIN Transaksi')}")
-        print(f" [B] Step 11 {_st('11')} : {step_map.get('11', {}).get('name', 'Masuk Event Cashback')}")
-        print(f" [C] Step 12 {_st('12')} : {step_map.get('12', {}).get('name', 'Claim Reward')}")
+        print(f" [J] Step 0.1 {_st('0.1')} : {step_map.get('0.1', {}).get('name', 'Buka Pengaturan Iklan Google')}")
+        print(f" [K] Step 0.2 {_st('0.2')} : {step_map.get('0.2', {}).get('name', 'Ketuk Reset Advertising ID')}")
+        print(f" [L] Step 0.3 {_st('0.3')} : {step_map.get('0.3', {}).get('name', 'Ketuk Confirm Dialog Reset ID')}")
+        print(f" [M] Step 0.4 {_st('0.4')} : {step_map.get('0.4', {}).get('name', 'Tutup Pengaturan Iklan & Kembali')}")
+        print("-"*70)
+        print(f" [1] Step 1   {_st('1')} : {step_map.get('1', {}).get('name', 'Scan QR Bitget')}")
+        print(f" [2] Step 2   {_st('2')} : {step_map.get('2', {}).get('name', 'Galeri Scanner')}")
+        print(f" [3] Step 3   {_st('3')} : {step_map.get('3', {}).get('name', 'Pilih Gambar QR')}")
+        print(f" [4] Step 4   {_st('4')} : {step_map.get('4', {}).get('name', 'Selesai / Done')}")
+        print(f" [5] Step 5   {_st('5')} : {step_map.get('5', {}).get('name', 'Tombol Deposit')}")
+        print(f" [6] Step 6   {_st('6')} : {step_map.get('6', {}).get('name', 'Terima Aset Kripto')}")
+        print(f" [7] Step 7   {_st('7')} : {step_map.get('7', {}).get('name', 'Salin Address EVM Tuyul')}")
+        print(f" [8] Step 8   {_st('8')} : {step_map.get('8', {}).get('name', 'Kembali ke Tinjau Order (Back 2x)')}")
+        print(" [D] Auto-Tebar  : Kirim Saldo USDC Morph (Baca Layar & Transfer On-Chain)")
+        print(f" [9] Step 9   {_st('9')} : {step_map.get('9', {}).get('name', 'Pilih Token & Konfirmasi Pembayaran')}")
+        print(f" [A] Step 10  {_st('10')} : {step_map.get('10', {}).get('name', 'Input PIN Transaksi')}")
+        print(f" [B] Step 11  {_st('11')} : {step_map.get('11', {}).get('name', 'Masuk Event Cashback')}")
+        print(f" [C] Step 12  {_st('12')} : {step_map.get('12', {}).get('name', 'Claim Reward')}")
         print("-"*70)
         print(" [E] Sub-Tap : Klik Kolom Jumlah Pembayaran Saja (916 1594)")
         print(" [F] Sub-Tap : Pilih Token USDC Morph Paling Atas Saja (517 1536)")
         print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
         print(" [P] Sub-Tap : Ketik Sandi PIN 080808 Saja")
-        print(" [I] Sub-Tap : Reset Google Advertising ID (ID Iklan)")
+        print(" [I] Sub-Tap : Jalankan Alur Penuh Reset GAID (Step 0.1 s/d 0.4)")
         print(" [T] Atur ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")
         print(" [N] Buka / Edit File kordinat_qris_morph.txt di Notepad")
         print(" [0] Kembali ke Menu Sebelumnya")
@@ -1587,9 +1633,12 @@ def menu_manage_steps():
                 os.system(f'notepad "{KORDINAT_FILE}"')
             last_tested_msg = "Membuka file koordinat di Notepad..."
         elif key == "i":
-            print("\n[>] Membuka & Mereset Google Advertising ID (ID Iklan)...")
-            runner.adb.reset_advertising_id()
-            last_tested_msg = "[V] Google Advertising ID (ID Iklan) berhasil di-reset!"
+            print("\n[>] Menjalankan Alur Reset Google Advertising ID (Step 0.1 s/d 0.4)...")
+            runner.execute_macro_step("0.1", force=True)
+            runner.execute_macro_step("0.2", force=True)
+            runner.execute_macro_step("0.3", force=True)
+            runner.execute_macro_step("0.4", force=True)
+            last_tested_msg = "[V] Alur Step 0.1 s/d 0.4 (Reset GAID) selesai dieksekusi!"
         elif key == "e":
             print("\n[>] Mengetuk kolom Jumlah pembayaran (916, 1594)...")
             runner.adb.tap(916, 1594, delay_after=1.0)

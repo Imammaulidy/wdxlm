@@ -16,6 +16,39 @@
 # ==============================================================================
 
 
+# ------------------------------------------------------------------------------
+# BAGIAN 0: RESET GOOGLE ADVERTISING ID (GAID / ID IKLAN)
+# ------------------------------------------------------------------------------
+
+[0.1. Buka Halaman Pengaturan Iklan Google]
+# Membuka halaman Ads Identity Settings via Android Intent
+am start -a com.google.android.gms.adsidentity.ACTION_ADS_IDENTITY_SETTINGS
+sleep 2.5
+
+--------------------------------------------------------------------------------
+
+[0.2. Ketuk Reset Advertising ID]
+# Mengetuk menu 'Reset advertising ID' untuk memunculkan popup konfirmasi
+input tap 476 1465
+sleep 1.5
+
+--------------------------------------------------------------------------------
+
+[0.3. Ketuk Confirm Dialog Reset ID]
+# Mengetuk tombol 'Confirm' pada popup konfirmasi reset advertising ID
+input tap 892 1329
+sleep 1.5
+
+--------------------------------------------------------------------------------
+
+[0.4. Tutup Pengaturan Iklan & Kembali]
+# Menekan tombol Back (keyevent 4) untuk menutup halaman setelan iklan
+input keyevent 4
+sleep 1.0
+
+--------------------------------------------------------------------------------
+
+
 [1. Klik Beranda 3x dan Klik Ikon Scan QR Bitget]
 # Mengetuk ikon scanner QRIS di kanan atas beranda Bitget Wallet
 input tap 125 2233
