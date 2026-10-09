@@ -5,6 +5,7 @@ Modul untuk membaca kode OTP dari email Bitget via Multi-IMAP (Gmail, Outlook, R
 Diadaptasi dari COINS_PAYMENT_GATEWAY engine.
 """
 
+import sys
 import imaplib
 import email
 from email.header import decode_header
