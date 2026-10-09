@@ -658,10 +658,10 @@ class BotRunner:
                 self.adb.swipe(x1, y1, x2, y2, duration_ms=dur, delay_after=0.2)
             elif sub == "keyevent" and len(parts) >= 3:
                 key_code = parts[2]
-                self.adb.send_keyevent(key_code, delay_after=0.2)
+                self.adb.keyevent(key_code, delay_after=0.2)
             elif sub == "text" and len(parts) >= 3:
                 txt = " ".join(parts[2:])
-                self.adb.type_text(txt, delay_after=0.2)
+                self.adb.text_input(txt, delay_after=0.2)
 
         elif action == "pin":
             pin_code = parts[1] if len(parts) >= 2 else self.config.get("pin", "080808")

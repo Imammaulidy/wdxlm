@@ -359,11 +359,13 @@ class ADBController:
         if delay_after > 0:
             time.sleep(delay_after)
 
-    def keyevent(self, code: int, delay_after: float = 1.0):
+    def keyevent(self, code, delay_after: float = 1.0):
         """Menekan tombol sistem (misal: 4=Back, 187=App Switcher, 3=Home)."""
         self.run(f"shell input keyevent {code}")
         if delay_after > 0:
             time.sleep(delay_after)
+
+    send_keyevent = keyevent
 
     def text_input(self, text: str, delay_after: float = 1.0):
         """Mengetik teks secara langsung melalui ADB."""
@@ -371,6 +373,8 @@ class ADBController:
         self.run(f"shell input text {escaped}")
         if delay_after > 0:
             time.sleep(delay_after)
+
+    type_text = text_input
 
     def type_pin(self, pin: str, keypad_coords: Optional[Dict[str, Dict[str, int]]] = None, delay_step: float = 0.25):
         """
