@@ -1499,17 +1499,21 @@ def menu_gobiz_credentials():
                         }
                         found_idx = -1
                         for i, existing in enumerate(accounts):
-                            if (new_acc["outlet_id"] and existing.get("outlet_id") == new_acc["outlet_id"]) or \
-                               (new_acc["merchant_id"] and existing.get("merchant_id") == new_acc["merchant_id"]):
+                            # Toko hanya dianggap sama jika outlet_id sama persis (atau jika outlet_id kosong, server_key sama)
+                            if new_acc.get("outlet_id") and existing.get("outlet_id") == new_acc.get("outlet_id"):
+                                found_idx = i
+                                break
+                            elif not new_acc.get("outlet_id") and new_acc.get("server_key") and existing.get("server_key") == new_acc.get("server_key"):
                                 found_idx = i
                                 break
                         if found_idx >= 0:
                             accounts[found_idx] = new_acc
-                            print(f"\n[V] Akun #{found_idx + 1} berhasil diperbarui: {new_acc['merchant_name']} ({new_acc['city']})")
+                            print(f"\n[V] Akun #{found_idx + 1} ({new_acc['merchant_name']}) berhasil diperbarui!")
                         else:
                             accounts.append(new_acc)
-                            print(f"\n[V] Akun #{len(accounts)} berhasil ditambahkan: {new_acc['merchant_name']} ({new_acc['city']})")
+                            print(f"\n[V] Akun baru #{len(accounts)} berhasil ditambahkan: {new_acc['merchant_name']} ({new_acc['city']})")
                         cfg["gobiz_accounts"] = accounts
+                        active_idx = int(cfg.get("gobiz_active_index", 0)) % len(accounts) if accounts else 0
                         cfg["gobiz"] = accounts[active_idx]
                         save_config(cfg)
                     else:
@@ -1540,17 +1544,20 @@ def menu_gobiz_credentials():
                         }
                         found_idx = -1
                         for i, existing in enumerate(accounts):
-                            if (new_acc["outlet_id"] and existing.get("outlet_id") == new_acc["outlet_id"]) or \
-                               (new_acc["merchant_id"] and existing.get("merchant_id") == new_acc["merchant_id"]):
+                            if new_acc.get("outlet_id") and existing.get("outlet_id") == new_acc.get("outlet_id"):
+                                found_idx = i
+                                break
+                            elif not new_acc.get("outlet_id") and new_acc.get("server_key") and existing.get("server_key") == new_acc.get("server_key"):
                                 found_idx = i
                                 break
                         if found_idx >= 0:
                             accounts[found_idx] = new_acc
-                            print(f"\n[V] Akun #{found_idx + 1} berhasil diperbarui: {new_acc['merchant_name']} ({new_acc['city']})")
+                            print(f"\n[V] Akun #{found_idx + 1} ({new_acc['merchant_name']}) berhasil diperbarui!")
                         else:
                             accounts.append(new_acc)
-                            print(f"\n[V] Akun #{len(accounts)} berhasil ditambahkan: {new_acc['merchant_name']} ({new_acc['city']})")
+                            print(f"\n[V] Akun baru #{len(accounts)} berhasil ditambahkan: {new_acc['merchant_name']} ({new_acc['city']})")
                         cfg["gobiz_accounts"] = accounts
+                        active_idx = int(cfg.get("gobiz_active_index", 0)) % len(accounts) if accounts else 0
                         cfg["gobiz"] = accounts[active_idx]
                         save_config(cfg)
                     else:
