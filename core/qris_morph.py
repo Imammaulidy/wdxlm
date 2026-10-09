@@ -45,7 +45,7 @@ from gobiz_qris import (
     get_active_gobiz_account,
     rotate_gobiz_shift
 )
-from morph_wallet import MorphWallet
+from base_wallet import BaseWallet, MorphWallet
 
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
 CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
@@ -558,9 +558,9 @@ class BotRunner:
         self.config = load_config()
         self.adb = ADBController()
         self.qris_gen = GoBizQRISGenerator(self.config)
-        self.wallet = MorphWallet(
+        self.wallet = BaseWallet(
             private_key=self.config.get("wallet_tebar", {}).get("private_key"),
-            custom_rpc=self.config.get("morph", {}).get("rpc_url")
+            custom_rpc=self.config.get("base", {}).get("rpc_url") or self.config.get("morph", {}).get("rpc_url")
         )
         self.stopped = False
         self.is_manual = False
@@ -943,7 +943,7 @@ class BotRunner:
             buf_str = f" (Termasuk buffer aman +{buffer_usdc})" if buffer_usdc > 0 else ""
             print(f"[V] Nominal Ditransfer : {usdc_needed} USDC{buf_str}")
 
-        # 10. Kirim Saldo USDC Morph dari Wallet Tebar
+        # 10. Kirim Saldo USDC Base dari Wallet Tebar
         pk_tebar = self.config.get("wallet_tebar", {}).get("private_key")
         if not pk_tebar:
             print("\n[!] PERINGATAN: Private Key wallet_tebar belum diatur di config.json!")
@@ -954,28 +954,28 @@ class BotRunner:
                 save_config(self.config)
 
         if self.wallet.private_key:
-            print(f"\n[*] Mengirim {usdc_needed} USDC (Morph L2) ke {tuyul_addr}...")
+            print(f"\n[*] Mengirim {usdc_needed} USDC (Base Network) ke {tuyul_addr}...")
             try:
                 tx_res = self.wallet.send_usdc(tuyul_addr, usdc_needed)
             except Exception as e:
                 tx_res = {"success": False, "error": f"Exception: {e}"}
 
             if tx_res.get("success"):
-                print(f"[V] Berhasil transfer {usdc_needed} USDC Morph ke tuyul!")
+                print(f"[V] Berhasil transfer {usdc_needed} USDC Base ke tuyul!")
                 print(f"    Tx Hash : {tx_res.get('tx_hash')}")
                 print(f"    Explorer: {tx_res.get('explorer')}")
                 if not is_manual:
                     print("[*] Menunggu 4 detik agar saldo masuk...")
                     if not self.smart_sleep(4.0): return False
             else:
-                print(f"[X] Transfer USDC Morph gagal: {tx_res.get('error')}")
+                print(f"[X] Transfer USDC Base gagal: {tx_res.get('error')}")
                 if is_manual:
                     c_ans = get_key_press(" Lanjutkan pembayaran di HP? [Y/n]: ").strip().lower()
                     if c_ans == 'n':
                         return False
 
         if is_manual:
-            if prompt_manual_step("Auto-Tebar Saldo USDC Morph ke Tuyul") == 'q':
+            if prompt_manual_step("Auto-Tebar Saldo USDC Base ke Tuyul") == 'q':
                 return False
 
         # 11. Refresh Token, Konfirmasi Pembayaran & Input PIN
@@ -1192,9 +1192,9 @@ class BotRunner:
         res = record_single_step("8", "Kembali ke Tinjau Order")
         if res == 'q': return False
 
-        # --- JANTUNG INTI PAYMENT QRIS: TEBAR SALDO USDC MORPH ---
+        # --- JANTUNG INTI PAYMENT QRIS: TEBAR SALDO USDC BASE ---
         print("\n" + "="*70)
-        print("    [JANTUNG INTI PAYMENT QRIS] TEBAR SALDO USDC MORPH L2")
+        print("    [JANTUNG INTI PAYMENT QRIS] TEBAR SALDO USDC BASE")
         print("="*70)
         print("[*] Mendeteksi nominal tagihan USDC dari layar HP...")
         detected_usdc = self.adb.read_required_usdc_from_screen()
@@ -1220,14 +1220,14 @@ class BotRunner:
             tuyul_addr = input("\n>>> Masukkan Address EVM Tuyul: ").strip()
 
         if self.wallet.private_key and tuyul_addr:
-            print(f"\n[*] Mengirim {usdc_needed} USDC (Morph L2) ke {tuyul_addr}...")
+            print(f"\n[*] Mengirim {usdc_needed} USDC (Base Network) ke {tuyul_addr}...")
             tx_res = self.wallet.send_usdc(tuyul_addr, usdc_needed)
             if tx_res.get("success"):
-                print(f"[V] Berhasil transfer {usdc_needed} USDC Morph ke tuyul!")
+                print(f"[V] Berhasil transfer {usdc_needed} USDC Base ke tuyul!")
                 print(f"    Tx Hash : {tx_res.get('tx_hash')}")
                 print(f"    Explorer: {tx_res.get('explorer')}")
             else:
-                print(f"[X] Transfer USDC Morph gagal: {tx_res.get('error')}")
+                print(f"[X] Transfer USDC Base gagal: {tx_res.get('error')}")
 
         # Stopwatch tunggu saldo masuk ke Tuyul
         t_saldo = time.time()
@@ -1383,30 +1383,30 @@ def menu_screen_settings():
 def menu_wallet_and_token():
     cfg = load_config()
     wt_cfg = cfg.get("wallet_tebar", {})
-    wallet = MorphWallet(
+    wallet = BaseWallet(
         private_key=wt_cfg.get("private_key"),
-        custom_rpc=cfg.get("morph", {}).get("rpc_url")
+        custom_rpc=cfg.get("base", {}).get("rpc_url") or cfg.get("morph", {}).get("rpc_url")
     )
 
     clear_screen()
     print("="*65)
-    print("         DOMPET TEBAR - SALDO & TRANSFER MORPH L2")
+    print("         DOMPET TEBAR - SALDO & TRANSFER BASE (USDC)")
     print("="*65)
     print(f" Address Wallet Tebar : {wallet.address or wt_cfg.get('address') or '(Belum diisi)'}")
     print(f" Status Private Key   : {'Sudah Diatur' if wallet.private_key else 'KOSONG / Belum Diisi'}\n")
 
     addr_target = wallet.address or wt_cfg.get("address")
     if addr_target:
-        print("[*] Mengambil saldo dari node Morph L2...")
+        print("[*] Mengambil saldo dari node Base Network...")
         bals = wallet.get_balances(addr_target)
         if bals.get("success"):
             print(f" - Saldo Gas (ETH) : {bals['eth_balance']:.6f} ETH")
-            print(f" - Saldo USDC Morph: {bals['usdc_balance']:.4f} USDC")
+            print(f" - Saldo USDC Base : {bals['usdc_balance']:.4f} USDC")
         else:
             print(f"[!] Gagal cek saldo: {bals.get('error')}")
     print("="*65)
     print(" [1] Atur / Ganti Private Key Wallet Tebar")
-    print(" [2] Test Transfer USDC Morph ke Address Tertentu")
+    print(" [2] Test Transfer USDC Base ke Address Tertentu")
     print(" [3] Cek Saldo Address Lain")
     print(" [0] Kembali")
     print("="*65)
@@ -1834,14 +1834,14 @@ def menu_manage_steps():
         print(f" [6] Step 6   {_st('6')} : {step_map.get('6', {}).get('name', 'Terima Aset Kripto')}")
         print(f" [7] Step 7   {_st('7')} : {step_map.get('7', {}).get('name', 'Salin Address EVM Tuyul')}")
         print(f" [8] Step 8   {_st('8')} : {step_map.get('8', {}).get('name', 'Kembali ke Tinjau Order (Back 2x)')}")
-        print(" [D] Auto-Tebar  : Kirim Saldo USDC Morph (Baca Layar & Transfer On-Chain)")
+        print(" [D] Auto-Tebar  : Kirim Saldo USDC Base (Baca Layar & Transfer On-Chain)")
         print(f" [9] Step 9   {_st('9')} : {step_map.get('9', {}).get('name', 'Pilih Token & Konfirmasi Pembayaran')}")
         print(f" [A] Step 10  {_st('10')} : {step_map.get('10', {}).get('name', 'Input PIN Transaksi')}")
         print(f" [B] Step 11  {_st('11')} : {step_map.get('11', {}).get('name', 'Masuk Event Cashback')}")
         print(f" [C] Step 12  {_st('12')} : {step_map.get('12', {}).get('name', 'Claim Reward')}")
         print("-"*70)
         print(" [E] Sub-Tap : Klik Kolom Jumlah Pembayaran Saja (916 1594)")
-        print(" [F] Sub-Tap : Pilih Token USDC Morph Paling Atas Saja (517 1536)")
+        print(" [F] Sub-Tap : Pilih Token USDC Base Paling Atas Saja (517 1536)")
         print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
         print(" [P] Sub-Tap : Ketik Sandi PIN 080808 Saja")
         print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)")
@@ -1874,9 +1874,9 @@ def menu_manage_steps():
             runner.adb.tap(916, 1594, delay_after=1.0)
             last_tested_msg = "[V] Kolom Jumlah pembayaran diketuk."
         elif key == "f":
-            print("\n[>] Mengetuk item USDC Morph paling atas (517, 1536)...")
+            print("\n[>] Mengetuk item USDC Base paling atas (517, 1536)...")
             runner.adb.tap(517, 1536, delay_after=1.0)
-            last_tested_msg = "[V] Item USDC Morph diketuk."
+            last_tested_msg = "[V] Item USDC Base diketuk."
         elif key == "g":
             print("\n[>] Mengetuk tombol Konfirmasi Pembayaran (540, 2193)...")
             runner.adb.tap(540, 2193, delay_after=1.0)
@@ -1912,7 +1912,7 @@ def menu_manage_steps():
                 print(" [N] Batal")
                 cf = get_key_press(" Konfirmasi [Y/n]: ").strip().lower()
                 if cf != 'n':
-                    print(f"\n[*] Mengirim {send_amt} USDC Morph dari Wallet Tebar...")
+                    print(f"\n[*] Mengirim {send_amt} USDC Base dari Wallet Tebar...")
                     res = runner.wallet.send_usdc(tuyul_addr, send_amt)
                     if res.get("success"):
                         tx = res.get('tx_hash')
@@ -1920,7 +1920,7 @@ def menu_manage_steps():
                         print(f"    Explorer: {res.get('explorer')}")
                         print("[*] Menunggu 4 detik agar saldo masuk...")
                         time.sleep(4.0)
-                        last_tested_msg = f"[V] Saldo {send_amt} USDC Morph terkirim ke Tuyul! Siap tekan Step 9 (Bayar)."
+                        last_tested_msg = f"[V] Saldo {send_amt} USDC Base terkirim ke Tuyul! Siap tekan Step 9 (Bayar)."
                     else:
                         last_tested_msg = f"[X] Gagal kirim USDC: {res.get('error')}"
                 else:
@@ -2003,7 +2003,7 @@ def main():
         print(" [4] Reset & Buka Clone Saja (Clear Cache + Reset ID Iklan + Mode Pesawat 3s + Launch)")
         print(" [5] Pilih / Ganti Aplikasi Clone (Dual Space / Multiple App / Multi App)")
         print(" [6] Generator GoBiz QRIS & Push ke HP (Uji Coba Gambar QR)")
-        print(" [7] Cek Saldo & Test Transfer USDC Morph (Wallet Tebar)")
+        print(" [7] Cek Saldo & Test Transfer USDC Base (Wallet Tebar)")
         print(" [8] Pengelolaan Layar & Resolusi HP (Auto 1080x2400 @ 352 DPI)")
         print(" [9] Kelola / Test Langkah Koordinat Macro (kordinat_qris_morph.txt)")
         print(" [T] Pengaturan ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")

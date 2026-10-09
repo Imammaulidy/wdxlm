@@ -114,9 +114,9 @@
         "address": "0x0000000000000000000000000000000000000000",
         "private_key": "0x0000000000000000000000000000000000000000000000000000000000000000"
     },
-    "morph": {
-        "chain_id": 2818,
-        "rpc_url": "https://rpc.morphl2.io",
-        "usdc_contract": "0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B"
+    "base": {
+        "chain_id": 8453,
+        "rpc_url": "https://mainnet.base.org",
+        "usdc_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
     }
 }
