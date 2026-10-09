@@ -460,6 +460,7 @@ class BotRunner:
             custom_rpc=self.config.get("morph", {}).get("rpc_url")
         )
         self.stopped = False
+        self.is_manual = False
 
     def check_keyboard_interrupt(self) -> str:
         """Non-blocking keyboard checker (stop / pause / continue)."""
@@ -515,12 +516,12 @@ class BotRunner:
                 self.stopped = True
                 return False
 
-    def smart_sleep(self, seconds: float) -> bool:
-        """Sleep yang reaktif terhadap keyboard interrupt (Stop / Pause)."""
+    def smart_sleep(self, seconds: float, force: bool = False) -> bool:
+        """Sleep yang reaktif terhadap keyboard interrupt (Stop / Pause). Di mode manual, otomatis di-bypass agar instan."""
         if self.stopped:
             return False
 
-        if seconds <= 0:
+        if seconds <= 0 or (self.is_manual and not force):
             return True
 
         end_time = time.time() + seconds
@@ -608,7 +609,7 @@ class BotRunner:
         if not self.is_step_enabled(step_id):
             print(f"[*] Step {step_id} ({label}) diatur OFF (dilewati).")
             return True
-        if not self.execute_macro_step(step_id):
+        if not self.execute_macro_step(step_id, skip_sleep=is_manual):
             return False
         if is_manual and prompt_manual_step(f"Step {step_id} ({label})") == 'q':
             self.stopped = True
@@ -682,6 +683,7 @@ class BotRunner:
 
     def _execute_flow(self, is_manual: bool = False) -> bool:
         self.stopped = False
+        self.is_manual = is_manual
         self.config = load_config()
 
         mode_label = "MODE STEP-BY-STEP MANUAL" if is_manual else "MODE FULL AUTO"
@@ -751,11 +753,6 @@ class BotRunner:
                 self.stopped = True
                 return False
 
-        if is_manual:
-            if prompt_manual_step("Persiapan Beranda Bitget Wallet") == 'q':
-                self.stopped = True
-                return False
-
         # 5. Buat QRIS GoBiz Dinamis & Auto-Increment (+1)
         target_amount = int(self.config.get("default_qris_nominal", 18501))
         ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
@@ -820,15 +817,16 @@ class BotRunner:
             print(f"[X] Address EVM tuyul tidak valid: '{tuyul_addr}'!")
             return False
 
-        # 9. Baca Otomatis Nominal USDC dari Layar Tinjau Order
+        # 9. Baca Otomatis Nominal USDC dari Layar Tinjau Order (Jantung Inti Payment QRIS)
         print("\n[*] Mendeteksi nominal tagihan USDC dari layar HP...")
         detected_usdc = self.adb.read_required_usdc_from_screen()
-        buffer_usdc = float(self.config.get("usdc_buffer", 0.006))
+        buffer_usdc = float(self.config.get("usdc_buffer", 0.0))
 
         if detected_usdc:
             usdc_needed = round(detected_usdc + buffer_usdc, 4)
             print(f"[V] Kebutuhan Layar : {detected_usdc} USDC")
-            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC (Termasuk buffer aman +{buffer_usdc})")
+            buf_str = f" (Termasuk buffer aman +{buffer_usdc})" if buffer_usdc > 0 else ""
+            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC{buf_str}")
         else:
             live_rate = self.adb.read_swap_rate_from_screen()
             if live_rate and live_rate > 1000:
@@ -840,7 +838,8 @@ class BotRunner:
                 print(f"[*] Teks layar tidak terdeteksi, menggunakan kurs acuan aman: Rp {safe_rate:,.0f} / USDC ({base_est} USDC)")
 
             usdc_needed = round(base_est + buffer_usdc, 4)
-            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC (Termasuk buffer aman +{buffer_usdc})")
+            buf_str = f" (Termasuk buffer aman +{buffer_usdc})" if buffer_usdc > 0 else ""
+            print(f"[V] Nominal Ditransfer : {usdc_needed} USDC{buf_str}")
 
         # 10. Kirim Saldo USDC Morph dari Wallet Tebar
         pk_tebar = self.config.get("wallet_tebar", {}).get("private_key")
@@ -863,8 +862,9 @@ class BotRunner:
                 print(f"[V] Berhasil transfer {usdc_needed} USDC Morph ke tuyul!")
                 print(f"    Tx Hash : {tx_res.get('tx_hash')}")
                 print(f"    Explorer: {tx_res.get('explorer')}")
-                print("[*] Menunggu 4 detik agar saldo masuk...")
-                if not self.smart_sleep(4.0): return False
+                if not is_manual:
+                    print("[*] Menunggu 4 detik agar saldo masuk...")
+                    if not self.smart_sleep(4.0): return False
             else:
                 print(f"[X] Transfer USDC Morph gagal: {tx_res.get('error')}")
                 if is_manual:
@@ -873,7 +873,7 @@ class BotRunner:
                         return False
 
         if is_manual:
-            if prompt_manual_step("Auto-Tebar Saldo USDC Morph") == 'q':
+            if prompt_manual_step("Auto-Tebar Saldo USDC Morph ke Tuyul") == 'q':
                 return False
 
         # 11. Refresh Token, Konfirmasi Pembayaran & Input PIN
@@ -885,7 +885,8 @@ class BotRunner:
 
         # 12. Masuk Event Cashback & Claim Reward
         print("\n[*] Menunggu transaksi selesai & klaim cashback reward...")
-        if not self.smart_sleep(3.5): return False
+        if not is_manual:
+            if not self.smart_sleep(3.5): return False
         if not self.run_step_flow("11", "Masuk Event Cashback", is_manual): return False
 
         if not self.run_step_flow("12", "Claim Reward", is_manual): return False
@@ -896,58 +897,248 @@ class BotRunner:
         return True
 
     def run_rekam_delay(self):
-        """Mode Rekam Delay HP secara stopwatch langsung."""
-        steps = parse_macro_steps()
-        active_steps = [s for s in steps if not s.get("is_off")]
+        """Mode Rekam Delay HP secara 1 SIKLUS PENUH (termasuk Payment QRIS & Tebar Saldo)."""
+        self.stopped = False
+        self.is_manual = False
+        self.config = load_config()
+        clone_key = self.config.get("clone_app", "dual_space")
+        clone_info = CLONE_APPS.get(clone_key, CLONE_APPS["dual_space"])
+        current_nominal = int(self.config.get("default_qris_nominal", 18501))
 
-        print("\n" + "="*70)
-        print("         MODE REKAM DELAY MASTER (kordinat_qris_morph.txt)")
+        clear_screen()
+        print("="*70)
+        print("     MODE REKAM DELAY MASTER — 1 SIKLUS PENUH (kordinat_qris_morph.txt)")
+        print(f"     Mode Clone Aktif : {clone_info['name']} ({clone_info['package']})")
+        print(f"     Nominal QRIS     : Rp {current_nominal:,}".replace(",", "."))
         print("="*70)
         print("  Cara kerja:")
-        print("  1. Bot menjalankan setiap aksi/klik pada step tanpa jeda sleep.")
-        print("  2. Stopwatch timer langsung dimulai setelah aksi selesai.")
-        print("  3. Tekan ENTER saat layar HP sudah siap ke langkah berikutnya.")
+        print("  1. Bot menjalankan alur nyata 1 siklus penuh (termasuk pembayaran QRIS).")
+        print("  2. Pada setiap step, aksi ADB dijalankan tanpa jeda sleep.")
+        print("  3. Stopwatch timer langsung dimulai setelah aksi selesai.")
+        print("  4. Tekan ENTER saat layar HP sudah siap ke langkah berikutnya.")
         print("     Durasi akan otomatis disimpan ke kordinat_qris_morph.txt!")
-        print("  4. Ketik 'S' + ENTER untuk SKIP (mempertahankan delay lama).")
-        print("  5. Ketik 'Q' + ENTER untuk BERHENTI merekam.")
+        print("  5. Ketik 'S' untuk SKIP step (delay lama dipertahankan).")
+        print("  6. Ketik 'Q' untuk BERHENTI merekam.")
         print("="*70)
-        input("\n--> Siapkan layar HP Anda pada posisi awal, lalu tekan ENTER untuk mulai...")
+
+        # 1. Pastikan Device Terhubung
+        if not self.adb.check_connection():
+            print("[X] ERROR: Tidak ada perangkat HP Android terdeteksi via ADB!")
+            return False
+
+        # 2. Resolusi Layar Standar
+        register_auto_restore()
+        record_and_apply_bot_screen()
+
+        # Opsi Reset Clone sebelum rekam
+        print("\n[?] Apakah ingin Reset Cache & Buka Clone sebelum mulai merekam?")
+        print("    [Y] Ya, Reset Atomik Clone dulu")
+        print("    [N] Tidak, saya sudah siap di Beranda Bitget Wallet HP")
+        p_rst = get_key_press(" Pilihan [Y/n]: ").strip().lower()
+        if p_rst != 'n':
+            airplane_sec = self.config.get("airplane_seconds", 3)
+            self.adb.reset_and_launch(clone_key, airplane_seconds=airplane_sec, stop_checker=self.is_stopped)
+            print("\n" + "-"*70)
+            print(" [ACTION] SILAKAN BUKA BITGET WALLET DI DALAM CLONE HP SAMPAI DI BERANDA")
+            print("-"*70)
+            wait_any_key(">>> Siap di beranda Bitget? Tekan ENTER untuk mulai rekam: ")
+
+        # 3. Buat QRIS GoBiz Dinamis & Push ke HP
+        target_amount = int(self.config.get("default_qris_nominal", 18501))
+        print(f"\n[*] Membuat QRIS GoBiz Dinamis: Rp {target_amount:,}...".replace(",", "."))
+        ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+        if not ok_qr:
+            print(f"[X] Gagal membuat QRIS: {qr_det.get('error')}")
+            return False
+
+        # Auto-Increment
+        self.config["default_qris_nominal"] = target_amount + 1
+        save_config(self.config)
+
+        ok_push, remote_qr = self.adb.push_qr_image(TEMP_QR_PATH)
+        if not ok_push:
+            print("[X] Gagal mengirim file QR ke HP.")
+            return False
 
         recorded = {}
-        for step in active_steps:
-            sid = step["id"]
-            sname = step["name"]
-            print(f"\n[>] Menjalankan Aksi Step {sid}: {sname}...")
-            t_start = time.time()
 
-            for cmd in step["commands"]:
+        def record_single_step(step_id: str, label: str) -> str:
+            """Menjalankan action step tanpa sleep, menghitung waktu tunggu user, dan menyimpan delay."""
+            if not self.is_step_enabled(step_id):
+                print(f"\n[*] Step {step_id} ({label}) diatur OFF (dilewati).")
+                return 'skip'
+
+            step_data = None
+            for s in parse_macro_steps():
+                if str(s["id"]) == str(step_id):
+                    step_data = s
+                    break
+
+            if not step_data:
+                print(f"[!] Step {step_id} tidak ditemukan.")
+                return 'skip'
+
+            print(f"\n[>] Menjalankan Aksi Step [{step_id}. {step_data['name']}]...")
+            for cmd in step_data["commands"]:
                 self._run_single_command(cmd, skip_sleep=True)
 
-            prompt_msg = (
-                f"  --> [REKAM DELAY] HP sedang loading... Tekan ENTER saat layar HP siap.\n"
-                f"      (S=Skip rekam step ini | Q=Berhenti): "
-            )
-            user_key = input(prompt_msg).strip().lower()
-            elapsed = round(time.time() - t_start, 1)
+            t_start = time.time()
+            prompt_msg = f"  --> [REKAM DELAY] Tekan ENTER saat layar HP siap (S=Skip | Q=Berhenti): "
+            sys.stdout.write(prompt_msg)
+            sys.stdout.flush()
+
+            user_key = 'enter'
+            if os.name == 'nt':
+                import msvcrt
+                while True:
+                    try:
+                        ch = msvcrt.getch()
+                    except KeyboardInterrupt:
+                        user_key = 'q'
+                        break
+                    if ch in (b'\r', b'\n', b' ', b'\x16'):
+                        sys.stdout.write(" [ENTER]\n")
+                        sys.stdout.flush()
+                        user_key = 'enter'
+                        break
+                    elif ch in (b's', b'S'):
+                        sys.stdout.write(" [SKIP]\n")
+                        sys.stdout.flush()
+                        user_key = 's'
+                        break
+                    elif ch in (b'q', b'Q'):
+                        sys.stdout.write(" [STOP]\n")
+                        sys.stdout.flush()
+                        user_key = 'q'
+                        break
+            else:
+                try:
+                    line = sys.stdin.readline().strip().lower()
+                    if line in ('s', 'skip'):
+                        user_key = 's'
+                    elif line in ('q', 'quit', 'exit'):
+                        user_key = 'q'
+                except KeyboardInterrupt:
+                    user_key = 'q'
+
+            elapsed = max(round(time.time() - t_start, 1), 0.3)
 
             if user_key == 'q':
                 print("\n[X] Rekaman dihentikan oleh pengguna.")
-                break
+                return 'q'
             elif user_key == 's':
-                print(f"  [--] Step {sid} di-SKIP, delay lama dipertahankan.")
-                continue
+                print(f"  [--] Step {step_id} di-SKIP, delay lama dipertahankan.")
+                return 'skip'
 
-            elapsed = max(elapsed, 0.3)
-            update_sleep_in_kordinat(sid, elapsed)
-            recorded[sid] = elapsed
-            print(f"  [V] Delay Step {sid} direkam: {elapsed}s -> disimpan ke file!")
+            update_sleep_in_kordinat(step_id, elapsed)
+            recorded[step_id] = elapsed
+            print(f"  [V] Delay Step {step_id} direkam: {elapsed}s -> disimpan ke file!")
+            return 'ok'
+
+        # --- REKAM LANGKAH 1 s/d 4 (Scan QRIS Galeri) ---
+        for sid, lbl in [
+            ("1", "Scan QR Bitget"),
+            ("2", "Buka Galeri"),
+            ("3", "Pilih Foto QR"),
+            ("4", "Klik Selesai / Done")
+        ]:
+            res = record_single_step(sid, lbl)
+            if res == 'q': return False
+
+        # --- REKAM LANGKAH 5 s/d 7 (Buka Deposit & Salin Address Tuyul) ---
+        for sid, lbl in [
+            ("5", "Klik Deposit"),
+            ("6", "Pilih Terima Aset Kripto"),
+            ("7", "Salin Address EVM Tuyul")
+        ]:
+            res = record_single_step(sid, lbl)
+            if res == 'q': return False
+
+        # Ekstrak Address Tuyul
+        tuyul_addr = self.adb.extract_evm_address_from_screen() or self.adb.get_clipboard_text() or get_last_tuyul_address()
+        if tuyul_addr:
+            save_last_tuyul_address(tuyul_addr)
+        print(f"\n[*] Address Tuyul terdeteksi: {tuyul_addr or '(Kosong)'}")
+
+        # --- REKAM LANGKAH 8 (Kembali ke Tinjau Order) ---
+        res = record_single_step("8", "Kembali ke Tinjau Order")
+        if res == 'q': return False
+
+        # --- JANTUNG INTI PAYMENT QRIS: TEBAR SALDO USDC MORPH ---
+        print("\n" + "="*70)
+        print("    [JANTUNG INTI PAYMENT QRIS] TEBAR SALDO USDC MORPH L2")
+        print("="*70)
+        print("[*] Mendeteksi nominal tagihan USDC dari layar HP...")
+        detected_usdc = self.adb.read_required_usdc_from_screen()
+        buffer_usdc = float(self.config.get("usdc_buffer", 0.0))
+
+        if detected_usdc:
+            usdc_needed = round(detected_usdc + buffer_usdc, 4)
+            print(f"[V] Kebutuhan Layar : {detected_usdc} USDC")
+        else:
+            live_rate = self.adb.read_swap_rate_from_screen()
+            if live_rate and live_rate > 1000:
+                base_est = round(target_amount / live_rate, 4)
+            else:
+                safe_rate = float(self.config.get("fallback_rate", 17400.0))
+                base_est = round(target_amount / safe_rate, 4)
+            usdc_needed = round(base_est + buffer_usdc, 4)
+            print(f"[*] Teks layar tidak terdeteksi, estimasi tagihan: {usdc_needed} USDC")
+
+        buf_str = f" (Termasuk buffer aman +{buffer_usdc})" if buffer_usdc > 0 else ""
+        print(f"[V] Nominal Ditransfer : {usdc_needed} USDC{buf_str}")
+
+        if not (tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
+            tuyul_addr = input("\n>>> Masukkan Address EVM Tuyul: ").strip()
+
+        if self.wallet.private_key and tuyul_addr:
+            print(f"\n[*] Mengirim {usdc_needed} USDC (Morph L2) ke {tuyul_addr}...")
+            tx_res = self.wallet.send_usdc(tuyul_addr, usdc_needed)
+            if tx_res.get("success"):
+                print(f"[V] Berhasil transfer {usdc_needed} USDC Morph ke tuyul!")
+                print(f"    Tx Hash : {tx_res.get('tx_hash')}")
+                print(f"    Explorer: {tx_res.get('explorer')}")
+            else:
+                print(f"[X] Transfer USDC Morph gagal: {tx_res.get('error')}")
+
+        # Stopwatch tunggu saldo masuk ke Tuyul
+        t_saldo = time.time()
+        sys.stdout.write("\n  --> [REKAM DELAY] Menunggu saldo masuk ke Tuyul di HP... Tekan ENTER saat saldo terisi: ")
+        sys.stdout.flush()
+        if os.name == 'nt':
+            import msvcrt
+            while True:
+                ch = msvcrt.getch()
+                if ch in (b'\r', b'\n', b' ', b'\x16'):
+                    sys.stdout.write(" [ENTER]\n")
+                    sys.stdout.flush()
+                    break
+                elif ch in (b'q', b'Q'):
+                    return False
+        else:
+            input()
+        elapsed_saldo = round(time.time() - t_saldo, 1)
+        print(f"  [V] Waktu tunggu saldo masuk tercatat: {elapsed_saldo}s")
+
+        # --- REKAM LANGKAH 9 s/d 12 (Konfirmasi Pembayaran, PIN, Cashback & Claim) ---
+        for sid, lbl in [
+            ("9", "Refresh Token & Klik Konfirmasi Pembayaran"),
+            ("10", "Input PIN Transaksi"),
+            ("11", "Klik Masuk Event Cashback"),
+            ("12", "Klik Claim Reward")
+        ]:
+            res = record_single_step(sid, lbl)
+            if res == 'q': return False
 
         print("\n" + "="*70)
-        print(f"  REKAMAN SELESAI — {len(recorded)} delay langkah berhasil diperbarui!")
+        print(f"  REKAMAN 1 SIKLUS PENUH SELESAI — {len(recorded)} delay berhasil diperbarui!")
         if recorded:
             for sid, val in recorded.items():
                 print(f"    - Step {sid}: {val}s")
         print("="*70)
+        print("  Delay baru telah tersimpan permanen ke kordinat_qris_morph.txt.")
+        print("  Jalankan MODE FULL AUTO (Menu 1) untuk memakai delay baru ini.\n")
+        return True
 
 def get_scrcpy_exe():
     candidates = [
