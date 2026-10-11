@@ -4,6 +4,15 @@
  * Multi-Device Side-by-Side PADs with Hardware Screen-Off Background Mode
  */
 
+window.onerror = function(msg, url, line, col, error) {
+    console.error("Global JS Error:", msg, "at line", line);
+    var cont = document.getElementById('devicesGridContainer');
+    if (cont && cont.querySelector('.device-card-loading')) {
+        var p = cont.querySelector('p');
+        if (p) p.textContent = "Error memuat antarmuka: " + msg + " (Baris " + line + ")";
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     // State Store
     let currentMode = 'wd_baru'; // 'wd_baru' (Mode Baru) | 'wd_old' | 'create_account' | 'qris_morph'
@@ -176,12 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
         devicesGridContainer.classList.remove('layout-split', 'layout-horizontal');
         if (layout === 'horizontal') {
             devicesGridContainer.classList.add('layout-horizontal');
-            btnLayoutHorizontal?.classList.add('active');
-            btnLayoutSplit?.classList.remove('active');
+            if (btnLayoutHorizontal) btnLayoutHorizontal.classList.add('active');
+            if (btnLayoutSplit) btnLayoutSplit.classList.remove('active');
         } else {
             devicesGridContainer.classList.add('layout-split');
-            btnLayoutSplit?.classList.add('active');
-            btnLayoutHorizontal?.classList.remove('active');
+            if (btnLayoutSplit) btnLayoutSplit.classList.add('active');
+            if (btnLayoutHorizontal) btnLayoutHorizontal.classList.remove('active');
         }
         localStorage.setItem('topnod_pad_layout', layout);
     }
@@ -324,12 +333,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 let startedCount = 0;
                 for (const d of connectedDevices) {
                     const card = document.getElementById(`padCard_${d.serial}`);
-                    const adbOnCheck = card?.querySelector('.pad-auto-toggle-check');
+                    const adbOnCheck = card ? card.querySelector('.pad-auto-toggle-check') : null;
                     if (!adbOnCheck || adbOnCheck.checked) {
-                        const accountNum = parseInt(card?.querySelector('.pad-clone-input')?.value || 1) || 1;
-                        const refCode = card?.querySelector('.pad-reff-input')?.value.trim() || null;
-                        const addrWd = card?.querySelector('.pad-address-input')?.value.trim() || null;
-                        const walletFile = card?.querySelector('.pad-wallet-select')?.value || null;
+                        const cloneEl = card ? card.querySelector('.pad-clone-input') : null;
+                        const accountNum = parseInt((cloneEl ? cloneEl.value : '') || 1) || 1;
+                        const refEl = card ? card.querySelector('.pad-reff-input') : null;
+                        const refCode = (refEl && refEl.value ? refEl.value.trim() : '') || null;
+                        const addrEl = card ? card.querySelector('.pad-address-input') : null;
+                        const addrWd = (addrEl && addrEl.value ? addrEl.value.trim() : '') || null;
+                        const walletEl = card ? card.querySelector('.pad-wallet-select') : null;
+                        const walletFile = (walletEl ? walletEl.value : '') || null;
                         await fetch('/api/bot/start', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
@@ -468,9 +481,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const defaultRef = serverConfig.current_referral_code || serverConfig.master_referral_code || "srTwuLUy";
             const defaultAddress = serverConfig.alamat_wd || "GAEL2XQRRNPV2TCCFJFHHP277MN3MXUU2EZMRXRQBDVIUZLLODVH2SS5";
             const isWdMode = (currentMode === 'wd_baru' || currentMode === 'wd_old');
-            const currentWalletFile = savedInputs[serial]?.wallet || dev.wallet_file || (availableWallets.length > 0 ? availableWallets[0] : "");
-            const isAdbOn = (savedInputs[serial]?.adbOn !== null && savedInputs[serial]?.adbOn !== undefined) 
-                ? savedInputs[serial].adbOn 
+            const serialInputs = savedInputs[serial] || {};
+            const currentWalletFile = serialInputs.wallet || dev.wallet_file || (availableWallets.length > 0 ? availableWallets[0] : "");
+            const isAdbOn = (serialInputs.adbOn !== null && serialInputs.adbOn !== undefined) 
+                ? serialInputs.adbOn 
                 : batchAutoState;
 
             const card = document.createElement('div');
@@ -519,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="pad-input-group pad-address-group">
                         <span class="pad-input-label" title="Alamat Stellar Tujuan Penarikan XLM">Alamat Stellar:</span>
                         <div class="pad-reff-row">
-                            <input type="text" class="pad-input-text pad-address-input" data-serial="${serial}" value="${savedInputs[serial]?.address || defaultAddress}" placeholder="Alamat Stellar (GAEL...)" title="Alamat Stellar Tujuan (GAEL...)">
+                            <input type="text" class="pad-input-text pad-address-input" data-serial="${serial}" value="${serialInputs.address || defaultAddress}" placeholder="Alamat Stellar (GAEL...)" title="Alamat Stellar Tujuan (GAEL...)">
                             <button type="button" class="btn-pad-mini btn-save-address" data-serial="${serial}" title="Simpan Alamat Stellar">💾</button>
                         </div>
                     </div>
@@ -527,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="pad-input-group">
                         <span class="pad-input-label">Kode Reff Relay:</span>
                         <div class="pad-reff-row">
-                            <input type="text" class="pad-input-text pad-reff-input" data-serial="${serial}" value="${savedInputs[serial]?.reff || defaultRef}" placeholder="Kode Reff" maxlength="24">
+                            <input type="text" class="pad-input-text pad-reff-input" data-serial="${serial}" value="${serialInputs.reff || defaultRef}" placeholder="Kode Reff" maxlength="24">
                             <button type="button" class="btn-pad-mini btn-save-reff" data-serial="${serial}" title="Simpan Kode Reff">💾</button>
                         </div>
                     </div>
@@ -536,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="pad-input-label">Clone:</span>
                         <div class="input-stepper">
                             <button type="button" class="btn-step btn-step-dec" data-serial="${serial}">-</button>
-                            <input type="number" class="pad-clone-input" data-serial="${serial}" min="1" max="999" value="${savedInputs[serial]?.clone || currentClone}">
+                            <input type="number" class="pad-clone-input" data-serial="${serial}" min="1" max="999" value="${serialInputs.clone || currentClone}">
                             <button type="button" class="btn-step btn-step-inc" data-serial="${serial}">+</button>
                         </div>
                     </div>
@@ -556,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                     </div>
                     <div class="manual-adb-row">
-                        <input type="text" class="input-manual-adb" data-serial="${serial}" value="${savedInputs[serial]?.adb || ''}" placeholder="Manual ADB...">
+                        <input type="text" class="input-manual-adb" data-serial="${serial}" value="${serialInputs.adb || ''}" placeholder="Manual ADB...">
                         <button type="button" class="btn-manual-adb-send" data-serial="${serial}" title="Kirim perintah ADB langsung">❯</button>
                     </div>
                 </div>
@@ -733,7 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getActivePadTargets(sourceSerial) {
         if (!batchAutoState) {
             const card = document.getElementById(`padCard_${sourceSerial}`);
-            const cloneInput = card?.querySelector('.pad-clone-input');
+            const cloneInput = card ? card.querySelector('.pad-clone-input') : null;
             const cloneNum = parseInt(cloneInput ? cloneInput.value : 1) || 1;
             return [{ serial: sourceSerial, card, cloneNum }];
         }
@@ -741,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targets = [];
         document.querySelectorAll('.device-pad-card').forEach(c => {
             const cb = c.querySelector('.pad-auto-toggle-check');
-            const s = cb?.getAttribute('data-serial') || c.id.replace('padCard_', '');
+            const s = (cb ? cb.getAttribute('data-serial') : null) || c.id.replace('padCard_', '');
             if (s && (!cb || cb.checked)) {
                 const cloneInput = c.querySelector('.pad-clone-input');
                 const cloneNum = parseInt(cloneInput ? cloneInput.value : 1) || 1;
@@ -752,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fallback jika tidak ada yang tercentang: gunakan sourceSerial
         if (targets.length === 0) {
             const card = document.getElementById(`padCard_${sourceSerial}`);
-            const cloneInput = card?.querySelector('.pad-clone-input');
+            const cloneInput = card ? card.querySelector('.pad-clone-input') : null;
             const cloneNum = parseInt(cloneInput ? cloneInput.value : 1) || 1;
             targets.push({ serial: sourceSerial, card, cloneNum });
         }
@@ -1084,7 +1098,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             mode: currentMode,
                             account_num: t.cloneNum
                         };
-                        const addrWd = t.card?.querySelector('.pad-address-input')?.value.trim();
+                        const addrEl = t.card ? t.card.querySelector('.pad-address-input') : null;
+                        const addrWd = (addrEl && addrEl.value ? addrEl.value.trim() : '');
                         if (addrWd) {
                             payload.alamat_wd = addrWd;
                         }
@@ -1110,7 +1125,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (d && d.status === 'success') {
                             showToast(`${stepLabel} dijalankan manual di ${serial}`, "success");
                         } else {
-                            showToast(d?.message || "Gagal eksekusi step", "error");
+                            showToast((d && d.message) ? d.message : "Gagal eksekusi step", "error");
                         }
                     }
                 } catch (e) {
@@ -1131,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const animatedButtons = [];
                 targets.forEach(t => {
-                    const b = t.card?.querySelector(`[data-action="${action}"]`);
+                    const b = t.card ? t.card.querySelector(`[data-action="${action}"]`) : null;
                     if (b) {
                         b.classList.add('executing');
                         animatedButtons.push(b);
@@ -1160,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (targets.length > 1) {
                         showToast(`[BATCH SYNC] Sub-command ${action} terkirim ke ${targets.length} HP`, allSuccess ? "success" : "warning");
                     } else {
-                        showToast(d?.message || `Sub-command ${action} dieksekusi`, allSuccess ? "success" : "error");
+                        showToast((d && d.message) ? d.message : `Sub-command ${action} dieksekusi`, allSuccess ? "success" : "error");
                     }
                 } catch (e) {
                     showToast(`Error sub-command: ${e.message}`, "error");
@@ -1179,9 +1194,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const targets = getActivePadTargets(serial);
                 try {
                     const promises = targets.map(t => {
-                        const refCode = t.card?.querySelector('.pad-reff-input')?.value.trim() || null;
-                        const addrWd = t.card?.querySelector('.pad-address-input')?.value.trim() || null;
-                        const chosenWallet = t.card?.querySelector('.pad-wallet-select')?.value || null;
+                        const refEl = t.card ? t.card.querySelector('.pad-reff-input') : null;
+                        const refCode = (refEl && refEl.value ? refEl.value.trim() : '') || null;
+                        const addrEl = t.card ? t.card.querySelector('.pad-address-input') : null;
+                        const addrWd = (addrEl && addrEl.value ? addrEl.value.trim() : '') || null;
+                        const walletEl = t.card ? t.card.querySelector('.pad-wallet-select') : null;
+                        const chosenWallet = (walletEl && walletEl.value ? walletEl.value : '') || null;
                         return fetch('/api/bot/start', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
@@ -1379,14 +1397,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (summaryMasterRef) {
                 const isWd = (currentMode === 'wd_baru' || currentMode === 'wd_old');
                 if (isWd) {
-                    const wdAddr = data.config?.alamat_wd || serverConfig.alamat_wd || '';
+                    const wdAddr = (data.config && data.config.alamat_wd) ? data.config.alamat_wd : (serverConfig.alamat_wd || '');
                     summaryMasterRef.textContent = wdAddr ? (wdAddr.substring(0, 5) + '...' + wdAddr.slice(-4)) : '-';
                     summaryMasterRef.title = `Alamat Stellar Tujuan: ${wdAddr}`;
                     if (summaryMasterRef.previousElementSibling) {
                         summaryMasterRef.previousElementSibling.textContent = '🚀 Stellar:';
                     }
                 } else {
-                    const refVal = data.referral?.master_code || data.config?.master_referral_code || 'srTwuLUy';
+                    const refVal = (data.referral && data.referral.master_code) ? data.referral.master_code : ((data.config && data.config.master_referral_code) ? data.config.master_referral_code : 'srTwuLUy');
                     summaryMasterRef.textContent = refVal;
                     summaryMasterRef.title = 'Master Referral Code Relay';
                     if (summaryMasterRef.previousElementSibling) {
@@ -1395,14 +1413,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if (summaryEmailsCount) {
-                summaryEmailsCount.textContent = `${data.emails?.total_available || 0} Akun`;
+                summaryEmailsCount.textContent = `${(data.emails && data.emails.total_available) ? data.emails.total_available : 0} Akun`;
             }
             if (summaryLanIp) {
                 summaryLanIp.textContent = `http://${data.local_machine_ip || '192.168.1.13'}:${data.server_port || 2000}`;
             }
             const summaryDomainLink = document.getElementById('summaryDomainLink');
             if (summaryDomainLink) {
-                const isOnline = data.tunnel?.is_online;
+                const isOnline = Boolean(data.tunnel && data.tunnel.is_online);
                 summaryDomainLink.textContent = isOnline ? 'topnodtools.web.id [Online]' : 'topnodtools.web.id';
                 summaryDomainLink.style.color = isOnline ? '#00ffa3' : '#38bdf8';
             }
@@ -1537,7 +1555,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const line = item.line || '';
 
         // Hilangkan pesan awal
-        if (terminalOutput.querySelector('.log-system')?.textContent.includes('Menghubungkan ke server')) {
+        const sysLog = terminalOutput.querySelector('.log-system');
+        if (sysLog && sysLog.textContent && sysLog.textContent.indexOf('Menghubungkan ke server') !== -1) {
             terminalOutput.innerHTML = '';
         }
 
@@ -1614,7 +1633,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (e.key === 'Enter') {
             e.preventDefault();
-            btnNextAllDevices?.click();
+            if (btnNextAllDevices) btnNextAllDevices.click();
         } else if (e.key === 'p' || e.key === 'P') {
             fetch('/api/bot/pause', {
                 method: 'POST',
@@ -1623,7 +1642,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             showToast("Sinyal PAUSE dikirim", "warning");
         } else if (e.key === 'q' || e.key === 'Q') {
-            btnStopAllDevices?.click();
+            if (btnStopAllDevices) btnStopAllDevices.click();
         }
     });
 

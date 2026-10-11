@@ -3,11 +3,6 @@ color 0B
 title Web Controller Dashboard (Port 2000) - Bitget Wallet ^& Topnod
 cd /d "%~dp0"
 
-echo ======================================================================
-echo    BITGET WALLET AUTO CONTROL DASHBOARD - PORT 2000
-echo    DOMAIN PUBLIK: https://topnodtools.web.id
-echo ======================================================================
-echo.
 echo [*] Mendeteksi IP Otomatis Local LAN...
 
 set LOCAL_IP=
@@ -25,8 +20,13 @@ if "%LOCAL_IP%"=="" set LOCAL_IP=192.168.1.13
 set LOCAL_URL=http://%LOCAL_IP%:2000
 set PUBLIC_DOMAIN=https://topnodtools.web.id
 
-echo.
+:MENU_LOOP
+cls
 echo ======================================================================
+echo    BITGET WALLET AUTO CONTROL DASHBOARD - PORT 2000
+echo    DOMAIN PUBLIK: %PUBLIC_DOMAIN%
+echo ======================================================================
+echo.
 echo  [+] IP Otomatis LAN  : %LOCAL_URL%
 echo  [+] Domain Cloudflare: %PUBLIC_DOMAIN%
 echo ======================================================================
@@ -37,9 +37,11 @@ echo   [1] JALANKAN DENGAN PM2 (Rekomendasi 24 Jam - Aktif Saat Layar Mati)
 echo   [2] JALANKAN DI JENDELA INI (Foreground CMD)
 echo   [3] LIHAT STATUS ^& MONITOR PM2 (pm2 status)
 echo   [4] STOP LAYANAN PM2
+echo   [0] KELUAR
 echo.
 
-choice /c 1234 /t 3 /d 1 /n /m "Pilihan Anda (1-4) [Default=1 dalam 3 detik]: "
+choice /c 12340 /n /m "Pilihan Anda [1-4, atau 0 untuk Keluar]: "
+if errorlevel 5 exit /b
 if errorlevel 4 goto OP_STOP
 if errorlevel 3 goto OP_STATUS
 if errorlevel 2 goto OP_FOREGROUND
@@ -86,11 +88,12 @@ echo.
 echo [*] Membuka Dashboard di Browser: %LOCAL_URL%
 start "" "%LOCAL_URL%"
 echo.
-echo [INFO] Anda AMAN MENUTUP JENDELA CMD INI!
-echo        Server akan tetap berjalan 24 jam non-stop di background.
+echo [INFO] Server berjalan 24 jam non-stop di background.
+echo        Jendela ini dapat ditutup kapan saja tanpa mematikan bot/server.
 echo.
-pause
-exit /b
+echo Tekan tombol apa saja untuk kembali ke menu utama...
+pause >nul
+goto MENU_LOOP
 
 :OP_STATUS
 cls
@@ -105,8 +108,9 @@ echo    LOG TERAKHIR BITGET SERVER (30 BARIS TERAKHIR)
 echo ======================================================================
 pm2 logs bitget-server --lines 30 --nostream
 echo.
-pause
-exit /b
+echo Tekan tombol apa saja untuk kembali ke menu utama...
+pause >nul
+goto MENU_LOOP
 
 :OP_STOP
 cls
@@ -125,10 +129,16 @@ for /f "tokens=5" %%a in ('netstat -ano -p tcp ^| findstr ":2000.*LISTENING"') d
 echo.
 echo [+] Layanan bitget-server berhasil dihentikan dari PM2.
 echo.
-pause
-exit /b
+echo Tekan tombol apa saja untuk kembali ke menu utama...
+pause >nul
+goto MENU_LOOP
 
 :OP_FOREGROUND
+cls
+echo ======================================================================
+echo    BITGET WALLET AUTO CONTROL DASHBOARD (PORT 2000)
+echo    MODE FOREGROUND CMD
+echo ======================================================================
 echo.
 echo [*] Membuka Browser Otomatis ke: %LOCAL_URL%
 start "" "%LOCAL_URL%"
@@ -138,11 +148,11 @@ python -c "import sys; sys.path.insert(0, 'core'); from screen_manager import re
 
 echo.
 echo [*] Menjalankan Server Controller ^& Cloudflare Tunnel di Port 2000...
-echo [*] Tekan Ctrl+C untuk menghentikan server dan tunnel.
+echo [*] Tekan Ctrl+C untuk menghentikan server dan kembali ke menu.
 echo ======================================================================
-:server_loop
 python core\server.py
 echo.
-echo [*] Server me-restart dalam 1 detik... (Tekan Ctrl+C untuk keluar)
-timeout /t 1 /nobreak >nul
-goto server_loop
+echo [*] Server Foreground telah berhenti.
+echo Tekan tombol apa saja untuk kembali ke menu utama...
+pause >nul
+goto MENU_LOOP
