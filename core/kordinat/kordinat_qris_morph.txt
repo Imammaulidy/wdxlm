@@ -17,8 +17,15 @@
 
 
 # ------------------------------------------------------------------------------
-# BAGIAN 0: RESET GOOGLE ADVERTISING ID (GAID / ID IKLAN)
+# BAGIAN 0: RESET ATOMIK CLONE & RESET GOOGLE ADVERTISING ID
 # ------------------------------------------------------------------------------
+
+[0.0. Reset Atomik & Bersihkan Cache Clone]
+# Memaksa berhenti clone, bersihkan cache internal & eksternal, dan reset mode pesawat 3 detik
+cmd clear_clone_cache
+sleep 3.0
+
+--------------------------------------------------------------------------------
 
 [0.1. Buka Halaman Pengaturan Iklan Google]
 # Membuka halaman Ads Identity Settings via Android Intent

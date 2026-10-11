@@ -604,6 +604,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="qris-subcommands-toolbar">
                         <div class="qris-sub-title">⚡ SUB-COMMAND &amp; SUB-TAP (QRIS MORPH)</div>
                         <div class="qris-sub-grid">
+                            <button type="button" class="btn-qris-sub btn-sub-cache" data-serial="${serial}" data-action="clear_cache" title="Paksa Berhenti Clone, Hapus Cache & Mode Pesawat 3s (Reset Atomik)">
+                                <span>🧹 [X] Clear Cache Clone</span>
+                            </button>
                             <button type="button" class="btn-qris-sub btn-sub-tebar" data-serial="${serial}" data-action="auto_tebar" title="Kirim Saldo USDC On-Chain ke Address Tuyul (Baca Layar & Transfer)">
                                 <span>⚡ [D] Auto-Tebar USDC</span>
                             </button>
@@ -638,6 +641,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (stepsListEl && cachedSteps.length > 0) {
                 cachedSteps.forEach(step => {
                     const isQrisMorph = (currentMode === 'qris_morph');
+
+                    // 0. Sisipkan Tombol Cepat Reset Atomik / Clear Cache di awal Step 0.0
+                    if (isQrisMorph && (String(step.id) === '0.0' || String(step.id) === '0')) {
+                        const cacheRow = document.createElement('div');
+                        cacheRow.className = 'topnod-step-item step-item-cache-quick';
+                        cacheRow.innerHTML = `
+                            <button type="button" class="btn-step-action btn-quick-cache" data-serial="${serial}" data-action="clear_cache" title="Paksa Berhenti Clone, Hapus Cache & Mode Pesawat 3s (Reset Atomik)">
+                                <span class="step-btn-text">🧹 [X] Sub-Tap: Reset Atomik Clone (Force Stop + Clear Cache + Mode Pesawat 3s)</span>
+                            </button>
+                        `;
+                        stepsListEl.appendChild(cacheRow);
+                    }
 
                     // 1. Sisipkan Tombol Cepat Reset GAID Lengkap di awal Step 0.1
                     if (isQrisMorph && String(step.id) === '0.1') {
@@ -1140,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // 8b. QRIS Sub-Command & Sub-Tap Execution (Batch Synced)
-        card.querySelectorAll('.btn-qris-sub, .btn-qris-sub-mini, .btn-auto-tebar, .btn-quick-gaid').forEach(btn => {
+        card.querySelectorAll('.btn-qris-sub, .btn-qris-sub-mini, .btn-auto-tebar, .btn-quick-gaid, .btn-quick-cache').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const action = btn.getAttribute('data-action');
                 const targets = getActivePadTargets(serial);

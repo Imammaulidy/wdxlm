@@ -728,6 +728,15 @@ class BotRunner:
                 break
 
         if not target:
+            if str(step_id) in ("0.0", "0"):
+                clone_key = self.config.get("clone_app", "dual_space")
+                c_name = CLONE_APPS.get(clone_key, {}).get("name", clone_key)
+                print(f"\n[>] Menjalankan Reset Atomik & Pembersihan Cache Clone ({c_name})...")
+                self.adb.force_stop_and_clear_cache(clone_key, stop_checker=self.is_stopped)
+                airplane_sec = self.config.get("airplane_seconds", 3)
+                self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped)
+                self.adb.launch_clone_app(clone_key, stop_checker=self.is_stopped)
+                return True
             print(f"[!] Step {step_id} tidak ditemukan di {os.path.basename(KORDINAT_FILE)}.")
             return False
 
@@ -822,6 +831,16 @@ class BotRunner:
                 pin_code = self.config.get("pin", "080808")
             coords = self.config.get("keypad_coords_morph") or self.config.get("keypad_coords")
             self.adb.type_pin(pin_code, keypad_coords=coords, delay_step=0.3)
+
+        elif action in ("clear_clone_cache", "clear_cache", "reset_clone") or (action == "cmd" and len(parts) >= 2 and parts[1].lower() in ("clear_clone_cache", "clear_cache", "reset_clone")):
+            clone_key = self.config.get("clone_app", "dual_space")
+            c_name = CLONE_APPS.get(clone_key, {}).get("name", clone_key)
+            print(f"[*] Menjalankan Reset Atomik & Pembersihan Cache Clone ({c_name})...")
+            self.adb.force_stop_and_clear_cache(clone_key, stop_checker=self.is_stopped)
+            airplane_sec = self.config.get("airplane_seconds", 3)
+            self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped)
+            self.adb.launch_clone_app(clone_key, stop_checker=self.is_stopped)
+            print(f"[V] Reset Atomik & Bersihkan Cache Clone {c_name} Selesai!")
 
         else:
             # Perintah umum ADB shell (am, pm, cmd, monkey, dll)
@@ -2024,6 +2043,7 @@ def menu_manage_steps():
     """Menu untuk melihat dan menguji langkah koordinat kordinat_qris_morph.txt."""
     runner = BotRunner()
     key_mapping = {
+        "x": "0.0",
         "j": "0.1",
         "k": "0.2",
         "l": "0.3",
@@ -2062,6 +2082,7 @@ def menu_manage_steps():
         def _st(sid):
             return "[OFF ]" if step_map.get(sid, {}).get("is_off") else "[ ON ]"
 
+        print(f" [X] Step 0.0 {_st('0.0')} : {step_map.get('0.0', {}).get('name', 'Reset Atomik & Bersihkan Cache Clone')}")
         print(f" [J] Step 0.1 {_st('0.1')} : {step_map.get('0.1', {}).get('name', 'Buka Pengaturan Iklan Google')}")
         print(f" [K] Step 0.2 {_st('0.2')} : {step_map.get('0.2', {}).get('name', 'Ketuk Delete Advertising ID')}")
         print(f" [L] Step 0.3 {_st('0.3')} : {step_map.get('0.3', {}).get('name', 'Ketuk Tombol Hijau Delete ID')}")
@@ -2084,11 +2105,12 @@ def menu_manage_steps():
         print(f" [B] Step 11  {_st('11')} : {step_map.get('11', {}).get('name', 'Masuk Event Cashback')}")
         print(f" [C] Step 12  {_st('12')} : {step_map.get('12', {}).get('name', 'Claim Reward')}")
         print("-"*70)
+        print(" [X] Sub-Tap : Reset Atomik Clone (Force Stop + Clear Cache + Mode Pesawat 3s)")
+        print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)")
         print(" [E] Sub-Tap : Klik Kolom Jumlah Pembayaran Saja (916 1594)")
         print(f" [F] Sub-Tap : Pilih Token {tok_symbol} Paling Atas Saja (517 1536)")
         print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
         print(" [P] Sub-Tap : Ketik Sandi PIN 080808 Saja")
-        print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)")
         print(" [T] Atur ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)")
         print(" [N] Buka / Edit File kordinat_qris_morph.txt di Notepad")
         print(" [0] Kembali ke Menu Sebelumnya")
@@ -2098,7 +2120,7 @@ def menu_manage_steps():
             print(f" Status: {last_tested_msg}\n")
             last_tested_msg = ""
 
-        key = get_key_press(" Tekan Tombol [1-9 / A-G / J-M / O / U-V / P / I / T / N / 0]: ").strip().lower()
+        key = get_key_press(" Tekan Tombol [0-9 / A-G / J-M / O / U-V / X / P / I / T / N / 0]: ").strip().lower()
 
         if key == "0":
             break
@@ -2108,6 +2130,15 @@ def menu_manage_steps():
             if os.name == 'nt':
                 os.system(f'notepad "{KORDINAT_FILE}"')
             last_tested_msg = "Membuka file koordinat di Notepad..."
+        elif key == "x":
+            clone_key = runner.config.get("clone_app", "dual_space")
+            c_name = CLONE_APPS.get(clone_key, {}).get('name', clone_key)
+            print(f"\n[>] Menjalankan Reset Atomik & Pembersihan Cache Clone ({c_name})...")
+            runner.adb.force_stop_and_clear_cache(clone_key)
+            airplane_sec = runner.config.get("airplane_seconds", 3)
+            runner.adb.toggle_airplane_mode(airplane_sec)
+            runner.adb.launch_clone_app(clone_key)
+            last_tested_msg = f"[V] Reset Atomik & Bersihkan Cache {c_name} selesai!"
         elif key == "i":
             print("\n[>] Menjalankan Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)...")
             for sid in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7"]:

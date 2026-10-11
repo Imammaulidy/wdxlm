@@ -595,6 +595,9 @@ def execute_step_commands(serial, step, mode='create_account', account_num=1):
             run_adb(f"monkey {cmd_body}")
             broadcast_log(f"[{dev_name}] Monkey {cmd_body}", device=serial)
 
+        elif cmd_lower.startswith("cmd clear_clone_cache") or cmd_lower in ("clear_clone_cache", "clear_cache", "reset_clone", "reset_atomik"):
+            handle_qris_clear_cache([serial], launch_app=True)
+
         else:
             run_adb(cmd_stripped)
             broadcast_log(f"[{dev_name}] Exec: {cmd_stripped}", device=serial)
@@ -1738,6 +1741,29 @@ def handle_qris_auto_tebar(targets, custom_tuyul=None, custom_amount=None):
             results.append({"serial": s, "success": False, "message": str(e)})
     return results
 
+def handle_qris_clear_cache(targets, launch_app=True):
+    """Mengeksekusi alur Reset Atomik Clone: Force Stop, Bersihkan Cache, Mode Pesawat 3s, dan Buka Clone."""
+    from adb_controller import ADBController, CLONE_APPS
+    config = load_config_data()
+    clone_key = config.get("clone_app", "dual_space")
+    airplane_sec = config.get("airplane_seconds", 3)
+    c_info = CLONE_APPS.get(clone_key, {"name": clone_key, "package": ""})
+
+    for s in targets:
+        try:
+            adb = ADBController(serial=s)
+            broadcast_log(f"[{s}] [CLEAR CACHE] Memulai Reset Atomik Clone: {c_info.get('name')}...", device=s)
+            broadcast_log(f"[{s}] [CLEAR CACHE] [1/3] Paksa berhenti & hapus cache...", device=s)
+            adb.force_stop_and_clear_cache(clone_key)
+            broadcast_log(f"[{s}] [CLEAR CACHE] [2/3] Mode pesawat ({airplane_sec}s)...", device=s)
+            adb.toggle_airplane_mode(airplane_sec)
+            if launch_app:
+                broadcast_log(f"[{s}] [CLEAR CACHE] [3/3] Membuka kembali aplikasi {c_info.get('name')}...", device=s)
+                adb.launch_clone_app(clone_key)
+            broadcast_log(f"[{s}] [CLEAR CACHE] Reset Atomik & Bersihkan Cache SELESAI!", device=s)
+        except Exception as e:
+            broadcast_log(f"[{s}] [CLEAR CACHE ERROR] {e}", device=s)
+
 def handle_qris_reset_gaid(targets):
     """Mengeksekusi alur lengkap Reset GAID (Step 0.1 s/d 0.7) secara berurutan."""
     from qris_morph import BotRunner
@@ -1764,7 +1790,13 @@ def api_qris_sub_command():
         
     targets = [d["serial"] for d in get_unique_physical_devices()] if target == "all" else [target]
     
-    if action == "auto_tebar":
+    if action in ("clear_cache", "reset_clone", "clear_clone_cache"):
+        def run_cache():
+            handle_qris_clear_cache(targets, launch_app=True)
+        threading.Thread(target=run_cache, daemon=True).start()
+        return jsonify({"status": "success", "message": f"Reset Atomik & Bersihkan Cache Clone dikirim ke {', '.join(targets)}", "action": action})
+
+    elif action == "auto_tebar":
         custom_tuyul = data.get("tuyul_address")
         custom_amt = data.get("amount")
         def run_tebar():
@@ -1849,8 +1881,18 @@ def api_step_execute():
 
     targets = [d["serial"] for d in get_unique_physical_devices()] if target == "all" else [target]
 
-    # Khusus QRIS Morph: Auto-Tebar, Reset GAID, Sub-Tap Step 9, dan Sub-Tap PIN
+    # Khusus QRIS Morph: Clear Cache (0.0), Auto-Tebar, Reset GAID, Sub-Tap Step 9, dan Sub-Tap PIN
     str_step = str(step_id).lower()
+    if str_step in ('0.0', '0', 'clear_cache', 'reset_clone', 'x') or sub_action in ('clear_cache', 'reset_clone', 'clear_clone_cache'):
+        def run_cache():
+            handle_qris_clear_cache(targets, launch_app=True)
+        threading.Thread(target=run_cache, daemon=True).start()
+        return jsonify({
+            "status": "success",
+            "message": f"Reset Atomik & Bersihkan Cache Clone (Step 0.0) dimulai pada {', '.join(targets)}",
+            "devices": targets
+        })
+
     if str_step in ('auto_tebar', 'd') or sub_action == 'auto_tebar':
         custom_tuyul = data.get("tuyul_address")
         custom_amt = data.get("amount")
