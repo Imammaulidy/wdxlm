@@ -620,21 +620,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" class="btn-qris-sub btn-sub-gaid" data-serial="${serial}" data-action="reset_gaid" title="Jalankan Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)">
                                 <span>🔄 [I] Reset GAID (0.1 - 0.7)</span>
                             </button>
-                            <button type="button" class="btn-qris-sub btn-sub-tap" data-serial="${serial}" data-action="tap_add_token" title="Klik Tombol Cyan Tambahkan Token USDC (787, 2189)">
-                                <span>➕ [Y] 4.1: Tambah Token</span>
-                            </button>
-                            <button type="button" class="btn-qris-sub btn-sub-tap" data-serial="${serial}" data-action="tap_amount" title="Klik Kolom Jumlah Pembayaran Saja (916, 1594)">
-                                <span>🖱️ [E] 9.1: Jumlah</span>
-                            </button>
-                            <button type="button" class="btn-qris-sub btn-sub-tap" data-serial="${serial}" data-action="tap_token" title="Pilih Token USDC Paling Atas Saja (517, 1536)">
-                                <span>🪙 [F] 9.2: Token USDC</span>
-                            </button>
-                            <button type="button" class="btn-qris-sub btn-sub-tap" data-serial="${serial}" data-action="tap_confirm" title="Klik Tombol Konfirmasi Pembayaran Saja (540, 2193)">
-                                <span>💳 [G] 9.3: Konfirmasi</span>
-                            </button>
-                            <button type="button" class="btn-qris-sub btn-sub-tap" data-serial="${serial}" data-action="type_pin" title="Ketik Sandi PIN Transaksi">
-                                <span>🔢 [P] PIN Transaksi</span>
-                            </button>
                         </div>
                     </div>
                     ` : ''}
