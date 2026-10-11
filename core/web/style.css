@@ -2899,6 +2899,20 @@ input:checked + .slider:before {
     box-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
 }
 
+.btn-sub-qris {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(236, 72, 153, 0.25) 100%);
+    border: 1px solid rgba(236, 72, 153, 0.5);
+    color: #f472b6;
+    font-weight: 700;
+}
+
+.btn-sub-qris:hover {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.35) 0%, rgba(236, 72, 153, 0.45) 100%);
+    border-color: #ec4899;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(236, 72, 153, 0.4);
+}
+
 .btn-sub-tebar {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.25) 100%);
     border: 1px solid #10b981;
@@ -2958,6 +2972,28 @@ input:checked + .slider:before {
     color: #fff !important;
     border-style: solid !important;
     box-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
+}
+
+.step-item-qris-quick {
+    margin: 4px 0 6px 0 !important;
+}
+
+.btn-quick-qris {
+    width: 100%;
+    background: linear-gradient(90deg, rgba(168, 85, 247, 0.15) 0%, rgba(236, 72, 153, 0.2) 100%) !important;
+    border: 1px dashed rgba(236, 72, 153, 0.5) !important;
+    color: #f472b6 !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    padding: 7px 10px !important;
+    border-radius: 6px !important;
+}
+
+.btn-quick-qris:hover {
+    background: linear-gradient(90deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.35) 100%) !important;
+    color: #fff !important;
+    border-style: solid !important;
+    box-shadow: 0 0 10px rgba(236, 72, 153, 0.3);
 }
 
 .step-item-auto-tebar {

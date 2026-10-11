@@ -607,6 +607,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" class="btn-qris-sub btn-sub-cache" data-serial="${serial}" data-action="clear_cache" title="Paksa Berhenti Clone, Hapus Cache & Mode Pesawat 3s (Reset Atomik)">
                                 <span>🧹 [X] Clear Cache Clone</span>
                             </button>
+                            <button type="button" class="btn-qris-sub btn-sub-qris" data-serial="${serial}" data-action="generate_qris" title="Buat QRIS Dinamis Baru & Push ke Galeri HP (/sdcard/Download/)">
+                                <span>🖼️ [Q] Generate QRIS</span>
+                            </button>
                             <button type="button" class="btn-qris-sub btn-sub-tebar" data-serial="${serial}" data-action="auto_tebar" title="Kirim Saldo USDC On-Chain ke Address Tuyul (Baca Layar & Transfer)">
                                 <span>⚡ [D] Auto-Tebar USDC</span>
                             </button>
@@ -664,6 +667,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             </button>
                         `;
                         stepsListEl.appendChild(gaidRow);
+                    }
+
+                    // 1.5 Sisipkan Tombol Cepat Generate QRIS di awal Step 0.8
+                    if (isQrisMorph && (String(step.id) === '0.8' || String(step.id) === 'qris')) {
+                        const qrisRow = document.createElement('div');
+                        qrisRow.className = 'topnod-step-item step-item-qris-quick';
+                        qrisRow.innerHTML = `
+                            <button type="button" class="btn-step-action btn-quick-qris" data-serial="${serial}" data-action="generate_qris" title="Buat QRIS GoBiz Dinamis & Push Langsung ke Galeri HP">
+                                <span class="step-btn-text">🖼️ [Q] Sub-Tap: Generate QRIS GoBiz Dinamis &amp; Push ke Galeri HP</span>
+                            </button>
+                        `;
+                        stepsListEl.appendChild(qrisRow);
                     }
 
                     // 2. Sisipkan Tombol Auto-Tebar On-Chain antara Step 8 dan Step 9
@@ -1155,7 +1170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // 8b. QRIS Sub-Command & Sub-Tap Execution (Batch Synced)
-        card.querySelectorAll('.btn-qris-sub, .btn-qris-sub-mini, .btn-auto-tebar, .btn-quick-gaid, .btn-quick-cache').forEach(btn => {
+        card.querySelectorAll('.btn-qris-sub, .btn-qris-sub-mini, .btn-auto-tebar, .btn-quick-gaid, .btn-quick-cache, .btn-quick-qris').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const action = btn.getAttribute('data-action');
                 const targets = getActivePadTargets(serial);

@@ -598,6 +598,9 @@ def execute_step_commands(serial, step, mode='create_account', account_num=1):
         elif cmd_lower.startswith("cmd clear_clone_cache") or cmd_lower in ("clear_clone_cache", "clear_cache", "reset_clone", "reset_atomik"):
             handle_qris_clear_cache([serial], launch_app=True)
 
+        elif cmd_lower.startswith("cmd generate_push_qris") or cmd_lower in ("generate_push_qris", "generate_qris", "gen_qris"):
+            handle_qris_generate_and_push([serial])
+
         else:
             run_adb(cmd_stripped)
             broadcast_log(f"[{dev_name}] Exec: {cmd_stripped}", device=serial)
@@ -1764,6 +1767,46 @@ def handle_qris_clear_cache(targets, launch_app=True):
         except Exception as e:
             broadcast_log(f"[{s}] [CLEAR CACHE ERROR] {e}", device=s)
 
+def handle_qris_generate_and_push(targets, custom_amount=None):
+    """Menghasilkan QRIS GoBiz dinamis terkini dan mengirimkannya (push) ke galeri seluruh target HP."""
+    from qris_morph import GoBizQRISGenerator, TEMP_QR_PATH
+    from adb_controller import ADBController
+    config = load_config_data()
+    qris_gen = GoBizQRISGenerator(config)
+
+    target_amount = int(custom_amount) if custom_amount and int(custom_amount) > 0 else int(config.get("default_qris_nominal", 18501))
+    broadcast_log(f"[QRIS GEN] Membuat QRIS GoBiz Dinamis: Rp {target_amount:,}...")
+    ok_qr, qr_str, qr_det = qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+    if not ok_qr:
+        err_msg = qr_det.get("error", "Gagal generate QRIS")
+        broadcast_log(f"[QRIS GEN ERROR] {err_msg}")
+        return False, err_msg
+
+    m_name = qr_det.get("merchant_name", "MODIFIED_RANDOM")
+    broadcast_log(f"[QRIS GEN] QRIS Berhasil: Rp {target_amount:,} | Merchant: {m_name}")
+
+    next_amount = target_amount + 1
+    config["default_qris_nominal"] = next_amount
+    save_config_data(config)
+    broadcast_log(f"[QRIS GEN] Nominal berikutnya di-increment (+1): Rp {next_amount:,}")
+
+    results = []
+    for s in targets:
+        try:
+            adb = ADBController(serial=s)
+            broadcast_log(f"[{s}] [QRIS PUSH] Mengirim gambar QRIS ke galeri HP...", device=s)
+            ok_push, remote_p = adb.push_qr_image(TEMP_QR_PATH)
+            if ok_push:
+                broadcast_log(f"[{s}] [QRIS PUSH] Gambar QRIS terpasang di galeri: {remote_p}", device=s)
+                results.append({"serial": s, "success": True, "path": remote_p})
+            else:
+                broadcast_log(f"[{s}] [QRIS PUSH ERROR] Gagal push gambar ke HP", device=s)
+                results.append({"serial": s, "success": False, "message": "Gagal push QRIS"})
+        except Exception as ex:
+            broadcast_log(f"[{s}] [QRIS PUSH EXCEPTION] {ex}", device=s)
+            results.append({"serial": s, "success": False, "message": str(ex)})
+    return True, f"QRIS Rp {target_amount:,} dikirim ke {len(targets)} HP"
+
 def handle_qris_reset_gaid(targets):
     """Mengeksekusi alur lengkap Reset GAID (Step 0.1 s/d 0.7) secara berurutan."""
     from qris_morph import BotRunner
@@ -1795,6 +1838,13 @@ def api_qris_sub_command():
             handle_qris_clear_cache(targets, launch_app=True)
         threading.Thread(target=run_cache, daemon=True).start()
         return jsonify({"status": "success", "message": f"Reset Atomik & Bersihkan Cache Clone dikirim ke {', '.join(targets)}", "action": action})
+
+    elif action in ("generate_qris", "generate_push_qris", "qris", "gen_qris"):
+        custom_amount = data.get("amount")
+        def run_gen():
+            handle_qris_generate_and_push(targets, custom_amount)
+        threading.Thread(target=run_gen, daemon=True).start()
+        return jsonify({"status": "success", "message": f"Generate QRIS & Push ke {', '.join(targets)} dimulai", "action": action})
 
     elif action == "auto_tebar":
         custom_tuyul = data.get("tuyul_address")
@@ -1890,6 +1940,17 @@ def api_step_execute():
         return jsonify({
             "status": "success",
             "message": f"Reset Atomik & Bersihkan Cache Clone (Step 0.0) dimulai pada {', '.join(targets)}",
+            "devices": targets
+        })
+
+    if str_step in ('0.8', 'generate_qris', 'qris', 'q') or sub_action in ('generate_qris', 'generate_push_qris'):
+        custom_amount = data.get("amount")
+        def run_gen():
+            handle_qris_generate_and_push(targets, custom_amount)
+        threading.Thread(target=run_gen, daemon=True).start()
+        return jsonify({
+            "status": "success",
+            "message": f"Generate QRIS & Push ke Galeri HP (Step 0.8) dimulai pada {', '.join(targets)}",
             "devices": targets
         })
 

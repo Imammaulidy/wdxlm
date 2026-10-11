@@ -23,56 +23,63 @@
 [0.0. Reset Atomik & Bersihkan Cache Clone]
 # Memaksa berhenti clone, bersihkan cache internal & eksternal, dan reset mode pesawat 3 detik
 cmd clear_clone_cache
-sleep 3.0
+sleep 3
 
 --------------------------------------------------------------------------------
 
 [0.1. Buka Halaman Pengaturan Iklan Google]
 # Membuka halaman Ads Identity Settings via Android Intent
 am start -a com.google.android.gms.adsidentity.ACTION_ADS_IDENTITY_SETTINGS
-sleep 2.0
+sleep 1.2
 
 --------------------------------------------------------------------------------
 
 [0.2. Ketuk Delete Advertising ID]
 # Mengetuk menu 'Hapus ID iklan' (bounds [0,792][1080,978])
 input tap 540 885
-sleep 1.2
+sleep 0.5
 
 --------------------------------------------------------------------------------
 
 [0.3. Ketuk Tombol Hijau Delete Advertising ID]
 # Mengetuk tombol konfirmasi 'Hapus ID iklan' (bounds [417,858][663,993])
 input tap 540 925
-sleep 1.5
+sleep 0.5
 
 --------------------------------------------------------------------------------
 
 [0.4. Ketuk Get New Advertising ID]
 # Mengetuk menu 'Dapatkan ID iklan baru' pasca hapus (bounds [0,606][1080,792])
 input tap 540 699
-sleep 1.2
+sleep 0.5
 
 --------------------------------------------------------------------------------
 
 [0.5. Ketuk Confirm Dialog Get New ID]
 # Mengetuk tombol 'KONFIRMASI' popup Dapatkan ID iklan baru (bounds [792,1312][991,1431])
 input tap 891 1371
-sleep 1.5
+sleep 0.5
 
 --------------------------------------------------------------------------------
 
 [0.6. Ketuk Reset Advertising ID]
 # Mengetuk menu 'Reset ID iklan' (bounds [0,606][1080,792])
 input tap 540 699
-sleep 1.2
+sleep 0.5
 
 --------------------------------------------------------------------------------
 
 [0.7. Ketuk Confirm Dialog Reset ID]
 # Mengetuk tombol 'KONFIRMASI' popup Reset ID iklan (bounds [792,1312][991,1431])
 input tap 891 1371
-sleep 1.5
+sleep 1
+
+--------------------------------------------------------------------------------
+
+[0.8. Generate QRIS Dinamis & Push ke Galeri HP]
+# Membuat QRIS GoBiz dinamis terkini dan mengirimkannya langsung ke galeri HP (/sdcard/Download/)
+cmd generate_push_qris
+sleep 2.0
 
 --------------------------------------------------------------------------------
 
@@ -161,12 +168,12 @@ sleep 11.3
 
 [11. Klik Masuk Event Cashback]
 # Mengetuk pop-up / tombol Menuju Halaman Event Cashback setelah bayar sukses
-input tap 258 788
+input tap 282 826
 sleep 7
 
 --------------------------------------------------------------------------------
 
 [12. Klik Claim Reward]
 # Mengetuk tombol Klaim Hadiah / Claim Reward pada halaman event
-input tap 540 1670
+input tap 540 1662
 sleep 3

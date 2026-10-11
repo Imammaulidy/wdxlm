@@ -737,6 +737,18 @@ class BotRunner:
                 self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped)
                 self.adb.launch_clone_app(clone_key, stop_checker=self.is_stopped)
                 return True
+            elif str(step_id) in ("0.8", "generate_qris", "gen_qris", "q"):
+                target_amount = int(self.config.get("default_qris_nominal", 18501))
+                print(f"\n[>] Menghasilkan QRIS GoBiz Dinamis Rp {target_amount:,}...")
+                ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+                if ok_qr:
+                    m_name = qr_det.get("merchant_name", "MODIFIED_RANDOM")
+                    print(f"[V] QRIS Sukses: Rp {target_amount:,} | {m_name}")
+                    self.config["default_qris_nominal"] = target_amount + 1
+                    save_config(self.config)
+                    self.adb.push_qr_image(TEMP_QR_PATH)
+                    return True
+                return False
             print(f"[!] Step {step_id} tidak ditemukan di {os.path.basename(KORDINAT_FILE)}.")
             return False
 
@@ -841,6 +853,23 @@ class BotRunner:
             self.adb.toggle_airplane_mode(airplane_sec, stop_checker=self.is_stopped)
             self.adb.launch_clone_app(clone_key, stop_checker=self.is_stopped)
             print(f"[V] Reset Atomik & Bersihkan Cache Clone {c_name} Selesai!")
+
+        elif action in ("generate_push_qris", "generate_qris", "gen_qris") or (action == "cmd" and len(parts) >= 2 and parts[1].lower() in ("generate_push_qris", "generate_qris", "gen_qris")):
+            target_amount = int(self.config.get("default_qris_nominal", 18501))
+            print(f"[*] Menghasilkan QRIS GoBiz Dinamis Rp {target_amount:,}...")
+            ok_qr, qr_str, qr_det = self.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+            if ok_qr:
+                merchant_name = qr_det.get("merchant_name", "MODIFIED_RANDOM")
+                print(f"[V] QRIS Berhasil Dibuat: Rp {target_amount:,} | Merchant: {merchant_name}")
+                next_amount = target_amount + 1
+                self.config["default_qris_nominal"] = next_amount
+                save_config(self.config)
+                print(f"[*] Nominal berikutnya otomatis dinaikkan (+1): Rp {next_amount:,}")
+                ok_push, remote_path = self.adb.push_qr_image(TEMP_QR_PATH)
+                if ok_push:
+                    print(f"[V] Gambar QRIS berhasil dikirim ke galeri HP: {remote_path}!")
+            else:
+                print(f"[X] Gagal membuat QRIS: {qr_det.get('error')}")
 
         else:
             # Perintah umum ADB shell (am, pm, cmd, monkey, dll)
@@ -2051,6 +2080,7 @@ def menu_manage_steps():
         "o": "0.5",
         "u": "0.6",
         "v": "0.7",
+        "q": "0.8",
         "1": "1",
         "2": "2",
         "3": "3",
@@ -2090,6 +2120,7 @@ def menu_manage_steps():
         print(f" [O] Step 0.5 {_st('0.5')} : {step_map.get('0.5', {}).get('name', 'Ketuk Confirm Dialog Get New ID')}")
         print(f" [U] Step 0.6 {_st('0.6')} : {step_map.get('0.6', {}).get('name', 'Ketuk Reset Advertising ID')}")
         print(f" [V] Step 0.7 {_st('0.7')} : {step_map.get('0.7', {}).get('name', 'Ketuk Confirm Dialog Reset ID')}")
+        print(f" [Q] Step 0.8 {_st('0.8')} : {step_map.get('0.8', {}).get('name', 'Generate QRIS Dinamis & Push ke HP')}")
         print("-"*70)
         print(f" [1] Step 1   {_st('1')} : {step_map.get('1', {}).get('name', 'Scan QR Bitget')}")
         print(f" [2] Step 2   {_st('2')} : {step_map.get('2', {}).get('name', 'Galeri Scanner')}")
@@ -2106,6 +2137,7 @@ def menu_manage_steps():
         print(f" [C] Step 12  {_st('12')} : {step_map.get('12', {}).get('name', 'Claim Reward')}")
         print("-"*70)
         print(" [X] Sub-Tap : Reset Atomik Clone (Force Stop + Clear Cache + Mode Pesawat 3s)")
+        print(" [Q] Sub-Tap : Generate QRIS GoBiz Dinamis & Push ke Galeri HP")
         print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)")
         print(" [E] Sub-Tap : Klik Kolom Jumlah Pembayaran Saja (916 1594)")
         print(f" [F] Sub-Tap : Pilih Token {tok_symbol} Paling Atas Saja (517 1536)")
@@ -2120,7 +2152,7 @@ def menu_manage_steps():
             print(f" Status: {last_tested_msg}\n")
             last_tested_msg = ""
 
-        key = get_key_press(" Tekan Tombol [0-9 / A-G / J-M / O / U-V / X / P / I / T / N / 0]: ").strip().lower()
+        key = get_key_press(" Tekan Tombol [0-9 / A-G / J-M / O / Q / U-V / X / P / I / T / N / 0]: ").strip().lower()
 
         if key == "0":
             break
@@ -2139,6 +2171,19 @@ def menu_manage_steps():
             runner.adb.toggle_airplane_mode(airplane_sec)
             runner.adb.launch_clone_app(clone_key)
             last_tested_msg = f"[V] Reset Atomik & Bersihkan Cache {c_name} selesai!"
+        elif key == "q":
+            target_amount = int(runner.config.get("default_qris_nominal", 18501))
+            print(f"\n[>] Menghasilkan QRIS GoBiz Dinamis Rp {target_amount:,}...")
+            ok_qr, qr_str, qr_det = runner.qris_gen.create_and_save_qris(target_amount, TEMP_QR_PATH)
+            if ok_qr:
+                m_name = qr_det.get("merchant_name", "MODIFIED_RANDOM")
+                print(f"[V] QRIS Sukses: Rp {target_amount:,} | Merchant: {m_name}")
+                runner.config["default_qris_nominal"] = target_amount + 1
+                save_config(runner.config)
+                ok_push, remote_p = runner.adb.push_qr_image(TEMP_QR_PATH)
+                last_tested_msg = f"[V] QRIS Rp {target_amount:,} berhasil dikirim ke galeri HP ({remote_p})!"
+            else:
+                last_tested_msg = f"[X] Gagal membuat QRIS: {qr_det.get('error')}"
         elif key == "i":
             print("\n[>] Menjalankan Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)...")
             for sid in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7"]:
