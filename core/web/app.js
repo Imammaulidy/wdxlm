@@ -598,6 +598,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" class="btn-link-action btn-check-all-steps" data-serial="${serial}">Semua</button>
                             <span style="color:#475569;">|</span>
                             <button type="button" class="btn-link-action btn-uncheck-all-steps" data-serial="${serial}">Batal</button>
+                            ${currentMode === 'qris_morph' ? `
+                            <span style="color:#475569;">|</span>
+                            <button type="button" class="btn-link-action btn-toggle-gaid-steps" data-serial="${serial}" title="Tampilkan / Sembunyikan 7 Langkah Detail GAID (0.1 - 0.7)">⚙️ GAID (0.1-0.7)</button>
+                            ` : ''}
                         </div>
                     </div>
                     ${currentMode === 'qris_morph' ? `
@@ -645,11 +649,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Render Macro Steps ke dalam kartu PAD ini
             const stepsListEl = document.getElementById(`padStepsList_${serial}`);
             if (stepsListEl && cachedSteps.length > 0) {
+                const isQrisMorph = (currentMode === 'qris_morph');
+                let gaidGroupEl = null;
+                if (isQrisMorph) {
+                    gaidGroupEl = document.createElement('div');
+                    gaidGroupEl.className = 'gaid-steps-group';
+                    gaidGroupEl.id = `gaidStepsGroup_${serial}`;
+                    gaidGroupEl.style.display = 'none';
+                    const gaidGroupHeader = document.createElement('div');
+                    gaidGroupHeader.className = 'gaid-steps-group-title';
+                    gaidGroupHeader.innerHTML = '<span>⚙️ Detail Langkah Reset GAID (0.1 - 0.7) [Disembunyikan]</span>';
+                    gaidGroupEl.appendChild(gaidGroupHeader);
+                }
+
                 cachedSteps.forEach(step => {
-                    const isQrisMorph = (currentMode === 'qris_morph');
+                    const sid = String(step.id);
+                    const isGaidStep = isQrisMorph && (['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7'].indexOf(sid) !== -1);
 
                     // 0. Sisipkan Tombol Cepat Reset Atomik / Clear Cache di awal Step 0.0
-                    if (isQrisMorph && (String(step.id) === '0.0' || String(step.id) === '0')) {
+                    if (isQrisMorph && (sid === '0.0' || sid === '0')) {
                         const cacheRow = document.createElement('div');
                         cacheRow.className = 'topnod-step-item step-item-cache-quick';
                         cacheRow.innerHTML = `
@@ -660,20 +678,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         stepsListEl.appendChild(cacheRow);
                     }
 
-                    // 1. Sisipkan Tombol Cepat Reset GAID Lengkap di awal Step 0.1
-                    if (isQrisMorph && String(step.id) === '0.1') {
-                        const gaidRow = document.createElement('div');
-                        gaidRow.className = 'topnod-step-item step-item-gaid-quick';
-                        gaidRow.innerHTML = `
-                            <button type="button" class="btn-step-action btn-quick-gaid" data-serial="${serial}" data-action="reset_gaid" title="Eksekusi Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)">
-                                <span class="step-btn-text">🔄 [I] Sub-Tap: Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)</span>
-                            </button>
-                        `;
-                        stepsListEl.appendChild(gaidRow);
-                    }
-
                     // 1.5 Sisipkan Tombol Cepat Generate QRIS di awal Step 0.8
-                    if (isQrisMorph && (String(step.id) === '0.8' || String(step.id) === 'qris')) {
+                    if (isQrisMorph && (sid === '0.8' || sid === 'qris')) {
+                        if (gaidGroupEl && !gaidGroupEl.parentNode) {
+                            stepsListEl.appendChild(gaidGroupEl);
+                        }
                         const qrisRow = document.createElement('div');
                         qrisRow.className = 'topnod-step-item step-item-qris-quick';
                         qrisRow.innerHTML = `
@@ -762,8 +771,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         `;
                     }
-                    stepsListEl.appendChild(stepRow);
+                    if (isGaidStep && gaidGroupEl) {
+                        gaidGroupEl.appendChild(stepRow);
+                    } else {
+                        stepsListEl.appendChild(stepRow);
+                    }
                 });
+
+                if (gaidGroupEl && !gaidGroupEl.parentNode) {
+                    stepsListEl.appendChild(gaidGroupEl);
+                }
             } else if (stepsListEl) {
                 stepsListEl.innerHTML = '<div style="font-size:11px; color:#94a3b8; text-align:center; padding:10px;">Tidak ada langkah untuk mode ini</div>';
             }
@@ -1050,6 +1067,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ enabled: false, mode: currentMode })
                 });
                 showToast("Semua langkah dinonaktifkan", "warning");
+            });
+        }
+
+        const btnToggleGaid = card.querySelector('.btn-toggle-gaid-steps');
+        if (btnToggleGaid) {
+            btnToggleGaid.addEventListener('click', () => {
+                const grp = card.querySelector(`#gaidStepsGroup_${serial}`);
+                if (grp) {
+                    const isHidden = (grp.style.display === 'none' || grp.style.display === '');
+                    grp.style.display = isHidden ? 'block' : 'none';
+                    btnToggleGaid.textContent = isHidden ? '👁️ Tutup GAID' : '⚙️ GAID (0.1-0.7)';
+                    btnToggleGaid.style.color = isHidden ? '#f59e0b' : '#38bdf8';
+                }
             });
         }
 

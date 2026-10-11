@@ -2951,6 +2951,25 @@ input:checked + .slider:before {
     border-color: #38bdf8;
 }
 
+/* Grup Tersembunyi untuk Langkah GAID (0.1 - 0.7) */
+.gaid-steps-group {
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px dashed rgba(56, 189, 248, 0.25);
+    border-radius: 8px;
+    padding: 6px;
+    margin: 4px 0 8px 0;
+}
+
+.gaid-steps-group-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #38bdf8;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* Row Khusus Clear Cache, Auto-Tebar dan Quick GAID di daftar Langkah Macro */
 .step-item-cache-quick {
     margin: 4px 0 6px 0 !important;
