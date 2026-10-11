@@ -2133,9 +2133,11 @@ def menu_manage_steps():
             last_tested_msg = f"[V] PIN {pin_to_type} selesai diketik."
         elif key == "d":
             try:
-                tuyul_addr = get_last_tuyul_address() or runner.adb.get_clipboard_text()
+                tuyul_addr = runner.adb.get_clipboard_text() or runner.adb.extract_evm_address_from_screen() or get_last_tuyul_address()
                 if not (tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
                     tuyul_addr = input("\n Masukkan Address EVM Tuyul: ").strip()
+                if tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42:
+                    save_last_tuyul_address(tuyul_addr)
 
                 print(f"\n[*] Mendeteksi nominal tagihan {tok_symbol} dari layar HP...")
                 detected = runner.adb.read_required_usdc_from_screen()

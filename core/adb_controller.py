@@ -190,42 +190,49 @@ class ADBController:
     def reset_advertising_id(self, stop_checker=None) -> bool:
         """
         Mereset Google Advertising ID (GAID / ID Iklan) secara otomatis:
-        1. Membuka halaman Ads Identity Settings secara langsung via Intent.
-        2. Mengetuk tombol 'Reset advertising ID' di koordinat (476, 1465).
-        3. Memberikan jeda 3 detik sebelum konfirmasi.
-        4. Mengetuk tombol 'Confirm' di koordinat (892, 1329).
-        5. Mengulang siklus Reset + Confirm sebanyak 2 kali (double reset).
-        6. Menutup kembali halaman pengaturan (Back / keyevent 4).
+        1. Membuka halaman Ads Identity Settings via Intent.
+        2. Hapus ID Iklan lama (540, 885 -> 540, 925).
+        3. Dapatkan ID Iklan baru (540, 699 -> 891, 1371).
+        4. Reset ID Iklan baru (540, 699 -> 891, 1371).
+        5. Tutup kembali halaman pengaturan (Back / keyevent 4).
         """
         if stop_checker and stop_checker():
             return False
 
-        print("[*] [2/4] Mereset Google Advertising ID (ID Iklan)...")
+        print("[*] [2/4] Mereset Google Advertising ID (Hapus -> Dapatkan Baru -> Reset)...")
         self.run("shell am start -a com.google.android.gms.adsidentity.ACTION_ADS_IDENTITY_SETTINGS")
         time.sleep(2.0)
 
-        # Jalankan 2 siklus reset dan konfirmasi sesuai instruksi
-        for siklus in range(1, 3):
-            if stop_checker and stop_checker():
-                self.keyevent(4, delay_after=0.3)
-                return False
+        # 1. Hapus ID Iklan
+        if stop_checker and stop_checker(): return False
+        print("    -> [1/3] Mengetuk Hapus ID iklan (540, 885)...")
+        self.tap(540, 885, delay_after=1.2)
 
-            print(f"    -> [Siklus {siklus}/2] Mengetuk Reset advertising ID (476, 1465)...")
-            self.tap(476, 1465, delay_after=0.5)
+        if stop_checker and stop_checker(): return False
+        print("    -> [1/3] Mengetuk Konfirmasi Hapus ID iklan (540, 925)...")
+        self.tap(540, 925, delay_after=1.5)
 
-            # Jeda 1 detik sebelum konfirmasi
-            for _ in range(3):
-                if stop_checker and stop_checker():
-                    self.keyevent(4, delay_after=0.3)
-                    return False
-                time.sleep(1.0)
+        # 2. Dapatkan ID Iklan Baru
+        if stop_checker and stop_checker(): return False
+        print("    -> [2/3] Mengetuk Dapatkan ID iklan baru (540, 699)...")
+        self.tap(540, 699, delay_after=1.2)
 
-            print(f"    -> [Siklus {siklus}/2] Mengetuk Confirm (892, 1329)...")
-            self.tap(892, 1329, delay_after=1)
+        if stop_checker and stop_checker(): return False
+        print("    -> [2/3] Mengetuk Konfirmasi Buat ID baru (891, 1371)...")
+        self.tap(891, 1371, delay_after=1.5)
+
+        # 3. Reset ID Iklan Baru
+        if stop_checker and stop_checker(): return False
+        print("    -> [3/3] Mengetuk Reset ID iklan (540, 699)...")
+        self.tap(540, 699, delay_after=1.2)
+
+        if stop_checker and stop_checker(): return False
+        print("    -> [3/3] Mengetuk Konfirmasi Reset ID (891, 1371)...")
+        self.tap(891, 1371, delay_after=1.5)
 
         # Tutup kembali halaman Setelan Iklan
         self.keyevent(4, delay_after=0.5)
-        print("[V] Google Advertising ID (ID Iklan) berhasil di-reset ke identitas acak baru (2x).")
+        print("[V] Google Advertising ID (ID Iklan) berhasil di-reset ke identitas acak baru.")
         return True
 
     def launch_clone_app(self, clone_key: str, stop_checker=None) -> bool:

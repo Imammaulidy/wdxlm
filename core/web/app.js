@@ -644,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const gaidRow = document.createElement('div');
                         gaidRow.className = 'topnod-step-item step-item-gaid-quick';
                         gaidRow.innerHTML = `
-                            <button type="button" class="btn-step-manual btn-quick-gaid" data-serial="${serial}" data-action="reset_gaid" title="Eksekusi Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)">
+                            <button type="button" class="btn-step-action btn-quick-gaid" data-serial="${serial}" data-action="reset_gaid" title="Eksekusi Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)">
                                 <span class="step-btn-text">🔄 [I] Sub-Tap: Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)</span>
                             </button>
                         `;
@@ -656,7 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const tebarRow = document.createElement('div');
                         tebarRow.className = 'topnod-step-item step-item-auto-tebar';
                         tebarRow.innerHTML = `
-                            <button type="button" class="btn-step-manual btn-auto-tebar" data-serial="${serial}" data-action="auto_tebar" title="Kirim Saldo USDC On-Chain ke Tuyul (Baca Layar & Transfer)">
+                            <button type="button" class="btn-step-action btn-auto-tebar" data-serial="${serial}" data-action="auto_tebar" title="Kirim Saldo USDC On-Chain ke Tuyul (Baca Layar & Transfer)">
                                 <span class="step-btn-text">⚡ [D] Auto-Tebar: Kirim Saldo USDC (Baca Layar &amp; Transfer On-Chain)</span>
                             </button>
                         `;
@@ -1046,6 +1046,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelectorAll('.btn-step-manual').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const stepId = btn.getAttribute('data-step-id');
+                if (!stepId) return; // Abaikan tombol yang bukan macro step ber-ID
                 const subAction = btn.getAttribute('data-action'); // 'profil' | 'dompet'
                 const targets = getActivePadTargets(serial);
 

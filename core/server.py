@@ -1689,8 +1689,8 @@ def handle_qris_auto_tebar(targets, custom_tuyul=None, custom_amount=None):
             tok_symbol = chain_info.get("token_symbol", "USDC")
             net_name = chain_info.get("name", "Base Network")
             
-            # 1. Alamat Tuyul
-            tuyul_addr = custom_tuyul or get_last_tuyul_address() or runner.adb.get_clipboard_text()
+            # 1. Alamat Tuyul (Prioritaskan clipboard/layar HP terkini dibanding cache lama)
+            tuyul_addr = custom_tuyul or runner.adb.get_clipboard_text() or runner.adb.extract_evm_address_from_screen() or get_last_tuyul_address()
             if not (tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
                 tuyul_addr = runner.adb.extract_evm_address_from_screen()
                 
@@ -1748,7 +1748,7 @@ def handle_qris_reset_gaid(targets):
             for sid in ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7"]:
                 broadcast_log(f"[{s}] [SUB-TAP GAID] Menjalankan Step {sid}...", device=s)
                 runner.execute_macro_step(sid, force=True)
-                time.sleep(0.3)
+                time.sleep(0.5)
             broadcast_log(f"[{s}] [SUB-TAP GAID] Alur Step 0.1 s/d 0.7 (Reset GAID Lengkap) SELESAI!", device=s)
         except Exception as e:
             broadcast_log(f"[{s}] [SUB-TAP GAID ERROR] {e}", device=s)
@@ -1783,6 +1783,7 @@ def api_qris_sub_command():
         for s in targets:
             subprocess.run([adb_path, "-s", s, "shell", "input", "tap", "916", "1594"],
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            time.sleep(0.5)
             broadcast_log(f"[{s}] [SUB-TAP] Tap Kolom Jumlah (916, 1594)", device=s)
         return jsonify({"status": "success", "message": "Kolom Jumlah Pembayaran diketuk", "action": action})
         
@@ -1791,6 +1792,7 @@ def api_qris_sub_command():
         for s in targets:
             subprocess.run([adb_path, "-s", s, "shell", "input", "tap", "517", "1536"],
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            time.sleep(0.5)
             broadcast_log(f"[{s}] [SUB-TAP] Tap Token USDC (517, 1536)", device=s)
         return jsonify({"status": "success", "message": "Token USDC diketuk", "action": action})
         
@@ -1799,6 +1801,7 @@ def api_qris_sub_command():
         for s in targets:
             subprocess.run([adb_path, "-s", s, "shell", "input", "tap", "540", "2193"],
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            time.sleep(0.5)
             broadcast_log(f"[{s}] [SUB-TAP] Tap Konfirmasi Pembayaran (540, 2193)", device=s)
         return jsonify({"status": "success", "message": "Tombol Konfirmasi Pembayaran diketuk", "action": action})
         
@@ -1821,7 +1824,7 @@ def api_qris_sub_command():
                     if kx is not None and ky is not None:
                         subprocess.run([adb_path, "-s", s, "shell", "input", "tap", str(kx), str(ky)],
                                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-                        time.sleep(0.12)
+                        time.sleep(0.25)
             broadcast_log(f"[{s}] [SUB-TAP PIN] PIN {pin} diketik via keypad", device=s)
         return jsonify({"status": "success", "message": f"PIN {pin} diketik", "action": action})
         
@@ -1881,6 +1884,7 @@ def api_step_execute():
         for s in targets:
             subprocess.run([adb_path, "-s", s, "shell", "input", "tap"] + coord.split(),
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            time.sleep(0.5)
             broadcast_log(f"[{s}] [SUB-TAP 9] Tap {label}", device=s)
         return jsonify({
             "status": "success",
@@ -1908,7 +1912,7 @@ def api_step_execute():
                     if kx is not None and ky is not None:
                         subprocess.run([adb_path, "-s", s, "shell", "input", "tap", str(kx), str(ky)],
                                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-                        time.sleep(0.12)
+                        time.sleep(0.25)
             broadcast_log(f"[{s}] [SUB-TAP PIN] PIN {pin} diketik via keypad", device=s)
         return jsonify({
             "status": "success",
