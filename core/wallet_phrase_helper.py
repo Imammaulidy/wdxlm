@@ -116,16 +116,19 @@ def copy_phrase_to_clipboard(phrase: str) -> bool:
         return False
 
     success = False
-    # 1. Set Windows Clipboard via PowerShell (Scrcpy syncs this directly)
+    # 1. Set Windows Clipboard via clip.exe (Native Windows) & PowerShell
     if sys.platform == "win32":
         try:
-            # Gunakan subprocess PowerShell dengan aman
-            clean_phrase = phrase.replace("'", "''")
-            cmd = f"Set-Clipboard -Value '{clean_phrase}'"
-            subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, timeout=3)
+            subprocess.run("clip", input=phrase, text=True, shell=True, timeout=2)
             success = True
         except Exception:
-            pass
+            try:
+                clean_phrase = phrase.replace("'", "''")
+                cmd = f"Set-Clipboard -Value '{clean_phrase}'"
+                subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, timeout=3)
+                success = True
+            except Exception:
+                pass
 
     # 2. Set Android Clipboard via ADB jika scrcpy clipper aktif
     try:

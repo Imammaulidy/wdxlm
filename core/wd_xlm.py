@@ -12,13 +12,18 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 CORE_DIR = os.path.abspath(os.path.dirname(__file__))
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
 
+KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
 USE_OLD_MODE = "--old" in sys.argv
 if USE_OLD_MODE:
-    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
+    KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_old.txt')
+    if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_old.txt')):
+        KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
     CONFIG_DISABLED_KEY = "disabled_steps_wd_old"
     MODE_NAME = "BOT WD XLM - MODE OLD (TEMPEL AUTH GOOGLE)"
 else:
-    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
+    KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_baru.txt')
+    if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')):
+        KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
     CONFIG_DISABLED_KEY = "disabled_steps_wd_baru"
     MODE_NAME = "BOT WD XLM - MODE BARU (IMPORT PROFIL TANPA AUTH)"
 
@@ -70,6 +75,39 @@ def log_step(text):
 
 MANUAL_MODE = "--manual" in sys.argv
 REKAM_MODE  = "--rekam"  in sys.argv
+
+TARGET_SERIAL = None
+if "--device" in sys.argv:
+    try:
+        idx = sys.argv.index("--device")
+        if idx + 1 < len(sys.argv):
+            TARGET_SERIAL = sys.argv[idx + 1]
+    except Exception:
+        pass
+elif "-s" in sys.argv:
+    try:
+        idx = sys.argv.index("-s")
+        if idx + 1 < len(sys.argv):
+            TARGET_SERIAL = sys.argv[idx + 1]
+    except Exception:
+        pass
+
+if not TARGET_SERIAL:
+    TARGET_SERIAL = os.environ.get("ANDROID_SERIAL")
+
+if TARGET_SERIAL:
+    os.environ["ANDROID_SERIAL"] = TARGET_SERIAL
+    print(f"[*] Target Perangkat ADB: {TARGET_SERIAL}")
+
+WALLET_FILE_ARG = None
+if "--wallet-file" in sys.argv:
+    try:
+        idx = sys.argv.index("--wallet-file")
+        if idx + 1 < len(sys.argv):
+            WALLET_FILE_ARG = sys.argv[idx + 1]
+            print(f"[*] File Wallet Terpilih via Argumen: {WALLET_FILE_ARG}")
+    except Exception:
+        pass
 
 def handle_pause(pause_reason="TOMBOL 'P' / CTRL+C DITEKAN", remaining_time=0):
     """
@@ -463,9 +501,10 @@ ADB_PATH = "adb"
 
 def adb_command(command):
     """Menjalankan perintah ADB dan mengembalikan outputnya."""
-    # VPS akan membaca env var ADB_SERVER_SOCKET jika ada saat dieksekusi oleh subprocess
+    prefix = f'-s {TARGET_SERIAL} ' if TARGET_SERIAL else ''
     try:
-        result = subprocess.run(f'"{ADB_PATH}" {command}' if platform.system() == "Windows" else f'{ADB_PATH} {command}', shell=True, capture_output=True, text=True)
+        cmd_str = f'"{ADB_PATH}" {prefix}{command}' if platform.system() == "Windows" else f'{ADB_PATH} {prefix}{command}'
+        result = subprocess.run(cmd_str, shell=True, capture_output=True, text=True)
         return result.stdout.strip()
     except Exception as e:
         print(f"Error executing ADB command: {e}")
@@ -746,6 +785,17 @@ def execute_step_command(raw_cmd, context):
             print("[!] Peringatan: Frasa akun kosong / tidak ditemukan.")
         return
 
+    if full_lower in ("input step2_open_wallet", "step2_open_wallet"):
+        cfg = load_config()
+        s2_mode = cfg.get("step2_mode", "dompet")
+        if s2_mode == "profil":
+            print("[*] [STEP 2] Membuka Dompet via Profil Avatar (78, 119)...")
+            adb_command("shell input tap 78 119")
+        else:
+            print("[*] [STEP 2] Membuka Dompet via Dompet Saya (197, 284)...")
+            adb_command("shell input tap 197 284")
+        return
+
     # Perintah jeda waktu: "sleep 1.5"
     if cmd_lower == "sleep":
         if MANUAL_MODE or REKAM_MODE:
@@ -832,7 +882,7 @@ def run_rekam_delay(config):
   Setelah rekam, jalankan WD Otomatis (Menu 1).
 =========================================================
 """)
-    active_file = config.get("active_wallet_file")
+    active_file = WALLET_FILE_ARG or config.get("active_wallet_file")
     all_wallet_files = get_available_wallet_files()
     if not active_file and all_wallet_files:
         active_file = all_wallet_files[0]
@@ -964,11 +1014,13 @@ def run_bot(config):
     print(f"[*] File Koordinat: {os.path.basename(KORDINAT_FILE)}")
     print(f"[?] Bot berjalan dalam mode loop akun.")
     print(f"[?] Shortcut Lanjut: ENTER atau Ctrl+V | Pause: 'P' atau Ctrl+C | Keluar: 'Q'")
-    START_INDEX = prompt_number_with_arrows(
-        "[?] Mulai dari clone nomor berapa? [Panah Atas/Bawah | Ketik]:",
-        default_val=START_INDEX,
-        min_val=0
-    )
+    # Hanya minta input interaktif jika berjalan di console/terminal manual langsung
+    if os.environ.get("BOT_MANAGED_SCREEN") != "1" and sys.stdin.isatty():
+        START_INDEX = prompt_number_with_arrows(
+            "[?] Mulai dari clone nomor berapa? [Panah Atas/Bawah | Ketik]:",
+            default_val=START_INDEX,
+            min_val=0
+        )
 
     # Simpan nomor awal yang dipilih jika berbeda
     if config.get("start_index") != START_INDEX:
@@ -991,7 +1043,7 @@ def run_bot(config):
 
     current_account_num = START_INDEX
 
-    active_file = config.get("active_wallet_file")
+    active_file = WALLET_FILE_ARG or config.get("active_wallet_file")
     all_wallet_files = get_available_wallet_files()
     if not active_file and all_wallet_files:
         active_file = all_wallet_files[0]
@@ -1096,7 +1148,9 @@ def main():
         non_mdns = [d for d in valid_devices if not d.startswith('adb-')]
         if non_mdns:
             valid_devices = non_mdns
-    if valid_devices:
+    global TARGET_SERIAL
+    if not TARGET_SERIAL and valid_devices:
+        TARGET_SERIAL = valid_devices[0]
         os.environ['ANDROID_SERIAL'] = valid_devices[0]
         print(f"[*] Menargetkan perintah ADB ke perangkat: {valid_devices[0]}\n")
     
@@ -1104,7 +1158,7 @@ def main():
     is_standalone = os.environ.get("BOT_MANAGED_SCREEN") != "1"
     if is_standalone:
         register_auto_restore()
-        record_and_apply_bot_screen()
+        record_and_apply_bot_screen(serial=TARGET_SERIAL)
 
     try:
         if REKAM_MODE:
@@ -1113,7 +1167,7 @@ def main():
             run_bot(config)
     finally:
         if is_standalone:
-            restore_recorded_screen()
+            restore_recorded_screen(serial=TARGET_SERIAL)
 
 if __name__ == "__main__":
     main()

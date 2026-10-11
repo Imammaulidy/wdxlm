@@ -11,7 +11,10 @@ import re
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 CORE_DIR = os.path.abspath(os.path.dirname(__file__))
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
-KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_create_account.txt')
+KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
+KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_create_account.txt')
+if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_create_account.txt')):
+    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_create_account.txt')
 ACCOUNTS_LOG_FILE = os.path.join(CORE_DIR, 'created_accounts.json')
 EMAILS_FILE = os.path.join(CORE_DIR, 'emails.txt')
 
@@ -57,6 +60,29 @@ def log_step(text):
 
 MANUAL_MODE = "--manual" in sys.argv
 REKAM_MODE  = "--rekam"  in sys.argv
+
+TARGET_SERIAL = None
+if "--device" in sys.argv:
+    try:
+        idx = sys.argv.index("--device")
+        if idx + 1 < len(sys.argv):
+            TARGET_SERIAL = sys.argv[idx + 1]
+    except Exception:
+        pass
+elif "-s" in sys.argv:
+    try:
+        idx = sys.argv.index("-s")
+        if idx + 1 < len(sys.argv):
+            TARGET_SERIAL = sys.argv[idx + 1]
+    except Exception:
+        pass
+
+if not TARGET_SERIAL:
+    TARGET_SERIAL = os.environ.get("ANDROID_SERIAL")
+
+if TARGET_SERIAL:
+    os.environ["ANDROID_SERIAL"] = TARGET_SERIAL
+    print(f"[*] Target Perangkat ADB: {TARGET_SERIAL}")
 
 def handle_pause(pause_reason="TOMBOL 'P' / CTRL+C DITEKAN", remaining_time=0):
     global current_step_info
@@ -263,9 +289,11 @@ def stoppable_sleep(jeda):
 ADB_PATH = "adb"
 
 def adb_command(command):
+    prefix = f'-s {TARGET_SERIAL} ' if TARGET_SERIAL else ''
     try:
+        cmd_str = f'"{ADB_PATH}" {prefix}{command}' if platform.system() == "Windows" else f'{ADB_PATH} {prefix}{command}'
         result = subprocess.run(
-            f'"{ADB_PATH}" {command}' if platform.system() == "Windows" else f'{ADB_PATH} {command}',
+            cmd_str,
             shell=True,
             capture_output=True,
             text=True
@@ -699,7 +727,7 @@ def parse_and_execute_kordinat(account_num):
 
 def run_create_account_loop():
     register_auto_restore()
-    record_and_apply_bot_screen()
+    record_and_apply_bot_screen(serial=TARGET_SERIAL)
 
     config = load_config()
     current_account = config.get("start_index", 1)

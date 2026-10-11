@@ -2,19 +2,19 @@ import os
 import sys
 import json
 import re
-import subprocess
-import platform
 import atexit
 import signal
+import platform
+import subprocess
 
-# Direktori & File Cache
 CORE_DIR = os.path.abspath(os.path.dirname(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CORE_DIR, '..'))
 SCREEN_CACHE_FILE = os.path.join(CORE_DIR, '.screen_cache.json')
 
+# Deteksi apakah berjalan di Termux
 IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
 
-# Setup path ADB untuk PC
+# Setup PATH untuk scrcpy & adb jika di Windows
 if not IS_TERMUX:
     candidates = [
         os.path.join(PROJECT_ROOT, "core", "scrcpy-win64-v3.3.4"),
@@ -31,11 +31,13 @@ if not IS_TERMUX:
         if os.path.exists(p) and p not in os.environ.get("PATH", ""):
             os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
 
-def run_adb(cmd):
+def run_adb(cmd, serial=None):
     """Menjalankan perintah ADB dan mengembalikan output stdout."""
+    target = serial or os.environ.get("ANDROID_SERIAL")
+    prefix = f'adb -s {target} ' if target else 'adb '
     try:
         r = subprocess.run(
-            f'adb {cmd}',
+            f'{prefix}{cmd}',
             shell=True,
             capture_output=True,
             text=True
@@ -50,20 +52,102 @@ def get_connected_devices():
     devices = []
     for line in out.splitlines():
         line = line.strip()
-        if not line or line.startswith("List"):
+        if not line or line.startswith("List") or line.startswith("*"):
             continue
         parts = line.split()
         if len(parts) >= 2 and parts[1] == "device":
             devices.append(parts[0])
     return devices
 
-def read_current_screen():
+_DEVICE_MARKET_NAME_CACHE = {}
+
+KNOWN_DEVICE_MODELS = {
+    "22021211RG": "POCO F4",
+    "21061110AG": "POCO X3 GT",
+    "2201116PG": "POCO X4 Pro 5G",
+    "23049PCD8G": "POCO F5",
+    "2311DRK48G": "POCO X6 Pro",
+    "24053PY09G": "POCO F6",
+    "M2012K11AG": "POCO F3",
+    "M2007J20CG": "POCO X3 NFC",
+    "M2102J20SG": "POCO X3 Pro"
+}
+
+def get_device_market_name(serial, raw_model=None):
+    """Membaca nama komersial HP (misal: POCO F4, POCO X3 GT) dengan caching cepat."""
+    if not serial:
+        return ""
+    if serial in _DEVICE_MARKET_NAME_CACHE:
+        return _DEVICE_MARKET_NAME_CACHE[serial]
+
+    # Cek kamus model cepat
+    if raw_model and raw_model in KNOWN_DEVICE_MODELS:
+        name = KNOWN_DEVICE_MODELS[raw_model]
+        _DEVICE_MARKET_NAME_CACHE[serial] = name
+        return name
+
+    # Ambil langsung dari getprop ro.product.marketname
+    name = run_adb("shell getprop ro.product.marketname", serial=serial).strip()
+    if not name or name.lower() == "unknown":
+        model_str = raw_model or run_adb("shell getprop ro.product.model", serial=serial).strip()
+        if model_str in KNOWN_DEVICE_MODELS:
+            name = KNOWN_DEVICE_MODELS[model_str]
+        else:
+            brand = run_adb("shell getprop ro.product.brand", serial=serial).strip()
+            if brand and model_str and not model_str.upper().startswith(brand.upper()):
+                name = f"{brand.upper()} {model_str}"
+            elif model_str:
+                name = model_str
+            else:
+                name = "Android"
+
+    _DEVICE_MARKET_NAME_CACHE[serial] = name
+    return name
+
+def get_detailed_connected_devices():
+    """Mengembalikan daftar detail seluruh perangkat yang terhubung beserta nama komersialnya."""
+    try:
+        r = subprocess.run("adb devices -l", shell=True, capture_output=True, text=True, timeout=4)
+        out = r.stdout
+    except Exception:
+        out = ""
+    devices = []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or line.startswith("List") or line.startswith("*"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == "device":
+            serial = parts[0]
+            raw_model = "Android"
+            product = ""
+            for p in parts[2:]:
+                if p.startswith("model:"):
+                    raw_model = p.split(":", 1)[1]
+                elif p.startswith("product:"):
+                    product = p.split(":", 1)[1]
+
+            market_name = get_device_market_name(serial, raw_model)
+            full_model_name = f"{market_name} [{raw_model}]" if (market_name and market_name.lower() != raw_model.lower()) else (market_name or raw_model)
+
+            devices.append({
+                "serial": serial,
+                "model": market_name or raw_model,
+                "raw_model": raw_model,
+                "full_model": full_model_name,
+                "product": product,
+                "is_wifi": (":" in serial),
+                "display_name": f"{market_name or raw_model} ({serial})"
+            })
+    return devices
+
+def read_current_screen(serial=None):
     """
     Membaca resolusi dan DPI yang sedang aktif dan fisik dari HP via ADB.
     Return dictionary detail.
     """
-    size_out = run_adb("shell wm size")
-    density_out = run_adb("shell wm density")
+    size_out = run_adb("shell wm size", serial=serial)
+    density_out = run_adb("shell wm density", serial=serial)
 
     info = {
         "physical_size": None,
@@ -94,34 +178,62 @@ def read_current_screen():
 
     info["active_density"] = info["override_density"] or info["physical_density"]
 
+    info["font_scale"] = run_adb("shell settings get system font_scale", serial=serial).strip() or "1.0"
     return info
 
-def get_cached_screen():
+def get_cached_screen(serial=None):
     """Membaca rekaman ukuran asli HP dari file cache (.screen_cache.json)."""
     if os.path.exists(SCREEN_CACHE_FILE):
         try:
             with open(SCREEN_CACHE_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return data.get("original_size"), data.get("original_density")
+                if serial and serial in data and isinstance(data[serial], dict):
+                    return data[serial].get("original_size"), data[serial].get("original_density"), data[serial].get("original_font_scale")
+                return data.get("original_size"), data.get("original_density"), data.get("original_font_scale")
         except Exception:
             pass
-    return None, None
+    return None, None, None
 
-def save_cached_screen(size, density):
+def save_cached_screen(size, density, font_scale=None, serial=None):
     """Menyimpan rekaman ukuran asli HP ke file cache."""
     try:
+        data = {}
+        if os.path.exists(SCREEN_CACHE_FILE):
+            try:
+                with open(SCREEN_CACHE_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+        item = {
+            "original_size": str(size),
+            "original_density": str(density)
+        }
+        if font_scale:
+            item["original_font_scale"] = str(font_scale)
+        if serial:
+            data[serial] = item
+        data["original_size"] = str(size)
+        data["original_density"] = str(density)
+        if font_scale:
+            data["original_font_scale"] = str(font_scale)
         with open(SCREEN_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump({
-                "original_size": str(size),
-                "original_density": str(density)
-            }, f, indent=4)
+            json.dump(data, f, indent=4)
     except Exception as e:
         print(f"[!] Gagal menyimpan cache resolusi: {e}")
 
-def clear_cached_screen():
+def clear_cached_screen(serial=None):
     """Menghapus file cache setelah resolusi berhasil dikembalikan."""
     if os.path.exists(SCREEN_CACHE_FILE):
         try:
+            if serial:
+                with open(SCREEN_CACHE_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if serial in data:
+                    del data[serial]
+                if data:
+                    with open(SCREEN_CACHE_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, indent=4)
+                    return
             os.remove(SCREEN_CACHE_FILE)
         except Exception:
             pass
@@ -129,10 +241,10 @@ def clear_cached_screen():
 _is_bot_screen_active = False
 _already_restored = False
 
-def record_and_apply_bot_screen(silent=False):
+def record_and_apply_bot_screen(serial=None, silent=False):
     """
-    1. Otomatis membaca & merekam resolusi & DPI aktif yang sedang digunakan HP saat ini apa adanya.
-    2. Menyesuaikan resolusi HP ke standar bot (1080x2400 @ 352 DPI).
+    1. Otomatis membaca & merekam resolusi, DPI & font_scale aktif dari HP.
+    2. Menyesuaikan resolusi HP ke standar bot (1080x2400 @ 352 DPI) dan font_scale 0.81 agar seragam.
     """
     global _is_bot_screen_active, _already_restored
 
@@ -142,56 +254,57 @@ def record_and_apply_bot_screen(silent=False):
             print("[!] Peringatan: Tidak ada perangkat HP terdeteksi via ADB untuk rekaman layar.")
         return False, "Tidak ada perangkat terhubung"
 
-    cached_size, cached_density = get_cached_screen()
+    target_dev = serial or (devices[0] if len(devices) == 1 else None)
+    cached_size, cached_density, cached_font = get_cached_screen(target_dev)
     orig_size = cached_size
     orig_density = cached_density
+    orig_font = cached_font
 
     # Jika belum ada cache, rekam ukuran aktif dari HP saat ini APA ADANYA
     if not orig_size or not orig_density:
-        info = read_current_screen()
+        info = read_current_screen(target_dev)
         if not info["active_size"] or not info["active_density"]:
             return False, "Gagal membaca resolusi layar dari HP"
 
         orig_size = info["active_size"]
         orig_density = info["active_density"]
+        orig_font = info.get("font_scale") or "1.0"
 
-        save_cached_screen(orig_size, orig_density)
+        save_cached_screen(orig_size, orig_density, orig_font, target_dev)
         if not silent:
-            print(f"[*] [AUTO-RECORD] Resolusi & DPI asli HP terekam: {orig_size} @ {orig_density} DPI")
+            tag = f"[{target_dev}] " if target_dev else ""
+            print(f"[*] {tag}[AUTO-RECORD] Resolusi & DPI asli HP terekam: {orig_size} @ {orig_density} DPI (Font: {orig_font})")
     else:
         if not silent:
-            print(f"[*] [CACHE] Menggunakan resolusi asli HP terekam: {orig_size} @ {orig_density} DPI")
+            tag = f"[{target_dev}] " if target_dev else ""
+            print(f"[*] {tag}[CACHE] Menggunakan resolusi asli HP terekam: {orig_size} @ {orig_density} DPI")
 
     # Terapkan resolusi bot jika berbeda dari 1080x2400 @ 352 DPI
-    curr_info = read_current_screen()
+    curr_info = read_current_screen(target_dev)
     if curr_info.get("active_size") != "1080x2400" or curr_info.get("active_density") != "352":
         if not silent:
-            print("[*] Menyesuaikan layar otomatis ke format bot (1080x2400 @ 352 DPI)...")
-        run_adb("shell wm size 1080x2400")
-        run_adb("shell wm density 352")
+            tag = f"[{target_dev}] " if target_dev else ""
+            print(f"[*] {tag}Menyesuaikan layar otomatis ke format bot (1080x2400 @ 352 DPI)...")
+        run_adb("shell wm size 1080x2400", serial=target_dev)
+        run_adb("shell wm density 352", serial=target_dev)
     else:
         if not silent:
-            print("[*] Layar HP sudah berada pada standar bot (1080x2400 @ 352 DPI).")
+            tag = f"[{target_dev}] " if target_dev else ""
+            print(f"[*] {tag}Layar HP sudah berada pada standar bot (1080x2400 @ 352 DPI).")
+
+    # Samakan font scale ke 0.81 (standar bot)
+    run_adb("shell settings put system font_scale 0.81", serial=target_dev)
 
     _is_bot_screen_active = True
     _already_restored = False
     return True, f"{orig_size} @ {orig_density} DPI"
 
-def restore_recorded_screen(silent=False):
+def restore_recorded_screen(serial=None, silent=False):
     """
-    Restore resolusi dan DPI tepat ke ukuran asli HP yang SUDAH DIREKAM sebelumnya.
-    - BUKAN reset ke ukuran pabrik (tidak ada perintah wm size reset / wm density reset).
-    - Jika yang terekam adalah 1080x2400 @ 352 DPI, ya dikembalikan ke 1080x2400 @ 352 DPI.
-    - Idempotent: hanya dieksekusi 1 kali agar tidak spam / double restore.
+    Restore resolusi, DPI dan font_scale tepat ke ukuran asli HP yang SUDAH DIREKAM sebelumnya.
     """
     global _is_bot_screen_active, _already_restored
 
-    if _already_restored:
-        return True
-
-    orig_size, orig_density = get_cached_screen()
-
-    # Cek apakah ada HP yang terhubung
     devices = get_connected_devices()
     if not devices:
         clear_cached_screen()
@@ -199,31 +312,31 @@ def restore_recorded_screen(silent=False):
         _already_restored = True
         return False
 
-    if orig_size and orig_density:
-        if not silent:
-            print(f"\n[*] Mengembalikan layar HP ke ukuran asli yang sudah direkam ({orig_size} @ {orig_density} DPI)...")
-        run_adb(f"shell wm size {orig_size}")
-        run_adb(f"shell wm density {orig_density}")
-        clear_cached_screen()
-        _is_bot_screen_active = False
-        _already_restored = True
-        if not silent:
-            print(f"[V] Layar HP berhasil dikembalikan ke {orig_size} @ {orig_density} DPI!\n")
-        return True
+    targets = [serial] if serial else devices
+    restored_any = False
 
+    for dev in targets:
+        orig_size, orig_density, orig_font = get_cached_screen(dev)
+        if orig_size and orig_density:
+            if not silent:
+                print(f"\n[*] [{dev}] Mengembalikan layar HP ke ukuran asli ({orig_size} @ {orig_density} DPI)...")
+            run_adb(f"shell wm size {orig_size}", serial=dev)
+            run_adb(f"shell wm density {orig_density}", serial=dev)
+            if orig_font:
+                run_adb(f"shell settings put system font_scale {orig_font}", serial=dev)
+            restored_any = True
+
+    clear_cached_screen(serial)
+    _is_bot_screen_active = False
     _already_restored = True
-    return False
+    return restored_any
 
-# Persistent handler reference to avoid garbage collection on Windows ctypes
 _ctrl_handler_ref = None
 _handlers_registered = False
 
 def register_auto_restore():
     """
-    Mendaftarkan listener untuk memulihkan resolusi saat terminal ditutup / exit:
-    - atexit (Normal exit, sys.exit)
-    - SIGINT (Ctrl+C), SIGTERM
-    - SetConsoleCtrlHandler di Windows (ketika tombol close [X] terminal diklik)
+    Mendaftarkan listener untuk memulihkan resolusi saat terminal ditutup / exit.
     """
     global _ctrl_handler_ref, _handlers_registered
     if _handlers_registered:
@@ -249,7 +362,6 @@ def register_auto_restore():
         try:
             import ctypes
             def _win_ctrl_handler(ctrl_type):
-                # 2=CTRL_CLOSE, 5=LOGOFF, 6=SHUTDOWN (jangan tangani 0=CTRL_C di sini karena sudah ditangani Python SIGINT)
                 if ctrl_type in (2, 5, 6):
                     restore_recorded_screen(silent=True)
                     return True

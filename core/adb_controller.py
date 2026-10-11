@@ -47,7 +47,7 @@ class ADBController:
     """Kontroler ADB Lengkap untuk Automasi Android & Clone Apps."""
 
     def __init__(self, serial: Optional[str] = None):
-        self.serial = serial
+        self.serial = serial or os.environ.get("ANDROID_SERIAL")
         self._ensure_path()
 
     def _ensure_path(self):

@@ -11,6 +11,10 @@ DATA WALLET BITGET/
 *.db
 *.sqlite
 *.sqlite3
+cloudflare_token.txt
+core/cloudflare_token.txt
+*token*.txt
+core/bin/
 
 # 2. File Cache & Temporary Runtime
 core/.screen_cache.json
@@ -27,6 +31,7 @@ core/__pycache__/
 core/kordinat.backup_*.txt
 core/kordinat_backup_*.txt
 core/kordinat_create_account.backup.txt
+core/kordinat/*.backup*.txt
 
 # 4. File Hasil Generate Runtime
 core/qris_pay.png

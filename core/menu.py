@@ -11,11 +11,21 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 CORE_DIR = os.path.abspath(os.path.dirname(__file__))
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
 CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
-KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat.txt')
-KORDINAT_WD_BARU_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
-KORDINAT_WD_OLD_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
-KORDINAT_CREATE_ACCOUNT_FILE = os.path.join(CORE_DIR, 'kordinat_create_account.txt')
-KORDINAT_QRIS_MORPH_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
+KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
+KORDINAT_WD_BARU_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_baru.txt')
+KORDINAT_WD_OLD_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_old.txt')
+KORDINAT_CREATE_ACCOUNT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_create_account.txt')
+KORDINAT_QRIS_MORPH_FILE = os.path.join(KORDINAT_DIR, 'kordinat_qris_morph.txt')
+
+# Fallback ke CORE_DIR jika file ada di root core
+if not os.path.exists(KORDINAT_WD_BARU_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')):
+    KORDINAT_WD_BARU_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
+if not os.path.exists(KORDINAT_WD_OLD_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_old.txt')):
+    KORDINAT_WD_OLD_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
+if not os.path.exists(KORDINAT_CREATE_ACCOUNT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_create_account.txt')):
+    KORDINAT_CREATE_ACCOUNT_FILE = os.path.join(CORE_DIR, 'kordinat_create_account.txt')
+if not os.path.exists(KORDINAT_QRIS_MORPH_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')):
+    KORDINAT_QRIS_MORPH_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
 EMAILS_FILE = os.path.join(CORE_DIR, 'emails.txt')
 
 if CORE_DIR not in sys.path:
@@ -26,7 +36,8 @@ from screen_manager import (
     restore_recorded_screen,
     register_auto_restore,
     get_cached_screen,
-    read_current_screen
+    read_current_screen,
+    get_detailed_connected_devices
 )
 from imap_helper import EmailOTPReader
 from wallet_phrase_helper import get_available_wallet_files, load_wallet_phrases
@@ -64,14 +75,48 @@ def get_scrcpy_exe():
     return None
 
 def launch_mirror_screen(extra_args=""):
+    import shlex
     scrcpy_exe = get_scrcpy_exe()
     if scrcpy_exe:
         print("[*] Menjalankan scrcpy (Layar HP fisik dimatikan: -S -w)...")
         flags = extra_args.strip()
         if "-S" not in flags:
             flags = f"{flags} -S -w".strip()
-        cmd = f'start "" "{scrcpy_exe}" {flags}'.strip() if os.name == 'nt' else f'"{scrcpy_exe}" {flags} &'
-        os.system(cmd)
+        flags = flags.replace("--display-buffer=", "--video-buffer=")
+        try:
+            scrcpy_dir = os.path.dirname(scrcpy_exe)
+            if os.name == 'nt':
+                try:
+                    import win32com.client
+                    wscript = win32com.client.Dispatch("WScript.Shell")
+                    wscript.CurrentDirectory = scrcpy_dir
+                    cmd = f'cmd /c ""{scrcpy_exe}" {flags}"'
+                    wscript.Run(cmd, 0, False)
+                except Exception:
+                    vbs_path = os.path.join(scrcpy_dir, "scrcpy-noconsole.vbs")
+                    if os.path.exists(vbs_path):
+                        subprocess.Popen(
+                            ["wscript", vbs_path] + shlex.split(flags),
+                            cwd=scrcpy_dir,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                    else:
+                        subprocess.Popen(
+                            [scrcpy_exe] + shlex.split(flags),
+                            cwd=scrcpy_dir,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+            else:
+                subprocess.Popen(
+                    [scrcpy_exe] + shlex.split(flags),
+                    cwd=scrcpy_dir,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+        except Exception as e:
+            print(f"[!] Gagal meluncurkan scrcpy: {e}")
     else:
         print("[!] Program scrcpy.exe tidak ditemukan di folder core/scrcpy-win64-v3.3.4!")
 
@@ -408,7 +453,25 @@ def print_menu():
     print(f"[*] Step WD (Mode Old)  : {status_wo}")
     print(f"[*] Step Bot Buat Akun  : {status_ca}")
     print(f"[*] Step QRIS Morph     : {status_qm} (Rp {nom_display})")
+    # Target Device ADB & Nama HP Terkoneksi
+    devs = get_detailed_connected_devices()
+    target_dev = config.get("target_device") or os.environ.get("ANDROID_SERIAL", "")
+    if target_dev:
+        matched = next((d for d in devs if d["serial"] == target_dev), None)
+        if matched:
+            target_dev_disp = f"{matched.get('full_model', matched['model'])} ({target_dev})"
+        else:
+            target_dev_disp = f"{target_dev} [Tersimpan]"
+    else:
+        if devs:
+            first_dev = devs[0]
+            dev_count_str = f" | Total: {len(devs)} HP Terkoneksi" if len(devs) > 1 else ""
+            target_dev_disp = f"{first_dev.get('full_model', first_dev['model'])} ({first_dev['serial']}) [Auto]{dev_count_str}"
+        else:
+            target_dev_disp = "[Tidak Ada Perangkat Terkoneksi]"
+
     print(f"[*] Multi-IMAP Email    : {imap_count_disp}")
+    print(f"[*] Target Device ADB   : {target_dev_disp}")
     print("=========================================================")
     print(" [1] MULAI BOT WD XLM - MODE BARU (IMPORT PROFIL TANPA AUTH)")
     print(" [2] MULAI BOT WD XLM - MODE OLD (TEMPEL AUTH GOOGLE)")
@@ -419,6 +482,7 @@ def print_menu():
     print(" [7] ON/OFF STEP KOORDINAT BOT (PILIH SCRIPT)")
     print(" [8] PENGATURAN MULTI-IMAP EMAIL & OTP")
     print(" [9] PENGATURAN RESOLUSI & DPI LAYAR HP")
+    print(" [T] PILIH TARGET DEVICE ADB (MULTI-DEVICE)")
     if IS_TERMUX:
         print(" [A] KONEK ADB LOKAL (WIRELESS DEBUGGING)")
         print(" [D] INSTALL DEPENDENCIES & PENGATURAN DEVELOPER")
@@ -724,7 +788,7 @@ def menu_toggle_steps():
 def menu_resolusi_layar():
     while True:
         clear_screen()
-        cached_size, cached_density = get_cached_screen()
+        cached_size, cached_density, *_ = get_cached_screen()
         cur_info = read_current_screen()
         active_disp = f"{cur_info['active_size']} @ {cur_info['active_density']} DPI" if cur_info['active_size'] else "Tidak terdeteksi (HP belum konek)"
         cached_disp = f"{cached_size} @ {cached_density} DPI" if cached_size and cached_density else "Belum terekam (akan terekam otomatis saat bot mulai)"
@@ -762,6 +826,82 @@ def menu_resolusi_layar():
 
         elif pil == '0':
             break
+
+def run_bot_script(script_path, extra_args=None):
+    """Menjalankan script bot dengan target device yang aktif dan menyamakan layar bot."""
+    if extra_args is None:
+        extra_args = []
+    config = load_config()
+    target = config.get("target_device") or os.environ.get("ANDROID_SERIAL")
+    cmd = [sys.executable, script_path]
+    if target:
+        cmd.extend(["--device", target])
+        os.environ["ANDROID_SERIAL"] = target
+    cmd.extend(extra_args)
+    record_and_apply_bot_screen(serial=target, silent=True)
+    return subprocess.run(cmd, cwd=PROJECT_ROOT)
+
+def menu_select_target_device():
+    """Menu interaktif untuk memilih target perangkat ADB fisik / Wi-Fi."""
+    while True:
+        clear_screen()
+        config = load_config()
+        devs = get_detailed_connected_devices()
+        cur_target = config.get("target_device") or os.environ.get("ANDROID_SERIAL", "")
+
+        print("=========================================================")
+        print("         PILIH TARGET PERANGKAT ADB (MULTI-DEVICE)       ")
+        print("=========================================================")
+        if cur_target and devs:
+            matched = next((d for d in devs if d["serial"] == cur_target), None)
+            if matched:
+                target_name = f"{matched.get('full_model', matched['model'])} ({cur_target})"
+            else:
+                target_name = f"{cur_target} [Tersimpan]"
+        elif not cur_target and devs:
+            first_d = devs[0]
+            target_name = f"{first_d.get('full_model', first_d['model'])} ({first_d['serial']}) [Auto / Default Pertama]"
+        else:
+            target_name = "[Tidak Ada Perangkat Terkoneksi]"
+
+        print(f" Target Aktif Saat Ini : {target_name}")
+        print("---------------------------------------------------------")
+        if not devs:
+            print(" [!] Tidak ada perangkat Android terdeteksi via ADB.")
+        else:
+            for i, d in enumerate(devs, start=1):
+                is_active = (cur_target and d["serial"] == cur_target) or (not cur_target and i == 1)
+                mark = " [AKTIF]" if is_active else ""
+                conn_type = "Wi-Fi" if d["is_wifi"] else "USB"
+                full_name = d.get('full_model') or f"{d['model']} ({d['serial']})"
+                print(f"  [{i}] {full_name} ({d['serial']}) [{conn_type}]{mark}")
+
+        print("---------------------------------------------------------")
+        print("  [A] AUTO / RESET (Gunakan perangkat pertama yang tersedia)")
+        print("  [0] Kembali ke Menu Utama")
+        print("=========================================================")
+        pil = input(" Masukkan pilihan Anda [0/A/Nomor]: ").strip().lower()
+
+        if pil in ('0', 'q'):
+            break
+        elif pil in ('a', 'auto'):
+            config["target_device"] = ""
+            save_config(config)
+            os.environ.pop("ANDROID_SERIAL", None)
+            print("\n[V] Target ADB direset ke mode Auto/Default.")
+            time.sleep(1)
+            break
+        elif pil.isdigit() and 1 <= int(pil) <= len(devs):
+            sel_dev = devs[int(pil) - 1]
+            config["target_device"] = sel_dev["serial"]
+            save_config(config)
+            os.environ["ANDROID_SERIAL"] = sel_dev["serial"]
+            print(f"\n[V] Target aktif disetel ke: {sel_dev.get('full_model', sel_dev['model'])} ({sel_dev['serial']})")
+            time.sleep(1)
+            break
+        else:
+            print("Pilihan tidak valid!")
+            time.sleep(0.7)
 
 def konek_adb_scrcpy():
     clear_screen()
@@ -897,52 +1037,44 @@ def menu_manual_rekam():
         sub = get_key_press(" Masukkan pilihan Anda [0-8]: ").strip().lower()
 
         if sub == '1':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> REKAM DELAY HP - WD XLM (MODE BARU) <<<\n")
-            subprocess.run([sys.executable, wd_script, '--rekam'], cwd=PROJECT_ROOT)
+            run_bot_script(wd_script, ['--rekam'])
             wait_any_key("\n Selesai rekam. Tekan sembarang tombol untuk kembali...")
         elif sub == '2':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> STEP-BY-STEP MANUAL - WD XLM (MODE BARU) <<<\n")
-            subprocess.run([sys.executable, wd_script, '--manual'], cwd=PROJECT_ROOT)
+            run_bot_script(wd_script, ['--manual'])
             wait_any_key("\n Selesai. Tekan sembarang tombol untuk kembali...")
         elif sub == '3':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> REKAM DELAY HP - WD XLM (MODE OLD) <<<\n")
-            subprocess.run([sys.executable, wd_script, '--old', '--rekam'], cwd=PROJECT_ROOT)
+            run_bot_script(wd_script, ['--old', '--rekam'])
             wait_any_key("\n Selesai rekam. Tekan sembarang tombol untuk kembali...")
         elif sub == '4':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> STEP-BY-STEP MANUAL - WD XLM (MODE OLD) <<<\n")
-            subprocess.run([sys.executable, wd_script, '--old', '--manual'], cwd=PROJECT_ROOT)
+            run_bot_script(wd_script, ['--old', '--manual'])
             wait_any_key("\n Selesai. Tekan sembarang tombol untuk kembali...")
         elif sub == '5':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> REKAM DELAY HP - BOT BUAT AKUN BITGET <<<\n")
-            subprocess.run([sys.executable, ca_script, '--rekam'], cwd=PROJECT_ROOT)
+            run_bot_script(ca_script, ['--rekam'])
             wait_any_key("\n Selesai rekam. Tekan sembarang tombol untuk kembali...")
         elif sub == '6':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> STEP-BY-STEP MANUAL - BOT BUAT AKUN BITGET <<<\n")
-            subprocess.run([sys.executable, ca_script, '--manual'], cwd=PROJECT_ROOT)
+            run_bot_script(ca_script, ['--manual'])
             wait_any_key("\n Selesai. Tekan sembarang tombol untuk kembali...")
         elif sub == '7':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> REKAM DELAY HP - BOT QRIS MORPH CASHBACK <<<\n")
-            subprocess.run([sys.executable, qris_script, '--rekam'], cwd=PROJECT_ROOT)
+            run_bot_script(qris_script, ['--rekam'])
             wait_any_key("\n Selesai rekam. Tekan sembarang tombol untuk kembali...")
         elif sub == '8':
-            record_and_apply_bot_screen(silent=True)
             clear_screen()
             print(">>> STEP-BY-STEP MANUAL - BOT QRIS MORPH CASHBACK <<<\n")
-            subprocess.run([sys.executable, qris_script, '--manual'], cwd=PROJECT_ROOT)
+            run_bot_script(qris_script, ['--manual'])
             wait_any_key("\n Selesai. Tekan sembarang tombol untuk kembali...")
         elif sub in ('0', 'q', 'enter'):
             break
@@ -959,34 +1091,30 @@ def main():
     try:
         while True:
             print_menu()
-            pilihan = get_key_press(" Masukkan pilihan Anda [0-9 / A / W / R] (Tekan Tombol Langsung): ").strip().lower()
+            pilihan = get_key_press(" Masukkan pilihan Anda [0-9 / A / W / T / R] (Tekan Tombol Langsung): ").strip().lower()
 
             if pilihan == '1':
-                record_and_apply_bot_screen(silent=True)
                 clear_screen()
                 print(">>> MENJALANKAN BOT WD XLM — MODE BARU (IMPORT PROFIL TANPA AUTH) <<<\n")
-                subprocess.run([sys.executable, wd_script], cwd=PROJECT_ROOT)
+                run_bot_script(wd_script)
                 wait_any_key("\n Tekan sembarang tombol untuk kembali ke menu...")
 
             elif pilihan == '2':
-                record_and_apply_bot_screen(silent=True)
                 clear_screen()
                 print(">>> MENJALANKAN BOT WD XLM — MODE OLD (TEMPEL AUTH GOOGLE) <<<\n")
-                subprocess.run([sys.executable, wd_script, '--old'], cwd=PROJECT_ROOT)
+                run_bot_script(wd_script, ['--old'])
                 wait_any_key("\n Tekan sembarang tombol untuk kembali ke menu...")
 
             elif pilihan == '3':
-                record_and_apply_bot_screen(silent=True)
                 clear_screen()
                 print(">>> MENJALANKAN BOT AUTO BUAT AKUN BITGET <<<\n")
-                subprocess.run([sys.executable, ca_script], cwd=PROJECT_ROOT)
+                run_bot_script(ca_script)
                 wait_any_key("\n Tekan sembarang tombol untuk kembali ke menu...")
 
             elif pilihan == '4':
-                record_and_apply_bot_screen(silent=True)
                 clear_screen()
                 print(">>> MENJALANKAN BOT QRIS MORPH CASHBACK <<<\n")
-                subprocess.run([sys.executable, qris_script], cwd=PROJECT_ROOT)
+                run_bot_script(qris_script)
                 wait_any_key("\n Tekan sembarang tombol untuk kembali ke menu...")
 
             elif pilihan == '5':
@@ -1004,6 +1132,9 @@ def main():
             elif pilihan == '9':
                 menu_resolusi_layar()
 
+            elif pilihan in ('t', 'target'):
+                menu_select_target_device()
+
             elif pilihan in ('a', '10'):
                 if IS_TERMUX:
                     clear_screen()
@@ -1018,15 +1149,19 @@ def main():
                     record_and_apply_bot_screen(silent=True)
 
             elif pilihan in ('w', '11') and not IS_TERMUX:
+                from server import get_local_machine_ip, PUBLIC_DOMAIN
+                local_lan_ip = get_local_machine_ip()
+                web_url = f"http://{local_lan_ip}:2000"
                 clear_screen()
                 print("=========================================================")
-                print("         MEMBUKA WEB UI DASHBOARD (BROWSER)              ")
+                print("         MEMBUKA WEB UI DASHBOARD (PORT 2000)            ")
                 print("=========================================================")
-                print("  URL : http://127.0.0.1:5000                            ")
+                print(f"  Akses IP LAN  : {web_url}")
+                print(f"  Domain Publik : https://{PUBLIC_DOMAIN}")
                 print("  Tekan Ctrl+C di terminal ini jika ingin keluar Web UI. ")
                 print("=========================================================")
                 if os.name == 'nt':
-                    os.system('start "" "http://127.0.0.1:5000"')
+                    os.system(f'start "" "{web_url}"')
                 server_script = os.path.join(CORE_DIR, 'server.py')
                 try:
                     subprocess.run([sys.executable, server_script], cwd=PROJECT_ROOT)

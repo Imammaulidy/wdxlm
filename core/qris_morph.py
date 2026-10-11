@@ -48,8 +48,10 @@ from gobiz_qris import (
 from evm_wallet import EVMWallet, BaseWallet, MorphWallet, DEFAULT_CHAINS_PRESET
 
 CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
-CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
-KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
+KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
+KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_qris_morph.txt')
+if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')):
+    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
 DISABLED_CONFIG_KEY = "disabled_steps_qris_morph"
 LAST_TUYUL_FILE = os.path.join(CORE_DIR, '.last_tuyul.txt')
 TEMP_QR_PATH = os.path.join(CORE_DIR, 'qris_pay.png')
@@ -93,6 +95,17 @@ def get_key_press(prompt: str = "") -> str:
     if prompt:
         print(prompt, end="", flush=True)
 
+    if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+        line = sys.stdin.readline()
+        if not line:
+            return ""
+        ch = line.strip().lower()
+        if ch in ('\r', '\n', ''):
+            return 'enter'
+        elif ch == ' ':
+            return 'space'
+        return ch
+
     if os.name == 'nt':
         import msvcrt
         while True:
@@ -132,6 +145,9 @@ def get_key_press(prompt: str = "") -> str:
 def wait_any_key(prompt: str = "\n Tekan sembarang tombol untuk kembali..."):
     """Menunggu sembarang tombol ditekan secara instan."""
     print(prompt, end="", flush=True)
+    if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+        sys.stdin.readline()
+        return
     if os.name == 'nt':
         import msvcrt
         ch = msvcrt.getch()
@@ -398,6 +414,16 @@ def prompt_manual_step(step_title: str) -> str:
     print(f"\n[STEP-BY-STEP] Selesai: {step_title}")
     sys.stdout.write("--> Tekan ENTER untuk lanjut ke langkah berikutnya (atau 'Q' untuk berhenti): ")
     sys.stdout.flush()
+    if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+        try:
+            line = sys.stdin.readline().strip().lower()
+            if line in ('q', 'quit', 'exit'):
+                print(" Q")
+                return 'q'
+            print(" [ENTER]")
+            return 'next'
+        except KeyboardInterrupt:
+            return 'q'
     if os.name == 'nt':
         import msvcrt
         while True:
@@ -554,9 +580,9 @@ class BackgroundPrepWorker:
 class BotRunner:
     """Eksekutor Alur Bot Bitget Terminal Standalone QRIS Morph."""
 
-    def __init__(self):
+    def __init__(self, target_serial: Optional[str] = None):
         self.config = load_config()
-        self.adb = ADBController()
+        self.adb = ADBController(serial=target_serial)
         self.qris_gen = GoBizQRISGenerator(self.config)
         active_chain = self.config.get("active_chain", "base")
         custom_rpc = (
@@ -575,6 +601,8 @@ class BotRunner:
 
     def check_keyboard_interrupt(self) -> str:
         """Non-blocking keyboard checker (stop / pause / continue)."""
+        if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+            return "continue"
         if os.name == 'nt':
             import msvcrt
             while msvcrt.kbhit():
@@ -598,7 +626,20 @@ class BotRunner:
         print(" --> Tekan 'Q' atau ESC untuk STOP & KEMBALI KE MENU")
         print("======================================================================")
 
-        if os.name == 'nt':
+        if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+            try:
+                line = sys.stdin.readline().strip().lower()
+                if line in ('q', 'quit', 'exit'):
+                    print("\n[!] Alur dibatalkan oleh user ('Q'). Kembali ke menu...")
+                    self.stopped = True
+                    return False
+                print("\n[>] Melanjutkan alur bot dalam 1 detik...")
+                time.sleep(1.0)
+                return True
+            except KeyboardInterrupt:
+                self.stopped = True
+                return False
+        elif os.name == 'nt':
             import msvcrt
             while True:
                 try:
@@ -789,8 +830,38 @@ class BotRunner:
         return not self.stopped
 
     def run_full_auto(self) -> bool:
-        """Menjalankan alur penuh secara Full Auto."""
-        return self._execute_flow(is_manual=False)
+        """Menjalankan alur penuh secara Full Auto (loop antar-siklus)."""
+        while True:
+            cfg = load_config()
+            cur_idx = cfg.get("start_index", 1)
+            print(f"\n=========================================================")
+            print(f"   MEMPROSES AKUN CLONE BITGET KE-{cur_idx} (QRIS MORPH)")
+            print(f"=========================================================")
+            ok = self._execute_flow(is_manual=False)
+            if not ok or self.stopped:
+                break
+            next_idx = cur_idx + 1
+            cfg["start_index"] = next_idx
+            save_config(cfg)
+            print(f"\n=========================================================")
+            print(f"[V] AKUN CLONE KE-{cur_idx} BERHASIL SELESAI DIPROSES!")
+            print(f"[*] Urutan berikutnya tersimpan di config: Clone ke-{next_idx}")
+            print(f"=========================================================")
+            print(f"\n>>> Tekan ENTER untuk lanjut loop WD clone berikutnya (ke-{next_idx}) atau 'Q' untuk STOP: ", flush=True)
+            if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+                line = sys.stdin.readline().strip().lower()
+                if line in ('q', 'quit', 'exit'):
+                    break
+            elif os.name == 'nt':
+                import msvcrt
+                ch = msvcrt.getch()
+                if ch in (b'q', b'Q', b'\x1b'):
+                    break
+            else:
+                ans = input().strip().lower()
+                if ans in ('q', 'quit', 'exit'):
+                    break
+        return True
 
     def run_manual_mode(self) -> bool:
         """Menjalankan alur secara Step-by-Step Manual."""
@@ -806,7 +877,8 @@ class BotRunner:
         clone_info = CLONE_APPS.get(clone_key, CLONE_APPS["dual_space"])
         current_nominal = int(self.config.get("default_qris_nominal", 18501))
 
-        clear_screen()
+        if sys.stdin.isatty() and os.environ.get("BOT_MANAGED_SCREEN") != "1":
+            clear_screen()
         print("="*70)
         print(f"      MEMULAI {mode_label}")
         print(f"      Mode Clone Aktif : {clone_info['name']} ({clone_info['package']})")
@@ -827,7 +899,7 @@ class BotRunner:
 
         # 2. Rekam & Terapkan Resolusi Standar Bot (1080x2400 @ 352 DPI)
         register_auto_restore()
-        ok_scr, scr_msg = record_and_apply_bot_screen()
+        ok_scr, scr_msg = record_and_apply_bot_screen(serial=self.adb.serial)
         if not ok_scr:
             print(f"[!] Peringatan Layar: {scr_msg}")
 
@@ -873,21 +945,25 @@ class BotRunner:
         print("           (Atau tekan 'Q' untuk STOP & Kembali ke Menu)")
         print("-"*70)
 
-        if os.name == 'nt':
+        print("\n>>> Siap di beranda Bitget? Tekan ENTER / Lanjut (Q untuk STOP): ", flush=True)
+        if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+            ans = sys.stdin.readline().strip().lower()
+        elif os.name == 'nt':
             import msvcrt
-            print("\n>>> Siap di beranda Bitget? Tekan sembarang tombol (Q untuk STOP): ", end="", flush=True)
             ch = msvcrt.getch()
             if ch in (b'\x03', b'q', b'Q', b'\x1b'):
-                print(" Q")
-                print("\n[!] Alur dibatalkan oleh pengguna (STOP). Kembali ke menu utama...")
-                self.stopped = True
-                return False
-            print(" [OK]")
+                ans = 'q'
+            else:
+                ans = ''
         else:
-            ans = input("\n>>> Siap di beranda Bitget? Tekan ENTER (Q untuk STOP): ").strip().lower()
-            if ans == 'q':
-                self.stopped = True
-                return False
+            ans = input().strip().lower()
+
+        if ans in ('q', 'quit', 'exit'):
+            print(" Q")
+            print("\n[!] Alur dibatalkan oleh pengguna (STOP). Kembali ke menu utama...")
+            self.stopped = True
+            return False
+        print(" [OK]")
 
         if self.stopped:
             return False
@@ -921,7 +997,13 @@ class BotRunner:
         if not self.smart_sleep(1.0): return False
 
         if not (tuyul_addr and tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
-            tuyul_addr = input("\n>>> Masukkan Address EVM Tuyul secara manual: ").strip()
+            if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+                print("\n[!] Address EVM Tuyul belum terdeteksi dari layar/clipboard.", flush=True)
+                sys.stdout.write(">>> Masukkan Address EVM Tuyul secara manual: ")
+                sys.stdout.flush()
+                tuyul_addr = sys.stdin.readline().strip()
+            else:
+                tuyul_addr = input("\n>>> Masukkan Address EVM Tuyul secara manual: ").strip()
 
         if not (tuyul_addr.startswith("0x") and len(tuyul_addr) == 42):
             print(f"[X] Address EVM tuyul tidak valid: '{tuyul_addr}'!")
@@ -940,11 +1022,11 @@ class BotRunner:
         else:
             live_rate = self.adb.read_swap_rate_from_screen()
             if live_rate and live_rate > 1000:
-                base_est = round(target_amount / live_rate, 4)
+                base_est = round(current_nominal / live_rate, 4)
                 print(f"[*] Kurs swap terdeteksi di layar: 1 USDC ≈ Rp {live_rate:,.2f}")
             else:
                 safe_rate = float(self.config.get("fallback_rate", 17400.0))
-                base_est = round(target_amount / safe_rate, 4)
+                base_est = round(current_nominal / safe_rate, 4)
                 print(f"[*] Teks layar tidak terdeteksi, menggunakan kurs acuan aman: Rp {safe_rate:,.0f} / USDC ({base_est} USDC)")
 
             usdc_needed = round(base_est + buffer_usdc, 4)
@@ -958,7 +1040,10 @@ class BotRunner:
         pk_tebar = self.config.get("wallet_tebar", {}).get("private_key")
         if not pk_tebar:
             print("\n[!] PERINGATAN: Private Key wallet_tebar belum diatur di config.json!")
-            pk_in = input(">>> Masukkan Private Key Wallet Tebar (atau ENTER untuk skip): ").strip()
+            if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+                pk_in = ""
+            else:
+                pk_in = input(">>> Masukkan Private Key Wallet Tebar (atau ENTER untuk skip): ").strip()
             if pk_in:
                 self.wallet.set_private_key(pk_in)
                 self.config["wallet_tebar"]["private_key"] = pk_in
@@ -1075,7 +1160,22 @@ class BotRunner:
             sys.stdout.flush()
 
             user_key = 'enter'
-            if os.name == 'nt':
+            if not sys.stdin.isatty() or os.environ.get("BOT_MANAGED_SCREEN") == "1":
+                try:
+                    line = sys.stdin.readline().strip().lower()
+                    if line in ('s', 'skip'):
+                        sys.stdout.write(" [SKIP]\n")
+                        user_key = 's'
+                    elif line in ('q', 'quit', 'exit'):
+                        sys.stdout.write(" [STOP]\n")
+                        user_key = 'q'
+                    else:
+                        sys.stdout.write(" [ENTER]\n")
+                        user_key = 'enter'
+                    sys.stdout.flush()
+                except KeyboardInterrupt:
+                    user_key = 'q'
+            elif os.name == 'nt':
                 import msvcrt
                 while True:
                     try:
@@ -1295,14 +1395,48 @@ def get_scrcpy_exe():
     return shutil.which("scrcpy.exe") or shutil.which("scrcpy")
 
 def launch_mirror_screen(extra_args=""):
+    import shlex
     scrcpy_exe = get_scrcpy_exe()
     if scrcpy_exe:
         print("[*] Menjalankan scrcpy mirror (Layar fisik HP mati: -S -w)...")
         flags = extra_args.strip()
         if "-S" not in flags:
             flags = f"{flags} -S -w".strip()
-        cmd = f'start "" "{scrcpy_exe}" {flags}'.strip() if os.name == 'nt' else f'"{scrcpy_exe}" {flags} &'
-        os.system(cmd)
+        flags = flags.replace("--display-buffer=", "--video-buffer=")
+        try:
+            scrcpy_dir = os.path.dirname(scrcpy_exe)
+            if os.name == 'nt':
+                try:
+                    import win32com.client
+                    wscript = win32com.client.Dispatch("WScript.Shell")
+                    wscript.CurrentDirectory = scrcpy_dir
+                    cmd = f'cmd /c ""{scrcpy_exe}" {flags}"'
+                    wscript.Run(cmd, 0, False)
+                except Exception:
+                    vbs_path = os.path.join(scrcpy_dir, "scrcpy-noconsole.vbs")
+                    if os.path.exists(vbs_path):
+                        subprocess.Popen(
+                            ["wscript", vbs_path] + shlex.split(flags),
+                            cwd=scrcpy_dir,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                    else:
+                        subprocess.Popen(
+                            [scrcpy_exe] + shlex.split(flags),
+                            cwd=scrcpy_dir,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+            else:
+                subprocess.Popen(
+                    [scrcpy_exe] + shlex.split(flags),
+                    cwd=scrcpy_dir,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+        except Exception as e:
+            print(f"[!] Gagal meluncurkan scrcpy: {e}")
     else:
         print("[!] File scrcpy.exe tidak ditemukan!")
 
@@ -1367,7 +1501,7 @@ def menu_screen_settings():
     print("="*65)
 
     info = read_current_screen()
-    cached_s, cached_d = get_cached_screen()
+    cached_s, cached_d, *_ = get_cached_screen()
 
     print(f" Resolusi Aktif Layar HP : {info.get('active_size')} @ {info.get('active_density')} DPI")
     print(f" Ukuran Fisik Hardware  : {info.get('physical_size')} @ {info.get('physical_density')} DPI")
@@ -1807,6 +1941,13 @@ def menu_generate_qris():
         server_key_set = bool(active_acc.get("server_key"))
         default_nom = int(cfg.get("default_qris_nominal", 18501))
         rot_on = cfg.get("gobiz_shift_rotation", True)
+        current_nmid_mode = str(
+            active_acc.get("nmid_mode") or
+            cfg.get("nmid_mode") or
+            cfg.get("gobiz", {}).get("nmid_mode") or
+            "revisi"
+        ).strip().lower()
+        nmid_label = "REVISI (10 Digit Asli + 5 Acak)" if current_nmid_mode == "revisi" else "REFERENSI (ID2026 + 9 Acak)"
 
         clear_screen()
         print("="*65)
@@ -1815,6 +1956,7 @@ def menu_generate_qris():
         engine_label = "[API MIDTRANS RESMI]" if (current_mode == "API" and server_key_set) else "[STANDALONE OFFLINE]"
         rot_lbl = " (Shift Rotasi Otomatis AKTIF)" if rot_on and len(accounts) > 1 else ""
         print(f" Mode Engine    : {engine_label}")
+        print(f" Mode Acak NMID : {nmid_label}")
         print(f" Merchant Aktif : Akun #{active_idx + 1}: {active_acc.get('merchant_name', 'TOKO GOBIZ MERCHANT')}{rot_lbl}")
         print(f" Nominal Default: Rp {default_nom:,}".replace(",", "."))
         print("="*65)
@@ -1822,10 +1964,11 @@ def menu_generate_qris():
         print(f" [2] Set Nominal Default Baru (Sekarang: Rp {default_nom:,})".replace(",", "."))
         print(f" [3] Ganti Mode Engine (Sekarang: {current_mode})")
         print(f" [4] Atur Multi-Akun GoBiz & Shift Rotasi ({len(accounts)} Akun Terdaftar)")
+        print(f" [5] Ganti Mode Acak NMID (Sekarang: {current_nmid_mode.upper()})")
         print(" [0] Kembali ke Menu Sebelumnya")
         print("="*65)
 
-        sub_pil = get_key_press(" Pilih opsi [0-4]: ").strip()
+        sub_pil = get_key_press(" Pilih opsi [0-5]: ").strip()
         if sub_pil == "0":
             break
         elif sub_pil == "1":
@@ -1860,6 +2003,18 @@ def menu_generate_qris():
             time.sleep(1.0)
         elif sub_pil == "4":
             menu_gobiz_credentials()
+        elif sub_pil == "5":
+            new_nmid_mode = "referensi" if current_nmid_mode == "revisi" else "revisi"
+            active_acc["nmid_mode"] = new_nmid_mode
+            if accounts:
+                accounts[active_idx]["nmid_mode"] = new_nmid_mode
+                cfg["gobiz_accounts"] = accounts
+            cfg.setdefault("gobiz", {})["nmid_mode"] = new_nmid_mode
+            cfg["nmid_mode"] = new_nmid_mode
+            save_config(cfg)
+            lbl = "REVISI (10 Prefix Asli + 5 Acak)" if new_nmid_mode == "revisi" else "REFERENSI (ID2026 + 9 Acak)"
+            print(f"\n[V] Mode Acak NMID diubah ke: {new_nmid_mode.upper()} ({lbl})!")
+            time.sleep(1.2)
 
 def menu_toggle_steps():
     """Pengaturan ON / OFF Step Koordinat Macro (kordinat_qris_morph.txt)."""
@@ -2051,20 +2206,34 @@ def restart_terminal():
 def main():
     register_auto_restore()
     sync_kordinat_and_config()
-    adb = ADBController()
+
+    # Cek parameter target device (--device atau -s)
+    target_serial = None
+    for i, arg in enumerate(sys.argv):
+        if arg in ("--device", "-s") and i + 1 < len(sys.argv):
+            target_serial = sys.argv[i + 1]
+            break
+        elif arg.startswith("--device="):
+            target_serial = arg.split("=", 1)[1]
+            break
+
+    if target_serial:
+        os.environ["ANDROID_SERIAL"] = target_serial
+
+    adb = ADBController(serial=target_serial)
 
     # Cek argument CLI
-    if "--auto" in sys.argv:
-        runner = BotRunner()
-        runner.run_full_auto()
-        sys.exit(0)
-    elif "--manual" in sys.argv:
-        runner = BotRunner()
+    if "--manual" in sys.argv:
+        runner = BotRunner(target_serial=target_serial)
         runner.run_manual_mode()
         sys.exit(0)
     elif "--rekam" in sys.argv:
-        runner = BotRunner()
+        runner = BotRunner(target_serial=target_serial)
         runner.run_rekam_delay()
+        sys.exit(0)
+    elif "--auto" in sys.argv or target_serial or os.environ.get("BOT_MANAGED_SCREEN") == "1" or not sys.stdin.isatty():
+        runner = BotRunner(target_serial=target_serial)
+        runner.run_full_auto()
         sys.exit(0)
 
     while True:
@@ -2166,5 +2335,6 @@ if __name__ == "__main__":
             restore_recorded_screen()
         except Exception:
             pass
-        input("\nTekan ENTER untuk keluar...")
+        if sys.stdin.isatty():
+            input("\nTekan ENTER untuk keluar...")
         sys.exit(1)

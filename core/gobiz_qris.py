@@ -165,7 +165,7 @@ ID_CITIES = [
 _RECENT_MERCHANTS = collections.deque(maxlen=1000)
 _RECENT_CITIES = collections.deque(maxlen=160)
 
-DEFAULT_BASE_GOBIZ_QRIS = "00020101021126610014COM.GO-JEK.WWW01189360000000000000000210G0000000000303UMI51440014ID.CO.QRIS.WWW0215ID10000000000000303UMI5204762953033605802ID5914TOKO CONTOH Q6007JAKARTA61051234562070703A016304B45D"
+DEFAULT_BASE_GOBIZ_QRIS = "00020101021126610014COM.GO-JEK.WWW01189360000000000000000210G0000000000303UMI51440014ID.CO.QRIS.WWW0215ID10000000000000303UMI5204762953033605802ID5914TOKO CONTOH QR6007JAKARTA61051234562070703A016304B45C"
 
 def crc16_ccitt(data: str) -> str:
     """Menghitung Checksum CRC16-CCITT standar EMVCo (Polinomial 0x1021, Init 0xFFFF)."""
@@ -301,13 +301,29 @@ def get_random_indonesian_city() -> str:
 
 get_random_city = get_random_indonesian_city
 
-def get_random_nmid() -> str:
+def get_random_nmid(orig_nmid: Optional[str] = None, mode: str = "revisi") -> str:
     """
-    Menghasilkan NMID acak berformat ID2026 + 9 digit angka (Total 15 Karakter)
-    Persis sesuai bot asli Web POS & qris.py.
+    Menghasilkan NMID acak (EMVCo Tag 51 Subtag 02, Total 15 Karakter).
+    Mendukung Dual Mode:
+    1. 'revisi' (Default / Aman):
+       - Mempertahankan 10 karakter awal NMID asli (clean_orig[:10], misal ID10265931).
+       - HANYA mengacak 5 digit terakhir (k=5).
+       - Jika NMID asli tidak tersedia / < 10 karakter, fallback prefix 'ID10265931' + 5 digit acak.
+    2. 'referensi' (Legacy / qris.py Asli):
+       - Format paten bot referensi: 'ID2026' + 9 digit angka acak (k=9).
     """
-    random_digits = ''.join(random.choices(string.digits, k=9))
-    return f"ID2026{random_digits}"
+    clean_mode = str(mode or "revisi").strip().lower()
+    if clean_mode in ("referensi", "legacy", "qris_py", "old"):
+        random_digits = ''.join(random.choices(string.digits, k=9))
+        return f"ID2026{random_digits}"
+
+    clean_orig = str(orig_nmid or "").strip().upper()
+    if len(clean_orig) >= 10:
+        prefix = clean_orig[:10]
+    else:
+        prefix = "ID10265931"
+    random_tail = ''.join(random.choices(string.digits, k=5))
+    return f"{prefix}{random_tail}"
 
 
 def extract_token_from_input(raw_input: str) -> str:
@@ -499,6 +515,12 @@ class GoBizQRISGenerator:
         self.city = gobiz_cfg.get("city", "").strip()
         self.auth_token = gobiz_cfg.get("auth_token", "").strip()
         self.auto_random = gobiz_cfg.get("auto_random_merchant", True)
+        self.nmid_mode = str(
+            self.config.get("nmid_mode") or
+            gobiz_cfg.get("nmid_mode") or
+            self.config.get("gobiz", {}).get("nmid_mode") or
+            "revisi"
+        ).strip().lower()
 
     def create_dynamic_qris_midtrans_api(
         self,
@@ -603,39 +625,60 @@ class GoBizQRISGenerator:
         raw_qr: str,
         custom_name: Optional[str] = None,
         custom_city: Optional[str] = None,
-        randomize_nmid: bool = True
+        randomize_nmid: bool = True,
+        nmid_mode: Optional[str] = None
     ) -> str:
         """
         Memodifikasi Tag 59 (Nama Toko), Tag 60 (Kota), dan Tag 51 (NMID) pada string QRIS
         sambil menjaga Tag 26 (PAN GoPay) & Tag 62 (Invoice) 100% UTUH.
+        Mendukung dual mode NMID: 'revisi' (preservasi 10 prefix) vs 'referensi' (ID2026 + 9 digit).
         """
         tlvs = parse_emvco_payload(raw_qr)
         if not tlvs:
             return raw_qr
 
+        mode = (nmid_mode or getattr(self, "nmid_mode", "revisi")).strip().lower()
         m_name = (custom_name or get_random_merchant_name())[:25].upper()
         m_city = (custom_city or get_random_indonesian_city())[:15].upper()
-        m_nmid = get_random_nmid() if randomize_nmid else None
 
+        has_tag_59 = False
+        has_tag_60 = False
         rebuilt = []
         for tag, val in tlvs:
             if tag == "63":
                 continue
             elif tag == "59":
                 rebuilt.append(build_tlv("59", m_name))
+                has_tag_59 = True
             elif tag == "60":
                 rebuilt.append(build_tlv("60", m_city))
-            elif tag == "51" and m_nmid:
+                has_tag_60 = True
+            elif tag == "51" and randomize_nmid:
                 sub_tlvs = parse_sub_tlvs(val)
+                orig_nmid = None
+                for stag, sval in sub_tlvs:
+                    if stag == "02":
+                        orig_nmid = sval
+                        break
+                m_nmid = get_random_nmid(orig_nmid=orig_nmid, mode=mode)
                 new_subs = []
+                has_02 = False
                 for stag, sval in sub_tlvs:
                     if stag == "02":
                         new_subs.append(("02", m_nmid))
+                        has_02 = True
                     else:
                         new_subs.append((stag, sval))
+                if not has_02:
+                    new_subs.append(("02", m_nmid))
                 rebuilt.append(build_tlv("51", rebuild_sub_tlvs(new_subs)))
             else:
                 rebuilt.append(build_tlv(tag, val))
+
+        if not has_tag_59 and m_name:
+            rebuilt.append(build_tlv("59", m_name))
+        if not has_tag_60 and m_city:
+            rebuilt.append(build_tlv("60", m_city))
 
         before_crc = "".join(rebuilt) + "6304"
         return f"{before_crc}{crc16_ccitt(before_crc)}"
@@ -644,11 +687,13 @@ class GoBizQRISGenerator:
         self,
         amount: int,
         custom_name: Optional[str] = None,
-        custom_city: Optional[str] = None
+        custom_city: Optional[str] = None,
+        nmid_mode: Optional[str] = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
         Membuat QRIS dinamis mandiri secara lokal (Offline / Standalone).
         Injeksi nominal Tag 54 dan Tag 62 langsung ke base QRIS merchant.
+        Mendukung dual mode NMID: 'revisi' vs 'referensi'.
         """
         if amount <= 0:
             return False, "", {"error": "Nominal harus lebih dari 0"}
@@ -657,13 +702,26 @@ class GoBizQRISGenerator:
         if not tlvs:
             return False, "", {"error": "Base QRIS tidak valid"}
 
+        mode = (nmid_mode or getattr(self, "nmid_mode", "revisi")).strip().lower()
         m_name = (custom_name or self.merchant_name or get_random_merchant_name())[:25].upper()
         m_city = (custom_city or self.city or get_random_indonesian_city())[:15].upper()
-        m_nmid = get_random_nmid()
+
+        orig_nmid = None
+        for tag, val in tlvs:
+            if tag == "51":
+                for stag, sval in parse_sub_tlvs(val):
+                    if stag == "02":
+                        orig_nmid = sval
+                        break
+                break
+
+        m_nmid = get_random_nmid(orig_nmid=orig_nmid, mode=mode)
         amount_str = str(int(amount))
 
         rebuilt_parts = []
         has_tag_54 = False
+        has_tag_59 = False
+        has_tag_60 = False
         has_tag_62 = False
 
         for tag, val in tlvs:
@@ -676,30 +734,31 @@ class GoBizQRISGenerator:
                 # Tag 26 (PAN GoPay Merchant) MUTLAK TETAP ASLI!
                 rebuilt_parts.append(build_tlv("26", val))
             elif tag == "51":
-                # Acak Subtag 02 (NMID)
+                # Acak Subtag 02 (NMID) sesuai mode (revisi / referensi)
                 sub_tlvs = parse_sub_tlvs(val)
                 new_subs = []
+                has_02 = False
                 for stag, sval in sub_tlvs:
                     if stag == "02":
                         new_subs.append(("02", m_nmid))
+                        has_02 = True
                     else:
                         new_subs.append((stag, sval))
+                if not has_02:
+                    new_subs.append(("02", m_nmid))
                 rebuilt_parts.append(build_tlv("51", rebuild_sub_tlvs(new_subs)))
             elif tag == "54":
                 rebuilt_parts.append(build_tlv("54", amount_str))
                 has_tag_54 = True
             elif tag == "59":
                 rebuilt_parts.append(build_tlv("59", m_name))
+                has_tag_59 = True
             elif tag == "60":
                 rebuilt_parts.append(build_tlv("60", m_city))
+                has_tag_60 = True
             elif tag == "62":
-                # Generate Subtag 50 (Invoice) + Subtag 07 (Terminal)
-                now_ts = time.strftime("%Y%m%d%H%M%S")
-                rnd_alnum = "".join(random.choices(string.ascii_letters + string.digits, k=12))
-                order_ref = f"A2{now_ts}{rnd_alnum}"
-                sub50 = build_tlv("50", order_ref)
-                sub07 = build_tlv("07", "A01")
-                rebuilt_parts.append(build_tlv("62", sub50 + sub07))
+                # Tag 62 (Additional Data / Invoice Ref ID / Terminal) MUTLAK 100% ASLI bawaan invoice GoBiz!
+                rebuilt_parts.append(build_tlv("62", val))
                 has_tag_62 = True
             else:
                 rebuilt_parts.append(build_tlv(tag, val))
@@ -717,13 +776,16 @@ class GoBizQRISGenerator:
                 new_parts.append(build_tlv("54", amount_str))
             rebuilt_parts = new_parts
 
+        if not has_tag_59 and m_name:
+            rebuilt_parts.append(build_tlv("59", m_name))
+
+        if not has_tag_60 and m_city:
+            rebuilt_parts.append(build_tlv("60", m_city))
+
         if not has_tag_62:
-            now_ts = time.strftime("%Y%m%d%H%M%S")
-            rnd_alnum = "".join(random.choices(string.ascii_letters + string.digits, k=12))
-            order_ref = f"A2{now_ts}{rnd_alnum}"
-            sub50 = build_tlv("50", order_ref)
+            # Fallback jika base QR belum memiliki Tag 62: gunakan Terminal ID bawaan A01 (persis qris.py)
             sub07 = build_tlv("07", "A01")
-            rebuilt_parts.append(build_tlv("62", sub50 + sub07))
+            rebuilt_parts.append(build_tlv("62", sub07))
 
         payload_before_crc = "".join(rebuilt_parts) + "6304"
         crc = crc16_ccitt(payload_before_crc)
@@ -734,6 +796,7 @@ class GoBizQRISGenerator:
             "merchant_name": m_name,
             "city": m_city,
             "nmid": m_nmid,
+            "nmid_mode": mode,
             "crc": crc,
             "mode": "STANDALONE_LOCAL"
         }
@@ -743,7 +806,8 @@ class GoBizQRISGenerator:
         self,
         amount: int,
         custom_name: Optional[str] = None,
-        custom_city: Optional[str] = None
+        custom_city: Optional[str] = None,
+        nmid_mode: Optional[str] = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
         Pintu gerbang pembuatan QRIS dinamis (Dual-Engine):
@@ -751,6 +815,7 @@ class GoBizQRISGenerator:
         2. Jika mode 'standalone' atau Midtrans API gagal: fallback otomatis ke Standalone ASPI lokal.
         """
         self.reload_account()
+        mode = (nmid_mode or getattr(self, "nmid_mode", "revisi")).strip().lower()
         if self.mode == "api" and self.server_key:
             ok, qr_api, det_api = self.create_dynamic_qris_midtrans_api(amount)
             if ok:
@@ -760,19 +825,21 @@ class GoBizQRISGenerator:
                         qr_api,
                         custom_name=custom_name,
                         custom_city=custom_city,
-                        randomize_nmid=True
+                        randomize_nmid=True,
+                        nmid_mode=mode
                     )
                     det_api["merchant_name"] = "MODIFIED_RANDOM"
+                    det_api["nmid_mode"] = mode
                 return True, final_qr, det_api
             print(f"[!] Midtrans API gagal: {det_api.get('error')}. Beralih ke Standalone ASPI...")
 
-        return self.create_dynamic_qris_standalone(amount, custom_name, custom_city)
+        return self.create_dynamic_qris_standalone(amount, custom_name, custom_city, nmid_mode=mode)
 
     def save_qr_image(self, qr_string: str, output_path: str, scale: int = 2) -> bool:
         """
-        Merender string QRIS menjadi format kartu modern sesuai Gambar 3:
+        Merender string QRIS menjadi format kartu modern:
         - Kartu putih elegan dengan sudut rounded (rounded rectangle).
-        - Tepian / margin putih luas (quiet zone lega, tidak mepen ke tepi).
+        - Tepian / margin putih luas (quiet zone lega, tidak mepet ke tepi).
         - Frame background gelap (#0F1729) berbingkai presisi sehingga kontras maksimal.
         - Memastikan 100% terbaca mulus oleh scanner Bitget Wallet / e-wallet.
         """
@@ -783,7 +850,6 @@ class GoBizQRISGenerator:
         try:
             from PIL import ImageDraw
 
-            # Proporsi presisi identik Gambar 3 (Base: 315x270, QR 223x223)
             img_w = 315 * scale
             img_h = 270 * scale
             qr_target_size = 223 * scale
@@ -794,7 +860,6 @@ class GoBizQRISGenerator:
             pad_x = 4 * scale
             pad_y = 3 * scale
 
-            # 1. Generate QR code dengan border 0 (karena margin dikontrol penuh oleh kartu putih)
             qr = qrcode.QRCode(
                 version=None,
                 error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -805,18 +870,14 @@ class GoBizQRISGenerator:
             qr.make(fit=True)
             raw_qr = qr.make_image(fill_color="black", back_color="white").convert("RGBA")
 
-            # Resampling NEAREST agar modul hitam QR tajam tanpa blur
             raw_qr = raw_qr.resize((qr_target_size, qr_target_size), Image.Resampling.NEAREST)
 
-            # 2. Buat kanvas background berbingkai gelap
             canvas = Image.new("RGBA", (img_w, img_h), bg_color)
             draw = ImageDraw.Draw(canvas)
 
-            # 3. Gambar kartu putih dengan sudut membulat (rounded rectangle)
             card_box = [pad_x, pad_y, img_w - pad_x, img_h - pad_y]
             draw.rounded_rectangle(card_box, radius=corner_radius, fill=card_color)
 
-            # 4. Tempel QR code tepat di tengah kartu putih (tepian lega & simetris)
             qr_x = (img_w - qr_target_size) // 2
             qr_y = (img_h - qr_target_size) // 2
             canvas.paste(raw_qr, (qr_x, qr_y))
@@ -828,9 +889,21 @@ class GoBizQRISGenerator:
             print(f"[!] Gagal membuat file gambar QR: {e}")
             return False
 
-    def create_and_save_qris(self, amount: int, output_path: str) -> Tuple[bool, str, Dict[str, Any]]:
+    def create_and_save_qris(
+        self,
+        amount: int,
+        output_path: str,
+        custom_name: Optional[str] = None,
+        custom_city: Optional[str] = None,
+        nmid_mode: Optional[str] = None
+    ) -> Tuple[bool, str, Dict[str, Any]]:
         """Satu langkah mudah: buat string QRIS dinamis dan simpan ke file gambar PNG."""
-        success, qr_str, details = self.generate_qris_string(amount)
+        success, qr_str, details = self.generate_qris_string(
+            amount,
+            custom_name=custom_name,
+            custom_city=custom_city,
+            nmid_mode=nmid_mode
+        )
         if not success:
             return False, "", details
 
@@ -840,3 +913,46 @@ class GoBizQRISGenerator:
 
         details["image_path"] = output_path
         return True, qr_str, details
+
+
+# =============================================================================
+# HELPER GLOBAL CONVENIENCE FUNCTIONS
+# =============================================================================
+
+def modify_qris_merchant(
+    raw_qr: str,
+    custom_name: Optional[str] = None,
+    custom_city: Optional[str] = None,
+    randomize_nmid: bool = True,
+    nmid_mode: str = "revisi"
+) -> str:
+    """Helper global untuk memodifikasi QRIS merchant tanpa inisialisasi class."""
+    generator = GoBizQRISGenerator({"nmid_mode": nmid_mode})
+    return generator.modify_emvco_merchant(
+        raw_qr,
+        custom_name=custom_name,
+        custom_city=custom_city,
+        randomize_nmid=randomize_nmid,
+        nmid_mode=nmid_mode
+    )
+
+build_modified_qris = modify_qris_merchant
+
+def create_dynamic_qris(
+    raw_qris: str,
+    amount: int,
+    custom_name: Optional[str] = None,
+    custom_city: Optional[str] = None,
+    nmid_mode: str = "revisi"
+) -> Tuple[bool, str, Dict[str, Any]]:
+    """Helper global untuk membuat QRIS dinamis mandiri dari string base QRIS."""
+    generator = GoBizQRISGenerator({
+        "gobiz": {"raw_qris": raw_qris, "nmid_mode": nmid_mode},
+        "nmid_mode": nmid_mode
+    })
+    return generator.create_dynamic_qris_standalone(
+        amount=amount,
+        custom_name=custom_name,
+        custom_city=custom_city,
+        nmid_mode=nmid_mode
+    )
