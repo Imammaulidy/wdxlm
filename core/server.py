@@ -566,10 +566,10 @@ def execute_step_commands(serial, step, mode='create_account', account_num=1):
 
         elif cmd_lower.startswith("pin"):
             def_keypad = {
-                "1": (205, 1550), "2": (540, 1550), "3": (875, 1550),
-                "4": (205, 1720), "5": (540, 1720), "6": (875, 1720),
-                "7": (205, 1890), "8": (540, 1890), "9": (875, 1890),
-                "0": (540, 2060)
+                "1": (210, 1735), "2": (540, 1735), "3": (875, 1735),
+                "4": (210, 1885), "5": (540, 1885), "6": (875, 1885),
+                "7": (210, 2030), "8": (540, 2030), "9": (875, 2030),
+                "0": (540, 2180)
             }
             if mode in ("qris_morph", "morph", "qm", "qris"):
                 coords = config.get("keypad_coords_morph") or def_keypad
@@ -1859,7 +1859,16 @@ def api_qris_sub_command():
             handle_qris_reset_gaid(targets)
         threading.Thread(target=run_gaid, daemon=True).start()
         return jsonify({"status": "success", "message": f"Reset GAID (0.1 - 0.7) dikirim ke {', '.join(targets)}", "action": action})
-        
+
+    elif action in ("tap_add_token", "add_token"):
+        adb_path = get_adb_path()
+        for s in targets:
+            subprocess.run([adb_path, "-s", s, "shell", "input", "tap", "787", "2189"],
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            time.sleep(0.5)
+            broadcast_log(f"[{s}] [SUB-TAP 4.1] Tap Tambahkan Token (787, 2189)", device=s)
+        return jsonify({"status": "success", "message": "Tombol Tambahkan Token (787, 2189) diketuk", "action": action})
+
     elif action == "tap_amount":
         adb_path = get_adb_path()
         for s in targets:
@@ -1973,6 +1982,20 @@ def api_step_execute():
         return jsonify({
             "status": "success",
             "message": f"Alur Lengkap Reset GAID (0.1 - 0.7) dimulai pada {', '.join(targets)}",
+            "devices": targets
+        })
+
+    if str_step in ('4.1', 'add_token', 'y') or sub_action in ('tap_add_token', 'add_token'):
+        adb_path = get_adb_path()
+        for s in targets:
+            subprocess.run([adb_path, "-s", s, "shell", "input", "tap", "787", "2189"],
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            broadcast_log(f"[{s}] [SUB-TAP 4.1] Tap Tambahkan Token (787, 2189)", device=s)
+        return jsonify({
+            "status": "success",
+            "message": "Tombol Tambahkan Token (787, 2189) berhasil diketuk",
+            "step_id": "4.1",
+            "sub_action": sub_action or "tap_add_token",
             "devices": targets
         })
 

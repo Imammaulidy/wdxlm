@@ -30,49 +30,55 @@ sleep 3
 [0.1. Buka Halaman Pengaturan Iklan Google]
 # Membuka halaman Ads Identity Settings via Android Intent
 am start -a com.google.android.gms.adsidentity.ACTION_ADS_IDENTITY_SETTINGS
-sleep 1.2
+sleep 1.0
+
 
 --------------------------------------------------------------------------------
 
 [0.2. Ketuk Delete Advertising ID]
 # Mengetuk menu 'Hapus ID iklan' (bounds [0,792][1080,978])
 input tap 540 885
-sleep 0.5
+sleep 0.3
+
 
 --------------------------------------------------------------------------------
 
 [0.3. Ketuk Tombol Hijau Delete Advertising ID]
 # Mengetuk tombol konfirmasi 'Hapus ID iklan' (bounds [417,858][663,993])
 input tap 540 925
-sleep 0.5
+sleep 0.3
+
 
 --------------------------------------------------------------------------------
 
 [0.4. Ketuk Get New Advertising ID]
 # Mengetuk menu 'Dapatkan ID iklan baru' pasca hapus (bounds [0,606][1080,792])
 input tap 540 699
-sleep 0.5
+sleep 0.3
+
 
 --------------------------------------------------------------------------------
 
 [0.5. Ketuk Confirm Dialog Get New ID]
 # Mengetuk tombol 'KONFIRMASI' popup Dapatkan ID iklan baru (bounds [792,1312][991,1431])
 input tap 891 1371
-sleep 0.5
+sleep 0.3
+
 
 --------------------------------------------------------------------------------
 
 [0.6. Ketuk Reset Advertising ID]
 # Mengetuk menu 'Reset ID iklan' (bounds [0,606][1080,792])
 input tap 540 699
-sleep 0.5
+sleep 0.3
+
 
 --------------------------------------------------------------------------------
 
 [0.7. Ketuk Confirm Dialog Reset ID]
 # Mengetuk tombol 'KONFIRMASI' popup Reset ID iklan (bounds [792,1312][991,1431])
 input tap 891 1371
-sleep 1
+sleep 0.5
 
 --------------------------------------------------------------------------------
 
@@ -114,7 +120,21 @@ sleep 0.8
 [4. Klik Selesai / Done]
 # Mengetuk tombol konfirmasi/centang/Done setelah memilih gambar QR
 input tap 925 2225
-sleep 4.9
+sleep 2.5
+
+--------------------------------------------------------------------------------
+
+[4.1. Klik Tambahkan Token]
+# Mengetuk tombol cyan 'Tambahkan' pada pop-up Tambahkan token USDC (Update Bitget Wallet)
+input tap 787 2189
+sleep 1.5
+
+--------------------------------------------------------------------------------
+
+[4.2. Input PIN Tambah Token]
+# Mengetik PIN transaksi untuk mengonfirmasi penambahan token
+pin {PIN} 0.25
+sleep 2.8
 
 --------------------------------------------------------------------------------
 

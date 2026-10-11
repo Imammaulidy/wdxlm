@@ -616,6 +616,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" class="btn-qris-sub btn-sub-gaid" data-serial="${serial}" data-action="reset_gaid" title="Jalankan Alur Lengkap Reset Google Advertising ID (Step 0.1 s/d 0.7)">
                                 <span>🔄 [I] Reset GAID (0.1 - 0.7)</span>
                             </button>
+                            <button type="button" class="btn-qris-sub btn-sub-tap" data-serial="${serial}" data-action="tap_add_token" title="Klik Tombol Cyan Tambahkan Token USDC (787, 2189)">
+                                <span>➕ [Y] 4.1: Tambah Token</span>
+                            </button>
                             <button type="button" class="btn-qris-sub btn-sub-tap" data-serial="${serial}" data-action="tap_amount" title="Klik Kolom Jumlah Pembayaran Saja (916, 1594)">
                                 <span>🖱️ [E] 9.1: Jumlah</span>
                             </button>

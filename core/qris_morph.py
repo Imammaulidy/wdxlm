@@ -1023,6 +1023,14 @@ class BotRunner:
         if not self.run_step_flow("3", "Pilih Foto QR", is_manual): return False
         if not self.run_step_flow("4", "Klik Selesai / Done", is_manual): return False
 
+        # Langkah Tambah Token & Input PIN Transaksi (Update Bitget Wallet)
+        if self.is_step_enabled("4.1"):
+            print("\n[*] Mengetuk Tombol Tambahkan Token (Step 4.1)...")
+            if not self.run_step_flow("4.1", "Klik Tambahkan Token", is_manual): return False
+        if self.is_step_enabled("4.2"):
+            print("\n[*] Memasukkan PIN Konfirmasi Tambah Token (Step 4.2)...")
+            if not self.run_step_flow("4.2", "Input PIN Tambah Token", is_manual): return False
+
         # 8. Otomasi Pengambilan Alamat Tuyul via Deposit Sheet
         print("\n[*] Membuka Alur Deposit untuk Menyalin Alamat Tuyul...")
         if not self.run_step_flow("5", "Klik Deposit", is_manual): return False
@@ -1331,6 +1339,15 @@ class BotRunner:
         ]:
             res = record_single_step(sid, lbl)
             if res == 'q': return False
+
+        # --- REKAM LANGKAH 4.1 & 4.2 (Tambahkan Token & Input PIN) ---
+        for sid, lbl in [
+            ("4.1", "Klik Tambahkan Token"),
+            ("4.2", "Input PIN Tambah Token")
+        ]:
+            if self.is_step_enabled(sid):
+                res = record_single_step(sid, lbl)
+                if res == 'q': return False
 
         # --- REKAM LANGKAH 5 s/d 7 (Buka Deposit & Salin Address Tuyul) ---
         for sid, lbl in [
@@ -2085,6 +2102,8 @@ def menu_manage_steps():
         "2": "2",
         "3": "3",
         "4": "4",
+        "y": "4.1",
+        "z": "4.2",
         "5": "5",
         "6": "6",
         "7": "7",
@@ -2126,6 +2145,8 @@ def menu_manage_steps():
         print(f" [2] Step 2   {_st('2')} : {step_map.get('2', {}).get('name', 'Galeri Scanner')}")
         print(f" [3] Step 3   {_st('3')} : {step_map.get('3', {}).get('name', 'Pilih Gambar QR')}")
         print(f" [4] Step 4   {_st('4')} : {step_map.get('4', {}).get('name', 'Selesai / Done')}")
+        print(f" [Y] Step 4.1 {_st('4.1')} : {step_map.get('4.1', {}).get('name', 'Klik Tambahkan Token')}")
+        print(f" [Z] Step 4.2 {_st('4.2')} : {step_map.get('4.2', {}).get('name', 'Input PIN Tambah Token')}")
         print(f" [5] Step 5   {_st('5')} : {step_map.get('5', {}).get('name', 'Tombol Deposit')}")
         print(f" [6] Step 6   {_st('6')} : {step_map.get('6', {}).get('name', 'Terima Aset Kripto')}")
         print(f" [7] Step 7   {_st('7')} : {step_map.get('7', {}).get('name', 'Salin Address EVM Tuyul')}")
@@ -2139,6 +2160,8 @@ def menu_manage_steps():
         print(" [X] Sub-Tap : Reset Atomik Clone (Force Stop + Clear Cache + Mode Pesawat 3s)")
         print(" [Q] Sub-Tap : Generate QRIS GoBiz Dinamis & Push ke Galeri HP")
         print(" [I] Sub-Tap : Jalankan Alur Lengkap Reset GAID (Step 0.1 s/d 0.7)")
+        print(" [Y] Sub-Tap : Klik Tombol Tambahkan Token Saja (787 2189)")
+        print(" [Z] Sub-Tap : Ketik Sandi PIN Tambah Token Saja")
         print(" [E] Sub-Tap : Klik Kolom Jumlah Pembayaran Saja (916 1594)")
         print(f" [F] Sub-Tap : Pilih Token {tok_symbol} Paling Atas Saja (517 1536)")
         print(" [G] Sub-Tap : Klik Tombol Konfirmasi Pembayaran Saja (540 2193)")
@@ -2152,7 +2175,7 @@ def menu_manage_steps():
             print(f" Status: {last_tested_msg}\n")
             last_tested_msg = ""
 
-        key = get_key_press(" Tekan Tombol [0-9 / A-G / J-M / O / Q / U-V / X / P / I / T / N / 0]: ").strip().lower()
+        key = get_key_press(" Tekan Tombol [0-9 / A-G / J-M / O / Q / U-V / X / Y-Z / P / I / T / N / 0]: ").strip().lower()
 
         if key == "0":
             break
