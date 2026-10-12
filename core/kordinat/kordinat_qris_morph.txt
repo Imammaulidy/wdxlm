@@ -23,7 +23,9 @@
 [0.0. Reset Atomik & Bersihkan Cache Clone]
 # Memaksa berhenti clone, bersihkan cache internal & eksternal, dan reset mode pesawat 3 detik
 cmd clear_clone_cache
-sleep 3
+sleep 3.5
+
+
 
 --------------------------------------------------------------------------------
 
@@ -78,7 +80,8 @@ sleep 0.3
 [0.7. Ketuk Confirm Dialog Reset ID]
 # Mengetuk tombol 'KONFIRMASI' popup Reset ID iklan (bounds [792,1312][991,1431])
 input tap 891 1371
-sleep 0.5
+sleep 0.5
+
 
 --------------------------------------------------------------------------------
 
