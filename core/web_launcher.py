@@ -60,10 +60,18 @@ def wait_any_key(msg: str = "\n Tekan sembarang tombol untuk kembali ke menu..."
     get_key_press(f"{Y}{msg}{RST}")
 
 def run_cmd(cmd_list, timeout=15):
-    """Menjalankan perintah sistem secara aman dengan fallback npx."""
+    """Menjalankan perintah sistem secara aman dengan encoding UTF-8 dan replacement agar bebas UnicodeDecodeError."""
     cmd_str = " ".join(cmd_list) if isinstance(cmd_list, list) else cmd_list
     try:
-        r = subprocess.run(cmd_str, shell=True, capture_output=True, text=True, timeout=timeout, cwd=PROJECT_ROOT)
+        r = subprocess.run(
+            cmd_str,
+            shell=True,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            cwd=PROJECT_ROOT
+        )
         return r.returncode, r.stdout.strip(), r.stderr.strip()
     except Exception as e:
         return 1, "", str(e)
@@ -93,7 +101,12 @@ def free_port(port=PORT):
     """Menghentikan proses apapun yang mengunci port tertentu."""
     if os.name == 'nt':
         try:
-            out = subprocess.check_output(f'netstat -ano -p tcp | findstr ":{port}.*LISTENING"', shell=True, text=True)
+            out = subprocess.check_output(
+                f'netstat -ano -p tcp | findstr ":{port}.*LISTENING"',
+                shell=True,
+                encoding="utf-8",
+                errors="replace"
+            )
             for line in out.splitlines():
                 parts = line.strip().split()
                 if len(parts) >= 5 and parts[-1].isdigit():
