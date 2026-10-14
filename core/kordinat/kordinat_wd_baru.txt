@@ -55,7 +55,7 @@ sleep 1.1
 
 [5. Klik Impor Dompet]
 # Mengetuk menu kedua 'Impor dompet' (seed phrase, kunci pribadi, dll)
-input tap 578 593
+input tap 540 670
 sleep 1.0
 
 
@@ -70,7 +70,7 @@ sleep 1.0
 
 [6. Pilih Frasa Pemulihan Mnemonic]
 # Memilih opsi impor via Frasa Pemulihan / Seed Phrase
-input tap 540 1850
+input tap 540 1650
 sleep 1.0
 
 
@@ -124,8 +124,8 @@ sleep 8.0
 # ------------------------------------------------------------------------------
 
 [10. Klik Tab Dompet (Bawah Kanan)]
-# Mengetuk tab Dompet di navigasi bawah (pointer X: 906, Y: 2250)
-input tap 906 2250
+# Mengetuk tab Dompet di navigasi bawah (pointer X: 840, Y: 2320)
+input tap 840 2320
 sleep 3.1
 
 

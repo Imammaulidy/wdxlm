@@ -833,6 +833,10 @@ def run_bot_script(script_path, extra_args=None):
         extra_args = []
     config = load_config()
     target = config.get("target_device") or os.environ.get("ANDROID_SERIAL")
+    if not target:
+        devs = get_detailed_connected_devices()
+        if devs:
+            target = devs[0]["serial"]
     cmd = [sys.executable, script_path]
     if target:
         cmd.extend(["--device", target])

@@ -95,6 +95,26 @@ elif "-s" in sys.argv:
 if not TARGET_SERIAL:
     TARGET_SERIAL = os.environ.get("ANDROID_SERIAL")
 
+if not TARGET_SERIAL:
+    try:
+        cfg = load_config()
+        TARGET_SERIAL = cfg.get("target_device")
+    except Exception:
+        pass
+
+if not TARGET_SERIAL:
+    try:
+        out = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=5)
+        for line in out.stdout.splitlines():
+            line = line.strip()
+            if line and not line.startswith("List") and not line.startswith("*"):
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == "device":
+                    TARGET_SERIAL = parts[0]
+                    break
+    except Exception:
+        pass
+
 if TARGET_SERIAL:
     os.environ["ANDROID_SERIAL"] = TARGET_SERIAL
     print(f"[*] Target Perangkat ADB: {TARGET_SERIAL}")
@@ -505,6 +525,10 @@ def adb_command(command):
     try:
         cmd_str = f'"{ADB_PATH}" {prefix}{command}' if platform.system() == "Windows" else f'{ADB_PATH} {prefix}{command}'
         result = subprocess.run(cmd_str, shell=True, capture_output=True, text=True)
+        if result.returncode != 0 and result.stderr:
+            err = result.stderr.strip()
+            if "more than one device" in err:
+                print(f"[!] ADB Warning: Terdeteksi lebih dari 1 perangkat. Pastikan serial target aktif ({TARGET_SERIAL}).")
         return result.stdout.strip()
     except Exception as e:
         print(f"Error executing ADB command: {e}")
@@ -553,15 +577,29 @@ def open_recent_apps(jeda=2.0):
     if not (MANUAL_MODE or REKAM_MODE):
         stoppable_sleep(jeda)
 
-def tap_dynamic_pin(pin_str, keypad_coords, final_jeda=5.0):
+DEFAULT_BITGET_KEYPAD = {
+    "1": {"x": 177, "y": 1898},
+    "2": {"x": 546, "y": 1898},
+    "3": {"x": 908, "y": 1898},
+    "4": {"x": 177, "y": 2014},
+    "5": {"x": 546, "y": 2014},
+    "6": {"x": 908, "y": 2014},
+    "7": {"x": 177, "y": 2130},
+    "8": {"x": 546, "y": 2130},
+    "9": {"x": 908, "y": 2130},
+    "0": {"x": 546, "y": 2258}
+}
+
+def tap_dynamic_pin(pin_str, keypad_coords=None, final_jeda=5.0):
     """Melakukan ketikan PIN secara dinamis menggunakan mapping koordinat."""
     print(f"Memasukkan PIN dinamis via kordinat sentuh...")
+    coords = keypad_coords if (keypad_coords and isinstance(keypad_coords, dict) and len(keypad_coords) > 0) else DEFAULT_BITGET_KEYPAD
     is_fast = MANUAL_MODE or REKAM_MODE
     digit_jeda = 0.08 if is_fast else 0.35
-    for i, digit in enumerate(pin_str):
-        if digit in keypad_coords:
-            coord = keypad_coords[digit]
-            is_last = (i == len(pin_str) - 1)
+    for i, digit in enumerate(str(pin_str)):
+        if digit in coords:
+            coord = coords[digit]
+            is_last = (i == len(str(pin_str)) - 1)
             jeda_to_use = (0.2 if is_fast else final_jeda) if is_last else digit_jeda
             print(f"  Digit [{digit}] -> ({coord['x']}, {coord['y']})")
             adb_command(f"shell input tap {coord['x']} {coord['y']}")
@@ -856,7 +894,7 @@ def run_rekam_delay(config):
     global DISABLED_STEPS
     ALAMAT_WD = config.get("alamat_wd", "")
     PIN       = config.get("pin", "080808")
-    KEYPAD    = config.get("keypad_coords", {})
+    KEYPAD    = config.get("keypad_coords") or DEFAULT_BITGET_KEYPAD
     DISABLED_STEPS = config.get(CONFIG_DISABLED_KEY, config.get("disabled_steps", []))
 
     steps = parse_kordinat_file(KORDINAT_FILE)
@@ -1004,11 +1042,13 @@ def run_bot(config):
     # Konfigurasi Akun & Kredensial
     ALAMAT_WD  = config.get("alamat_wd", "")
     PIN        = config.get("pin", "080808")
-    KEYPAD     = config.get("keypad_coords", {})
+    KEYPAD     = config.get("keypad_coords") or DEFAULT_BITGET_KEYPAD
     DISABLED_STEPS = config.get(CONFIG_DISABLED_KEY, config.get("disabled_steps", []))
 
-    # Nomor Urut Terakhir / Awal untuk Penamaan di Google Authenticator (Default: 0)
-    START_INDEX = config.get("start_index", 0)
+    # Nomor Urut Terakhir / Awal untuk Penamaan di Google Authenticator (Default: 1)
+    START_INDEX = config.get("start_index", 1)
+    if not isinstance(START_INDEX, int) or START_INDEX < 1:
+        START_INDEX = 1
 
     print(f"\n[*] {MODE_NAME}")
     print(f"[*] File Koordinat: {os.path.basename(KORDINAT_FILE)}")
@@ -1019,7 +1059,7 @@ def run_bot(config):
         START_INDEX = prompt_number_with_arrows(
             "[?] Mulai dari clone nomor berapa? [Panah Atas/Bawah | Ketik]:",
             default_val=START_INDEX,
-            min_val=0
+            min_val=1
         )
 
     # Simpan nomor awal yang dipilih jika berbeda

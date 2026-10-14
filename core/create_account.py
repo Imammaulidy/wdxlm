@@ -361,11 +361,25 @@ def open_recent_apps(jeda=2.0):
     adb_command("shell input keyevent 187")
     stoppable_sleep(jeda)
 
-def tap_dynamic_pin(pin_str, keypad_coords, final_jeda=2.5):
+DEFAULT_BITGET_KEYPAD = {
+    "1": {"x": 177, "y": 1898},
+    "2": {"x": 546, "y": 1898},
+    "3": {"x": 908, "y": 1898},
+    "4": {"x": 177, "y": 2014},
+    "5": {"x": 546, "y": 2014},
+    "6": {"x": 908, "y": 2014},
+    "7": {"x": 177, "y": 2130},
+    "8": {"x": 546, "y": 2130},
+    "9": {"x": 908, "y": 2130},
+    "0": {"x": 546, "y": 2258}
+}
+
+def tap_dynamic_pin(pin_str, keypad_coords=None, final_jeda=2.5):
     print(f"Memasukkan PIN dinamis ({pin_str}) via koordinat sentuh...")
-    for i, digit in enumerate(pin_str):
-        if digit in keypad_coords:
-            coord = keypad_coords[digit]
+    coords = keypad_coords if (keypad_coords and isinstance(keypad_coords, dict) and len(keypad_coords) > 0) else DEFAULT_BITGET_KEYPAD
+    for i, digit in enumerate(str(pin_str)):
+        if digit in coords:
+            coord = coords[digit]
             x, y = coord['x'], coord['y']
             print(f" Digit [{digit}] -> Tap ({x}, {y})")
             adb_command(f"shell input tap {x} {y}")

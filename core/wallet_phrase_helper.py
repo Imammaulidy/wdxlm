@@ -101,6 +101,8 @@ def get_phrase_by_index(index: int, filename: Optional[str] = None) -> Optional[
     phrases = load_wallet_phrases(filename)
     if not phrases:
         return None
+    if index <= 0:
+        index = 1
     # Jika index melebihi total akun, gunakan modul/kembalikan None
     idx_lookup = index - 1
     if 0 <= idx_lookup < len(phrases):
