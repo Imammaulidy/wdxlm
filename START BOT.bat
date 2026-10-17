@@ -103,22 +103,24 @@ echo.
 echo   [1] GAS WD XLM BITGET (Jalankan menu.py)
 echo   [2] GAS BOT QRIS MORPH L2 (Jalankan qris_morph.py)
 echo   [3] GAS WEB DASHBOARD CONTROLLER (Jalankan web_launcher.py)
-echo   [4] JALANKAN SERVER BACKGROUND DENGAN PM2 (bitget-server)
-echo   [5] LIHAT STATUS ^& LOG PM2 (pm2 status / logs bitget-server)
-echo   [6] RESTART / STOP LAYANAN PM2 (Isolasi khusus bitget-server)
-echo   [7] RESET ^& RESTART ADB SERVER (Kill ADB ^& Scrcpy)
-echo   [8] PERIKSA / UPDATE DEPENDENSI PYTHON (pip install)
+echo   [4] BUKA SCRCPY (MIRRORING LAYAR HP)
+echo   [5] JALANKAN SERVER BACKGROUND DENGAN PM2 (bitget-server)
+echo   [6] LIHAT STATUS ^& LOG PM2 (pm2 status / logs bitget-server)
+echo   [7] RESTART / STOP LAYANAN PM2 (Isolasi khusus bitget-server)
+echo   [8] RESET ^& RESTART ADB SERVER (Kill ADB ^& Scrcpy)
+echo   [9] PERIKSA / UPDATE DEPENDENSI PYTHON (pip install)
 echo   [0] KELUAR
 echo.
 echo ======================================================================
 
-choice /c 123456780 /n /m "Pilihan Anda (0-8) [Default=1]: "
-if errorlevel 9 exit
-if errorlevel 8 goto UPDATE_REQUIREMENTS
-if errorlevel 7 goto RESET_ADB
-if errorlevel 6 goto CONTROL_PM2
-if errorlevel 5 goto LOGS_PM2
-if errorlevel 4 goto START_PM2
+choice /c 1234567890 /n /m "Pilihan Anda (0-9) [Default=1]: "
+if errorlevel 10 exit
+if errorlevel 9 goto UPDATE_REQUIREMENTS
+if errorlevel 8 goto RESET_ADB
+if errorlevel 7 goto CONTROL_PM2
+if errorlevel 6 goto LOGS_PM2
+if errorlevel 5 goto START_PM2
+if errorlevel 4 goto RUN_SCRCPY
 if errorlevel 3 goto RUN_DASHBOARD
 if errorlevel 2 goto RUN_QRIS
 if errorlevel 1 goto RUN_WD
@@ -176,7 +178,27 @@ pause >nul
 goto MENU
 
 :: ======================================================================
-:: 4. START PM2 BACKGROUND
+:: 4. BUKA SCRCPY MIRRORING LAYAR HP
+:: ======================================================================
+:RUN_SCRCPY
+cls
+echo ======================================================================
+echo              MEMBUKA SCRCPY MIRRORING LAYAR HP (120 FPS)
+echo ======================================================================
+echo.
+if exist "Core\Python\scrcpy_launcher.py" (
+    "%PYTHON_EXE%" Core\Python\scrcpy_launcher.py
+) else if exist "Core\scrcpy-win64-v3.3.4\scrcpy.exe" (
+    start "" "Core\scrcpy-win64-v3.3.4\scrcpy.exe" --tcpip
+)
+echo.
+echo ======================================================================
+echo Tekan sembarang tombol untuk kembali ke menu utama...
+pause >nul
+goto MENU
+
+:: ======================================================================
+:: 5. START PM2 BACKGROUND
 :: ======================================================================
 :START_PM2
 cls
@@ -197,7 +219,7 @@ pause
 goto MENU
 
 :: ======================================================================
-:: 5. STATUS & LOGS PM2
+:: 6. STATUS & LOGS PM2
 :: ======================================================================
 :LOGS_PM2
 cls
@@ -213,7 +235,7 @@ pause
 goto MENU
 
 :: ======================================================================
-:: 6. RESTART / STOP PM2 (TERISOLASI)
+:: 7. RESTART / STOP PM2 (TERISOLASI)
 :: ======================================================================
 :CONTROL_PM2
 cls
@@ -244,7 +266,7 @@ if errorlevel 1 (
 goto MENU
 
 :: ======================================================================
-:: 7. RESET & RESTART ADB SERVER
+:: 8. RESET & RESTART ADB SERVER
 :: ======================================================================
 :RESET_ADB
 cls
@@ -283,7 +305,7 @@ pause
 goto MENU
 
 :: ======================================================================
-:: 8. UPDATE DEPENDENSI
+:: 9. UPDATE DEPENDENSI
 :: ======================================================================
 :UPDATE_REQUIREMENTS
 cls
