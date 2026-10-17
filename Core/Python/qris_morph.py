@@ -24,10 +24,13 @@ import io
 import contextlib
 from typing import Optional, Dict, Any, List
 
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CORE_DIR, '..'))
-if CORE_DIR not in sys.path:
-    sys.path.insert(0, CORE_DIR)
+from paths import (
+    PYTHON_DIR, CORE_DIR, PROJECT_ROOT, JSON_DIR,
+    CONFIG_PATH as CONFIG_FILE,
+    KORDINAT_DIR,
+    LAST_TUYUL_PATH as LAST_TUYUL_FILE,
+    SCRCPY_DIR
+)
 
 from screen_manager import (
     record_and_apply_bot_screen,
@@ -47,13 +50,8 @@ from gobiz_qris import (
 )
 from evm_wallet import EVMWallet, BaseWallet, MorphWallet, DEFAULT_CHAINS_PRESET
 
-CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
-KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
 KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_qris_morph.txt')
-if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')):
-    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
 DISABLED_CONFIG_KEY = "disabled_steps_qris_morph"
-LAST_TUYUL_FILE = os.path.join(CORE_DIR, '.last_tuyul.txt')
 TEMP_QR_PATH = os.path.join(CORE_DIR, 'qris_pay.png')
 
 def clear_screen():

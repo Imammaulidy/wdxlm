@@ -6,8 +6,8 @@ import shutil
 import re
 from typing import Optional, Dict, Any, List, Tuple
 
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CORE_DIR, '..'))
+from paths import PYTHON_DIR, CORE_DIR, PROJECT_ROOT, SCRCPY_DIR
+
 
 CLONE_APPS = {
     "dual_space": {

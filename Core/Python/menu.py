@@ -6,30 +6,17 @@ import subprocess
 import shutil
 import re
 
-# Root & Core Directory Setup
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
-CONFIG_EXAMPLE = os.path.join(CORE_DIR, 'config.example.json')
-KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
+from paths import (
+    PYTHON_DIR, CORE_DIR, PROJECT_ROOT, JSON_DIR,
+    CONFIG_PATH as CONFIG_FILE,
+    CONFIG_EXAMPLE_PATH as CONFIG_EXAMPLE,
+    EMAILS_PATH as EMAILS_FILE,
+    KORDINAT_DIR, SCRCPY_DIR
+)
 KORDINAT_WD_BARU_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_baru.txt')
 KORDINAT_WD_OLD_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_old.txt')
 KORDINAT_CREATE_ACCOUNT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_create_account.txt')
 KORDINAT_QRIS_MORPH_FILE = os.path.join(KORDINAT_DIR, 'kordinat_qris_morph.txt')
-
-# Fallback ke CORE_DIR jika file ada di root core
-if not os.path.exists(KORDINAT_WD_BARU_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')):
-    KORDINAT_WD_BARU_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
-if not os.path.exists(KORDINAT_WD_OLD_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_old.txt')):
-    KORDINAT_WD_OLD_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
-if not os.path.exists(KORDINAT_CREATE_ACCOUNT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_create_account.txt')):
-    KORDINAT_CREATE_ACCOUNT_FILE = os.path.join(CORE_DIR, 'kordinat_create_account.txt')
-if not os.path.exists(KORDINAT_QRIS_MORPH_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')):
-    KORDINAT_QRIS_MORPH_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
-EMAILS_FILE = os.path.join(CORE_DIR, 'emails.txt')
-
-if CORE_DIR not in sys.path:
-    sys.path.insert(0, CORE_DIR)
 
 from screen_manager import (
     record_and_apply_bot_screen,
@@ -66,7 +53,7 @@ if not IS_TERMUX:
             os.environ["PATH"] = p + os.pathsep + os.environ.get("PATH", "")
 
 def get_scrcpy_exe():
-    p = os.path.join(PROJECT_ROOT, "core", "scrcpy-win64-v3.3.4", "scrcpy.exe")
+    p = os.path.join(SCRCPY_DIR, "scrcpy.exe")
     if os.path.exists(p):
         return p
     which = shutil.which("scrcpy.exe") or shutil.which("scrcpy")
@@ -1019,9 +1006,9 @@ def konek_adb_scrcpy():
         input("\nProses selesai. Tekan Enter untuk kembali ke menu...")
 
 def menu_manual_rekam():
-    wd_script = os.path.join(CORE_DIR, 'wd_xlm.py')
-    ca_script = os.path.join(CORE_DIR, 'create_account.py')
-    qris_script = os.path.join(CORE_DIR, 'qris_morph.py')
+    wd_script = os.path.join(PYTHON_DIR, 'wd_xlm.py')
+    ca_script = os.path.join(PYTHON_DIR, 'create_account.py')
+    qris_script = os.path.join(PYTHON_DIR, 'qris_morph.py')
 
     while True:
         clear_screen()
@@ -1084,9 +1071,9 @@ def menu_manual_rekam():
             break
 
 def main():
-    wd_script = os.path.join(CORE_DIR, 'wd_xlm.py')
-    ca_script = os.path.join(CORE_DIR, 'create_account.py')
-    qris_script = os.path.join(CORE_DIR, 'qris_morph.py')
+    wd_script = os.path.join(PYTHON_DIR, 'wd_xlm.py')
+    ca_script = os.path.join(PYTHON_DIR, 'create_account.py')
+    qris_script = os.path.join(PYTHON_DIR, 'qris_morph.py')
     konek_script = os.path.join(PROJECT_ROOT, 'termux', 'konek_adb.py')
 
     register_auto_restore()
@@ -1166,7 +1153,7 @@ def main():
                 print("=========================================================")
                 if os.name == 'nt':
                     os.system(f'start "" "{web_url}"')
-                server_script = os.path.join(CORE_DIR, 'server.py')
+                server_script = os.path.join(PYTHON_DIR, 'server.py')
                 try:
                     subprocess.run([sys.executable, server_script], cwd=PROJECT_ROOT)
                 except KeyboardInterrupt:

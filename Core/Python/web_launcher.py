@@ -5,12 +5,8 @@ import socket
 import subprocess
 import shutil
 
-# Root & Core Directory Setup
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
+from paths import PYTHON_DIR, CORE_DIR, PROJECT_ROOT, ECOSYSTEM_PATH
 
-if CORE_DIR not in sys.path:
-    sys.path.insert(0, CORE_DIR)
 
 from server import get_local_machine_ip, PUBLIC_DOMAIN, PORT
 from screen_manager import get_detailed_connected_devices, record_and_apply_bot_screen
@@ -194,7 +190,7 @@ def main():
             for d in devices:
                 record_and_apply_bot_screen(serial=d["serial"], silent=True)
 
-            server_script = os.path.join(CORE_DIR, 'server.py')
+            server_script = os.path.join(PYTHON_DIR, 'server.py')
             try:
                 subprocess.run([sys.executable, server_script], cwd=PROJECT_ROOT)
             except KeyboardInterrupt:
@@ -218,7 +214,7 @@ def main():
             free_port(PORT)
 
             print("[*] Mendaftarkan layanan bitget-server ke PM2...")
-            ecosystem_file = os.path.join(CORE_DIR, 'ecosystem.config.js')
+            ecosystem_file = ECOSYSTEM_PATH
             run_cmd("pm2 delete bitget-server")
             run_cmd("npx pm2 delete bitget-server")
             

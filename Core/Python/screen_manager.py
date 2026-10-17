@@ -7,9 +7,8 @@ import signal
 import platform
 import subprocess
 
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CORE_DIR, '..'))
-SCREEN_CACHE_FILE = os.path.join(CORE_DIR, '.screen_cache.json')
+from paths import CORE_DIR, PROJECT_ROOT, SCRCPY_DIR, JSON_DIR
+SCREEN_CACHE_FILE = os.path.join(JSON_DIR, '.screen_cache.json')
 
 # Deteksi apakah berjalan di Termux
 IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/data/data/com.termux')
@@ -17,7 +16,8 @@ IS_TERMUX = 'com.termux' in os.environ.get('PREFIX', '') or os.path.exists('/dat
 # Setup PATH untuk scrcpy & adb jika di Windows
 if not IS_TERMUX:
     candidates = [
-        os.path.join(PROJECT_ROOT, "core", "scrcpy-win64-v3.3.4"),
+        SCRCPY_DIR,
+        os.path.join(PROJECT_ROOT, "Core", "scrcpy-win64-v3.3.4"),
         r"C:\Users\KAGE\Desktop\scrcpy-win64-v3.3.4",
         os.path.join(os.path.expanduser("~"), "Desktop", "scrcpy-win64-v3.3.4"),
     ]

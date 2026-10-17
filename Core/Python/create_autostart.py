@@ -1,15 +1,15 @@
 import os
 import subprocess
 
-core_dir = os.path.abspath(os.path.dirname(__file__))
-project_dir = os.path.abspath(os.path.join(core_dir, '..'))
+from paths import CORE_DIR, PROJECT_ROOT, VBS_CORE_PATH
+
 startup_dir = os.path.expanduser('~/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup')
 
 vbs_content = f'''Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "cmd /c cd /d ""{project_dir}"" && pm2 resurrect && pm2 start core\\ecosystem.config.js", 0, False
+WshShell.Run "cmd /c cd /d ""{PROJECT_ROOT}"" && pm2 resurrect && pm2 start Core\\ecosystem.config.js", 0, False
 '''
 
-vbs_core_path = os.path.join(core_dir, 'AUTOSTART_WINDOWS.vbs')
+vbs_core_path = VBS_CORE_PATH
 with open(vbs_core_path, 'w', encoding='utf-8') as f:
     f.write(vbs_content)
 

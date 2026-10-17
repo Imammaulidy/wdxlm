@@ -7,19 +7,15 @@ import json
 import atexit
 import re
 
-# Root & Core Directory Setup
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
-KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
+from paths import (
+    PROJECT_ROOT, CORE_DIR, JSON_DIR,
+    CONFIG_PATH as CONFIG_FILE,
+    KORDINAT_DIR,
+    CREATED_ACCOUNTS_PATH as ACCOUNTS_LOG_FILE,
+    EMAILS_PATH as EMAILS_FILE,
+    SCRCPY_DIR
+)
 KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_create_account.txt')
-if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_create_account.txt')):
-    KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_create_account.txt')
-ACCOUNTS_LOG_FILE = os.path.join(CORE_DIR, 'created_accounts.json')
-EMAILS_FILE = os.path.join(CORE_DIR, 'emails.txt')
-
-if CORE_DIR not in sys.path:
-    sys.path.insert(0, CORE_DIR)
 
 from screen_manager import (
     record_and_apply_bot_screen,

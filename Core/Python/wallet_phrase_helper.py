@@ -5,10 +5,8 @@ import json
 import subprocess
 from typing import List, Dict, Optional, Tuple
 
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CORE_DIR, '..'))
-WALLET_DIR = os.path.join(PROJECT_ROOT, 'DATA WALLET BITGET')
-CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
+from paths import CORE_DIR, PROJECT_ROOT, DATA_WALLET_DIR as WALLET_DIR, CONFIG_PATH as CONFIG_FILE
+
 
 def get_available_wallet_files() -> List[str]:
     """Mengambil daftar nama file .txt di folder DATA WALLET BITGET."""

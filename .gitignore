@@ -1,42 +1,62 @@
-# ==========================================
-# GITIGNORE - SCRIPT ADB WD XLM BITGET
-# Mencegah Kebocoran Data Sensitif & File Sampah
-# ==========================================
+# ==============================================================================
+# GITIGNORE - SCRIPT ADB WD XLM BITGET (PURE ENGINE & SANITASI LEVEL MAX)
+# ==============================================================================
 
-# 1. Kredensial & Data Sensitif Pribadi
-core/config.json
-core/emails.txt
-core/created_accounts.json
+# 1. Kredensial & Data Sensitif Pribadi (Zero Sensitive Data Leak)
+Core/Json/*.json
+!Core/Json/config.example.json
+core/Json/*.json
+!core/Json/config.example.json
+
+Core/Json/*.txt
+!Core/Json/emails.example.txt
+core/Json/*.txt
+!core/Json/emails.example.txt
+
+Core/Json/.*
+core/Json/.*
+
+# Wallet Data & Private Keys
+[Dd]ata [Ww]allet [Bb]itget/
 DATA WALLET BITGET/
+Data Wallet Bitget/
+
+# Tokens, Credentials & Databases
+*token*.txt
+cloudflare_token.txt
 *.db
 *.sqlite
 *.sqlite3
-cloudflare_token.txt
-core/cloudflare_token.txt
-*token*.txt
-core/bin/
 
-# 2. File Cache & Temporary Runtime
-core/.screen_cache.json
-core/.last_tuyul.txt
-core/temp_*.png
-temp_*.png
-*.tmp
+# Binaries & Executables
+Core/bin/*.exe
+core/bin/*.exe
+
+# 2. Virtual Environment & Cache
+.venv/
+env/
+venv/
 __pycache__/
-core/__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
+*.log
+*.tmp
 
-# 3. File Backup Lokal Sementara
-core/kordinat.backup_*.txt
-core/kordinat_backup_*.txt
-core/kordinat_create_account.backup.txt
-core/kordinat/*.backup*.txt
-
-# 4. File Hasil Generate Runtime
+# 3. File Cache & Temporary Runtime
+Core/.screen_cache.json
+core/.screen_cache.json
+Core/temp_*.png
+core/temp_*.png
+temp_*.png
+Core/qris_pay.png
 core/qris_pay.png
 
-# 5. OS & Editor Artifacts
+# 4. Backup Files
+Core/kordinat/*.backup*.txt
+core/kordinat/*.backup*.txt
+
+# 5. Editor & OS Artifacts
 .DS_Store
 Thumbs.db
 *.swp
@@ -44,4 +64,3 @@ Thumbs.db
 .vscode/
 .idea/
 Dev Version/
-

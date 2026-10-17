@@ -7,28 +7,21 @@ import json
 import atexit
 import re
 
-# Root Direktori Proyek
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
+from paths import (
+    PYTHON_DIR, CORE_DIR, PROJECT_ROOT, JSON_DIR,
+    CONFIG_PATH as CONFIG_FILE,
+    KORDINAT_DIR, SCRCPY_DIR
+)
 
-KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
 USE_OLD_MODE = "--old" in sys.argv
 if USE_OLD_MODE:
     KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_old.txt')
-    if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_old.txt')):
-        KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
     CONFIG_DISABLED_KEY = "disabled_steps_wd_old"
     MODE_NAME = "BOT WD XLM - MODE OLD (TEMPEL AUTH GOOGLE)"
 else:
     KORDINAT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_baru.txt')
-    if not os.path.exists(KORDINAT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')):
-        KORDINAT_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
     CONFIG_DISABLED_KEY = "disabled_steps_wd_baru"
     MODE_NAME = "BOT WD XLM - MODE BARU (IMPORT PROFIL TANPA AUTH)"
-
-if CORE_DIR not in sys.path:
-    sys.path.insert(0, CORE_DIR)
 
 from screen_manager import (
     record_and_apply_bot_screen,

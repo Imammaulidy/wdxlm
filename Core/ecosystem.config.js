@@ -35,8 +35,8 @@ module.exports = {
   apps: [
     {
       name: 'bitget-server',
-      script: 'core/server.py',
-      cwd: rootDir,
+      script: 'server.py',
+      cwd: path.resolve(__dirname, 'Python'),
       interpreter: pythonPath,
       windowsHide: true,
       autorestart: true,

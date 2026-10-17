@@ -12,29 +12,16 @@ from collections import deque
 from flask import Flask, jsonify, request, Response, send_from_directory
 
 # Path Direktori Proyek
-CORE_DIR = os.path.abspath(os.path.dirname(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CORE_DIR, '..'))
-WEB_DIR = os.path.join(CORE_DIR, 'web')
-CONFIG_FILE = os.path.join(CORE_DIR, 'config.json')
-KORDINAT_DIR = os.path.join(CORE_DIR, 'kordinat')
+from paths import (
+    PYTHON_DIR, CORE_DIR, PROJECT_ROOT, JSON_DIR,
+    WEB_DIR, CONFIG_PATH as CONFIG_FILE,
+    KORDINAT_DIR, EMAILS_PATH as EMAILS_FILE,
+    SCRCPY_DIR, BIN_DIR, CLOUDFLARE_TOKEN_PATH as CF_TOKEN_FILE
+)
 KORDINAT_WD_BARU_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_baru.txt')
 KORDINAT_WD_OLD_FILE = os.path.join(KORDINAT_DIR, 'kordinat_wd_old.txt')
 KORDINAT_CREATE_ACCOUNT_FILE = os.path.join(KORDINAT_DIR, 'kordinat_create_account.txt')
 KORDINAT_QRIS_MORPH_FILE = os.path.join(KORDINAT_DIR, 'kordinat_qris_morph.txt')
-
-# Fallback ke CORE_DIR jika file ada di root core
-if not os.path.exists(KORDINAT_WD_BARU_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')):
-    KORDINAT_WD_BARU_FILE = os.path.join(CORE_DIR, 'kordinat_wd_baru.txt')
-if not os.path.exists(KORDINAT_WD_OLD_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_wd_old.txt')):
-    KORDINAT_WD_OLD_FILE = os.path.join(CORE_DIR, 'kordinat_wd_old.txt')
-if not os.path.exists(KORDINAT_CREATE_ACCOUNT_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_create_account.txt')):
-    KORDINAT_CREATE_ACCOUNT_FILE = os.path.join(CORE_DIR, 'kordinat_create_account.txt')
-if not os.path.exists(KORDINAT_QRIS_MORPH_FILE) and os.path.exists(os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')):
-    KORDINAT_QRIS_MORPH_FILE = os.path.join(CORE_DIR, 'kordinat_qris_morph.txt')
-EMAILS_FILE = os.path.join(CORE_DIR, 'emails.txt')
-
-if CORE_DIR not in sys.path:
-    sys.path.insert(0, CORE_DIR)
 
 from screen_manager import (
     record_and_apply_bot_screen,
@@ -83,8 +70,7 @@ def get_scrcpy_path():
 
 # Domain & Cloudflare Tunnel
 PUBLIC_DOMAIN = "topnodtools.web.id"
-CF_TOKEN_FILE = os.path.join(CORE_DIR, "cloudflare_token.txt")
-CF_BIN = os.path.join(CORE_DIR, "bin", "cloudflared.exe")
+CF_BIN = os.path.join(BIN_DIR, "cloudflared.exe")
 
 # Setup Flask Server
 app = Flask(__name__, static_folder=WEB_DIR, static_url_path="")
@@ -851,7 +837,7 @@ def start_single_device_bot(serial, model, options):
         else:
             script_file = "wd_xlm.py"
             
-        cmd = [sys.executable, "-u", os.path.join(CORE_DIR, script_file), "--device", serial]
+        cmd = [sys.executable, "-u", os.path.join(PYTHON_DIR, script_file), "--device", serial]
         if bot_mode in ("wd_old", "old") and script_file == "wd_xlm.py":
             cmd.append("--old")
         if wallet_file and script_file == "wd_xlm.py":
