@@ -16,7 +16,7 @@ if %errorlevel% neq 0 (
     echo   [*] Meminta perizinan sistem Windows UAC...
     echo ======================================================================
     echo.
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/k %~s0 :direct' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/c %~s0 :direct' -Verb RunAs"
     exit /b
 )
 
@@ -117,5 +117,6 @@ echo  - Jika perangkat muncul status 'unauthorized': Buka HP, centang 'Selalu iz
 echo  - Jika perangkat kosong                      : Cabut ^& pasang kembali kabel USB
 echo.
 echo ======================================================================
-echo Tekan tombol apa saja untuk menutup jendela ini...
-pause >nul
+echo [+] Selesai! Jendela terminal otomatis ditutup dalam 2 detik...
+timeout /t 2 /nobreak >nul
+exit /b 0

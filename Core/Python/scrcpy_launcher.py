@@ -31,8 +31,10 @@ def load_config():
 
 def save_config(data):
     try:
+        current = load_config()
+        current.update(data)
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
+            json.dump(current, f, indent=4)
     except Exception:
         pass
 
@@ -90,144 +92,238 @@ def detect_wifi_ip(target_serial=None):
         m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
         if m:
             ip = m.group(1)
-            # Pastikan bukan localhost
+            # Pastikan bukan loopback
             if not ip.startswith("127."):
                 return ip
     return None
 
-def main():
-    print("=========================================================")
-    print("       SMART SCRCPY LAUNCHER (AUTO USB / WI-FI)          ")
-    print("=========================================================")
-
+def launch_scrcpy(target_serial):
+    """Meluncurkan SCRCPY secara headless tanpa jendela konsol hitam."""
     if not os.path.exists(SCRCPY_EXE):
         print(f"[!] File scrcpy.exe tidak ditemukan di: {SCRCPY_DIR}")
-        input("Tekan Enter untuk keluar...")
-        return
+        return False
 
-    config = load_config()
-    last_ip = config.get("last_wifi_ip", "")
-
-    usb_devices, tcp_devices = get_connected_devices()
-
-    # =========================================================================
-    # KASUS 1: PRIORITAS TERTINGGI - PERANGKAT USB TERCOLOK
-    # =========================================================================
-    if usb_devices:
-        usb_dev = usb_devices[0]
-        print(f"[+] Terdeteksi perangkat USB : {usb_dev}")
-        print("[*] MEMPRIORITASKAN KONEKSI KABEL USB (Ultra-Smooth 120 FPS, Zero Latency)...")
-
-        # Catat IP Wi-Fi untuk referensi tanpa me-restart daemon adb
-        try:
-            wifi_ip = detect_wifi_ip(usb_dev)
-            if wifi_ip:
-                if wifi_ip != last_ip:
-                    config["last_wifi_ip"] = wifi_ip
-                    save_config(config)
-                print(f"[*] Info Wi-Fi HP: {wifi_ip}:5555 tersimpan.")
-        except Exception:
-            pass
-
-        print(f"[*] Membuka SCRCPY via USB ({usb_dev}) dengan layar fisik dimatikan (120 FPS)...")
-        try:
-            flags = 0x08000000 if sys.platform == "win32" else 0
-            p = subprocess.Popen([SCRCPY_EXE, "-s", usb_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
+    cmd = [SCRCPY_EXE, "-s", target_serial, "-S", "-w", "--max-fps=120"]
+    flags = 0x08000000 if sys.platform == "win32" else 0
+    try:
+        p = subprocess.Popen(cmd, cwd=SCRCPY_DIR, creationflags=flags)
+        time.sleep(1.0)
+        if p.poll() is not None and p.poll() != 0:
+            # Fallback tanpa flag -S jika firmware device tidak mendukung
+            p = subprocess.Popen([SCRCPY_EXE, "-s", target_serial, "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
             time.sleep(1.0)
-            if p.poll() is not None and p.poll() != 0:
-                print("[-] Fallback: Membuka SCRCPY tanpa flag -S...")
-                p = subprocess.Popen([SCRCPY_EXE, "-s", usb_dev, "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
-                time.sleep(1.0)
 
-            if p.poll() is None:
-                print("[V] SCRCPY aktif di layar monitor Anda. Menyembunyikan terminal...")
-                hide_console()
-                p.wait()
-                return
-            else:
-                print(f"[!] Scrcpy gagal dimulai (kode keluar: {p.poll()}).")
-                input("\nTekan Enter untuk keluar...")
-                return
-        except Exception as e:
-            print(f"[!] Gagal menjalankan scrcpy: {e}")
-            input("\nTekan Enter untuk keluar...")
-        return
+        if p.poll() is None:
+            print("[+] SCRCPY aktif di layar monitor Anda (120 FPS).")
+            hide_console()
+            return True
+        else:
+            print(f"[!] Scrcpy gagal dimulai (kode keluar: {p.poll()}).")
+            return False
+    except Exception as e:
+        print(f"[!] Gagal menjalankan scrcpy: {e}")
+        return False
 
-    # =========================================================================
-    # KASUS 2: TIDAK ADA KABEL USB -> CEK KONEKSI TCP/IP AKTIF
-    # =========================================================================
-    for tcp_dev in tcp_devices:
-        ip_part = tcp_dev.split(":")[0]
-        port_part = int(tcp_dev.split(":")[1]) if ":" in tcp_dev else 5555
+def mode_usb_pure():
+    """Mode USB Murni (120 FPS, Zero Latency)"""
+    print("=========================================================")
+    print("      SCRCPY MODE USB MURNI (120 FPS - ZERO LATENCY)     ")
+    print("=========================================================")
+    usb_devs, tcp_devs = get_connected_devices()
+    if not usb_devs:
+        print("[!] Perangkat USB tidak terdeteksi!")
+        print("    1. Pastikan kabel USB tercolok ke HP dan PC.")
+        print("    2. Aktifkan Opsi Pengembang -> Debugging USB di HP.")
+        return False
+
+    usb_dev = usb_devs[0]
+    print(f"[+] Terdeteksi perangkat USB : {usb_dev}")
+    
+    # Putuskan sambungan wireless jika ada agar tidak bentrok
+    if tcp_devs:
+        print("[*] Memutuskan koneksi wireless agar terkunci ke kabel USB...")
+        run_cmd("adb disconnect", timeout=2)
+
+    # Catat Wi-Fi IP untuk referensi di masa depan
+    try:
+        ip = detect_wifi_ip(usb_dev)
+        if ip:
+            save_config({"last_wifi_ip": ip})
+    except Exception:
+        pass
+
+    print("[*] Meluncurkan SCRCPY via USB murni...")
+    ok = launch_scrcpy(usb_dev)
+    if ok:
+        time.sleep(1.5)
+        sys.exit(0)
+    return ok
+
+def mode_switch_wireless():
+    """Beralih dari USB ke Wireless dan Meluncurkan SCRCPY (120 FPS)"""
+    print("=========================================================")
+    print("    SWITCH KE WIRELESS & JALANKAN SCRCPY (120 FPS)      ")
+    print("=========================================================")
+    usb_devs, tcp_devs = get_connected_devices()
+
+    # Jika sudah ada koneksi wireless aktif
+    for dev in tcp_devs:
+        ip_part = dev.split(":")[0]
+        port_part = int(dev.split(":")[1]) if ":" in dev else 5555
         if is_port_reachable(ip_part, port_part, timeout=1.0):
-            print(f"[*] Terdeteksi koneksi nirkabel aktif: {tcp_dev}")
-            print(f"[*] Membuka SCRCPY via Wi-Fi ({tcp_dev}) dengan layar fisik dimatikan (120 FPS)...")
-            try:
-                flags = 0x08000000 if sys.platform == "win32" else 0
-                p = subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
-                time.sleep(1.0)
-                if p.poll() is not None and p.poll() != 0:
-                    p = subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev, "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
-                    time.sleep(1.0)
+            print(f"[+] Menggunakan koneksi wireless yang sudah aktif: {dev}")
+            print("[*] Meluncurkan SCRCPY...")
+            ok = launch_scrcpy(dev)
+            if ok:
+                time.sleep(1.5)
+                sys.exit(0)
+            return ok
 
-                if p.poll() is None:
-                    print("[V] SCRCPY nirkabel aktif di layar monitor Anda. Menyembunyikan terminal...")
-                    hide_console()
-                    p.wait()
-                    return
-                else:
-                    print(f"[!] Scrcpy nirkabel berhenti (kode keluar: {p.poll()}).")
-                    input("\nTekan Enter untuk keluar...")
-                    return
-            except Exception as e:
-                print(f"[!] Gagal membuka scrcpy: {e}")
-        else:
-            print(f"[-] Stale socket terdeteksi di {tcp_dev}, memutuskan...")
-            run_cmd(f"adb disconnect {tcp_dev}", timeout=2)
-
-    # =========================================================================
-    # KASUS 3: TIDAK ADA USB & BELUM KONEK TCP -> COBA HUBUNGKAN KE LAST_WIFI_IP
-    # =========================================================================
-    if last_ip:
-        print(f"[*] Mencari perangkat pada IP Wi-Fi terakhir yang diingat: {last_ip}:5555...")
-        if is_port_reachable(last_ip, 5555, timeout=1.5):
-            print(f"[*] Menghubungkan ADB ke {last_ip}:5555...")
+    # Butuh USB untuk inisialisasi awal
+    if not usb_devs:
+        config = load_config()
+        last_ip = config.get("last_wifi_ip", "")
+        if last_ip and is_port_reachable(last_ip, 5555, timeout=1.5):
+            print(f"[*] Mencoba menyambung ke IP terakhir: {last_ip}:5555...")
             run_cmd(f"adb connect {last_ip}:5555", timeout=3)
-            print(f"[*] Membuka SCRCPY via Wi-Fi ({last_ip}:5555)...")
-            try:
-                flags = 0x08000000 if sys.platform == "win32" else 0
-                p = subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555", "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
-                time.sleep(1.0)
-                if p.poll() is not None and p.poll() != 0:
-                    p = subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
-                    time.sleep(1.0)
+            ok = launch_scrcpy(f"{last_ip}:5555")
+            if ok:
+                time.sleep(1.5)
+                sys.exit(0)
+            return ok
+        print("[ERROR] Tidak ada perangkat USB yang terhubung untuk inisialisasi wireless!")
+        print("        Colokkan kabel USB ke HP sebentar untuk mengaktifkan port 5555.")
+        return False
 
-                if p.poll() is None:
-                    print("[V] SCRCPY berhasil dibuka via Wi-Fi. Menyembunyikan terminal...")
-                    hide_console()
-                    p.wait()
-                    return
-                else:
-                    print(f"[!] Scrcpy Wi-Fi berhenti (kode keluar: {p.poll()}).")
-                    input("\nTekan Enter untuk keluar...")
-                    return
-            except Exception as e:
-                print(f"[!] Gagal membuka scrcpy: {e}")
-        else:
-            print(f"[-] IP {last_ip}:5555 tidak dapat dijangkau dari jaringan ini.")
+    usb_dev = usb_devs[0]
+    print(f"[*] Mengambil IP Wi-Fi dari perangkat USB ({usb_dev})...")
+    ip = detect_wifi_ip(usb_dev)
+    if not ip:
+        print("[ERROR] Gagal mendeteksi IP Wi-Fi perangkat!")
+        print("        Pastikan HP sudah terhubung ke jaringan Wi-Fi yang sama dengan PC.")
+        return False
 
-    # =========================================================================
-    # KASUS 4: PERANGKAT TIDAK DITEMUKAN (ANTI-MENTAL DENGAN DIAGNOSTIK)
-    # =========================================================================
+    print(f"[+] IP Wi-Fi Terdeteksi: {ip}")
+    save_config({"last_wifi_ip": ip})
+
+    print("[*] Mengaktifkan mode TCP/IP pada port 5555...")
+    run_cmd(f"adb -s {usb_dev} tcpip 5555", timeout=5)
+    time.sleep(1.5)
+
+    print(f"[*] Menghubungkan ADB ke {ip}:5555...")
+    res = run_cmd(f"adb connect {ip}:5555", timeout=5)
+    print(f"    > {res}")
+    time.sleep(1.0)
+
+    target_dev = f"{ip}:5555"
     print("\n=========================================================")
-    print("           [!] PERANGKAT ANDROID TIDAK DITEMUKAN         ")
+    print(f" [SUKSES BESAR] Mode Wireless AKTIF di: {target_dev}")
+    print(" [INFO PENTING] ANDA SEKARANG SUDAH AMAN UNTUK MENCABUT KABEL USB!")
+    print("=========================================================\n")
+
+    print("[*] Meluncurkan SCRCPY Wireless (120 FPS)...")
+    ok = launch_scrcpy(target_dev)
+    if ok:
+        time.sleep(2.0)
+        sys.exit(0)
+    return ok
+
+def mode_setup_wireless_only():
+    """Hanya Mengaktifkan ADB Wireless tanpa Membuka Layar GUI"""
     print("=========================================================")
-    print("1. Pastikan kabel USB tercolok dari HP ke PC (USB Debugging ON).")
-    print("2. Jika menggunakan mode nirkabel, pastikan HP dan PC terhubung ke Wi-Fi yang sama.")
-    print("3. Jika port ADB terkunci/error, jalankan Menu [7] di START BOT.bat untuk reset total.")
+    print("       AKTIFKAN ADB WIRELESS (UNTUK PENGGUNAAN BOT)      ")
     print("=========================================================")
-    input("\nTekan Enter untuk keluar...")
+    usb_devs, tcp_devs = get_connected_devices()
+    if tcp_devs:
+        print(f"[+] ADB Wireless sudah aktif di: {tcp_devs[0]}")
+        return True
+
+    if not usb_devs:
+        print("[ERROR] Colokkan kabel USB ke HP terlebih dahulu!")
+        return False
+
+    usb_dev = usb_devs[0]
+    ip = detect_wifi_ip(usb_dev)
+    if not ip:
+        print("[ERROR] Gagal membaca IP Wi-Fi! Pastikan Wi-Fi HP aktif.")
+        return False
+
+    print(f"[+] IP Wi-Fi HP: {ip}")
+    save_config({"last_wifi_ip": ip})
+
+    print("[*] Mengaktifkan TCP/IP port 5555...")
+    run_cmd(f"adb -s {usb_dev} tcpip 5555", timeout=5)
+    time.sleep(1.5)
+
+    print(f"[*] Menyambungkan ke {ip}:5555...")
+    res = run_cmd(f"adb connect {ip}:5555", timeout=5)
+    print(f"    > {res}")
+    print("\n[SUKSES] ADB Wireless aktif! Kabel USB sekarang boleh dicabut.\n")
+    return True
+
+def mode_disconnect():
+    print("[*] Memutuskan semua sambungan ADB TCP/IP...")
+    run_cmd("adb disconnect", timeout=3)
+    print("[OK] Semua koneksi wireless berhasil diputus.")
+
+def mode_info():
+    print("=========================================================")
+    print("                INFORMASI DETAIL PERANGKAT ADB           ")
+    print("=========================================================")
+    usb_devs, tcp_devs = get_connected_devices()
+    print(f" Perangkat USB      : {', '.join(usb_devs) if usb_devs else 'Tidak Terhubung'}")
+    print(f" Perangkat Wireless : {', '.join(tcp_devs) if tcp_devs else 'Tidak Terhubung'}")
+    dev = usb_devs[0] if usb_devs else (tcp_devs[0] if tcp_devs else None)
+    if dev:
+        model = run_cmd(f"adb -s {dev} shell getprop ro.product.model")
+        print(f" Model HP           : {model}")
+        bat = run_cmd(f"adb -s {dev} shell dumpsys battery")
+        m = re.search(r"level:\s+(\d+)", bat)
+        if m:
+            print(f" Baterai HP         : {m.group(1)}%")
+        ip = detect_wifi_ip(dev)
+        if ip:
+            print(f" IP Wi-Fi           : {ip}")
+    print("=========================================================")
+
+def main():
+    if len(sys.argv) > 1:
+        arg = sys.argv[1].lower()
+        if arg == "--get-ip":
+            target = sys.argv[2] if len(sys.argv) > 2 else None
+            ip = detect_wifi_ip(target)
+            if ip:
+                print(ip)
+            sys.exit(0)
+        elif arg == "--usb":
+            mode_usb_pure()
+            sys.exit(0)
+        elif arg == "--switch-wireless":
+            mode_switch_wireless()
+            sys.exit(0)
+        elif arg == "--setup-wireless-only":
+            mode_setup_wireless_only()
+            sys.exit(0)
+        elif arg == "--disconnect":
+            mode_disconnect()
+            sys.exit(0)
+        elif arg == "--info":
+            mode_info()
+            sys.exit(0)
+
+    # Default auto-detect
+    usb_devices, tcp_devices = get_connected_devices()
+    if usb_devices:
+        mode_usb_pure()
+    elif tcp_devices:
+        mode_switch_wireless()
+    else:
+        config = load_config()
+        last_ip = config.get("last_wifi_ip", "")
+        if last_ip:
+            mode_switch_wireless()
+        else:
+            mode_usb_pure()
 
 if __name__ == "__main__":
     main()
-
