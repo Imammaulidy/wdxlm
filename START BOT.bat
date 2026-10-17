@@ -182,19 +182,11 @@ goto MENU
 :: ======================================================================
 :RUN_SCRCPY
 cls
-echo ======================================================================
-echo              MEMBUKA SCRCPY MIRRORING LAYAR HP (120 FPS)
-echo ======================================================================
-echo.
-if exist "Core\Python\scrcpy_launcher.py" (
+if exist "Switch Mode USB To Wireless.bat" (
+    call "Switch Mode USB To Wireless.bat" :direct
+) else if exist "Core\Python\scrcpy_launcher.py" (
     "%PYTHON_EXE%" Core\Python\scrcpy_launcher.py
-) else if exist "Core\scrcpy-win64-v3.3.4\scrcpy.exe" (
-    start "" "Core\scrcpy-win64-v3.3.4\scrcpy.exe" --tcpip
 )
-echo.
-echo ======================================================================
-echo Tekan sembarang tombol untuk kembali ke menu utama...
-pause >nul
 goto MENU
 
 :: ======================================================================

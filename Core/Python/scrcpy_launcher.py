@@ -131,11 +131,12 @@ def main():
 
         print(f"[*] Membuka SCRCPY via USB ({usb_dev}) dengan layar fisik dimatikan (120 FPS)...")
         try:
-            p = subprocess.Popen([SCRCPY_EXE, "-s", usb_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+            flags = 0x08000000 if sys.platform == "win32" else 0
+            p = subprocess.Popen([SCRCPY_EXE, "-s", usb_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
             time.sleep(1.0)
             if p.poll() is not None and p.poll() != 0:
                 print("[-] Fallback: Membuka SCRCPY tanpa flag -S...")
-                p = subprocess.Popen([SCRCPY_EXE, "-s", usb_dev, "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+                p = subprocess.Popen([SCRCPY_EXE, "-s", usb_dev, "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
                 time.sleep(1.0)
 
             if p.poll() is None:
@@ -162,10 +163,11 @@ def main():
             print(f"[*] Terdeteksi koneksi nirkabel aktif: {tcp_dev}")
             print(f"[*] Membuka SCRCPY via Wi-Fi ({tcp_dev}) dengan layar fisik dimatikan (120 FPS)...")
             try:
-                p = subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+                flags = 0x08000000 if sys.platform == "win32" else 0
+                p = subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev, "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
                 time.sleep(1.0)
                 if p.poll() is not None and p.poll() != 0:
-                    p = subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev, "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+                    p = subprocess.Popen([SCRCPY_EXE, "-s", tcp_dev, "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
                     time.sleep(1.0)
 
                 if p.poll() is None:
@@ -193,10 +195,11 @@ def main():
             run_cmd(f"adb connect {last_ip}:5555", timeout=3)
             print(f"[*] Membuka SCRCPY via Wi-Fi ({last_ip}:5555)...")
             try:
-                p = subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555", "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+                flags = 0x08000000 if sys.platform == "win32" else 0
+                p = subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555", "-S", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
                 time.sleep(1.0)
                 if p.poll() is not None and p.poll() != 0:
-                    p = subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555", "-w", "--max-fps=120"], cwd=SCRCPY_DIR)
+                    p = subprocess.Popen([SCRCPY_EXE, "-s", f"{last_ip}:5555", "-w", "--max-fps=120"], cwd=SCRCPY_DIR, creationflags=flags)
                     time.sleep(1.0)
 
                 if p.poll() is None:

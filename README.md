@@ -49,8 +49,9 @@ START BOT.bat
 | **WD XLM Massal** | Tarik XLM otomatis (Mode Baru Impor Profil / Mode Old Authenticator) | Menu `[1]` / `bash run.sh --wd` |
 | **Bot QRIS Morph L2** | Automasi scan & payment QRIS cashback multi-chain | Menu `[2]` / `bash run.sh --qris` |
 | **Web Dashboard** | Web controller modern di Port 2000 (dukungan LAN & Cloudflare Tunnel) | Menu `[3]` / `[5]` |
-| **Mirroring Layar HP** | Tampilkan & kontrol layar HP via SCRCPY (120 FPS, Auto USB/Wi-Fi) | Menu `[4]` / `scrcpy.exe.lnk` |
+| **Mirroring Layar HP** | Tampilkan & kontrol layar HP via SCRCPY (120 FPS, Headless Console) | `scrcpy.exe.lnk` / Menu `[4]` |
+| **Switch USB <-> Wireless** | Beralih fleksibel antara USB 120 FPS vs Wi-Fi 120 FPS tanpa terminal | `Switch Mode USB To Wireless.bat` |
 | **Service PM2 Background** | Manajemen background service 24/7 terisolasi (`bitget-server`) | Menu `[5]`, `[6]`, `[7]` |
-| **Reset ADB Daemon** | Bersihkan port 5037/5555 dan restart adb server jika device macet | Menu `[8]` / `KILL_ADB.bat` |
+| **Reset ADB Daemon** | Bersihkan port 5037/5555 dan restart adb server jika device macet | `KILL_ADB.bat` / Menu `[8]` |
 
 > 💡 **Troubleshooting Cepat**: Jika device tidak terdeteksi, aktifkan **USB Debugging** (atau Wireless Debugging) dan jalankan `KILL_ADB.bat` (atau menu `[8]` di Windows / menu `[6]` di Termux). File konfigurasi dibuat otomatis dari `Core/Json/config.example.json` saat pertama kali dijalankan.
